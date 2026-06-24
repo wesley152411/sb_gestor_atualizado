@@ -2290,3 +2290,392 @@ img { max-width: 100%; display: block; }
 .linked-item-row:last-child {
   border-bottom: none;
 }
+
+/* ============================================================ */
+/* MINHA PÁGINA - MARKETPLACE PROFILE PAGE                       */
+/* ============================================================ */
+
+.mypage-cover-wrapper {
+  position: relative;
+  margin-bottom: 32px;
+}
+
+.mypage-cover {
+  width: 100%;
+  height: 260px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #4f46e5 60%, #818cf8 100%);
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+}
+
+.mypage-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mypage-cover-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  backdrop-filter: blur(2px);
+}
+
+.mypage-cover:hover .mypage-cover-overlay {
+  opacity: 1;
+}
+
+.mypage-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 20px 28px;
+  margin-top: -48px;
+  margin-left: 32px;
+  margin-right: 32px;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  border: 1px solid var(--border);
+}
+
+.mypage-profile-avatar-sharp {
+  width: 100px;
+  height: 100px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 4px solid white;
+  box-shadow: var(--shadow-sm);
+  margin-top: -50px;
+  background: white;
+}
+
+.mypage-profile-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mypage-profile-name {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.4px;
+}
+
+.mypage-profile-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.mypage-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Contact Row */
+.mypage-contact-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.mypage-contact-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.contact-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.contact-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contact-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.contact-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* About Card */
+.mypage-about-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin-bottom: 32px;
+  box-shadow: var(--shadow-sm);
+}
+
+.about-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.about-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+/* Stats Row */
+.mypage-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.mypage-stat-card {
+  background: white;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.mypage-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.mypage-stat-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mypage-stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+/* Items Header */
+.mypage-items-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mypage-items-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mypage-items-count-badge {
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.mypage-view-btn {
+  padding: 8px 10px !important;
+  min-width: 36px;
+  justify-content: center;
+}
+
+.mypage-view-btn.active {
+  background: var(--primary-light) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+/* Import Modal Item Row */
+.import-inv-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s ease;
+  border-radius: var(--radius-sm);
+}
+
+.import-inv-item:hover {
+  background: var(--bg-input);
+}
+
+.import-inv-item:last-child {
+  border-bottom: none;
+}
+
+.import-inv-img {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.import-inv-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.import-inv-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.import-inv-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.import-inv-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.import-inv-status.public {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.import-inv-status.private {
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+
+.import-inv-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  flex-shrink: 0;
+}
+
+.import-inv-btn.publish {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+}
+
+.import-inv-btn.publish:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.import-inv-btn.published {
+  background: var(--success-light);
+  color: var(--success);
+  cursor: default;
+}
+
+.import-inv-btn.unpublish {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.import-inv-btn.unpublish:hover {
+  background: #fde8e8;
+}
+
+/* Mypage marketplace item card - status overlay */
+.mypage-card-status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.mypage-card-status.confirmed {
+  background: rgba(16, 185, 129, 0.9);
+  color: white;
+}
+
+.mypage-card-status.pending {
+  background: rgba(245, 158, 11, 0.9);
+  color: white;
+}
