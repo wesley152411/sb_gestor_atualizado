@@ -17,6 +17,13 @@ export function getSupabaseClient() {
     return null;
   }
 
+  // Validate that the key looks valid (Supabase anon keys are JWTs starting with "eyJ")
+  if (!key.startsWith('eyJ')) {
+    console.warn('Supabase anon key appears invalid. Using localStorage fallback.');
+    connectionFailed = true;
+    return null;
+  }
+
   // Initialize client with credentials from environment
   supabaseInstance = createBrowserClient(url, key);
   return supabaseInstance;
