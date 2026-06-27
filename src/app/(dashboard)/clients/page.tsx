@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Search, Download, CheckSquare } from 'lucide-react';
-import { getPartyEvents, savePartyEvent } from '@/services/api';
+import { savePartyEvent } from '@/services/api';
+import { usePartyEvents } from '@/hooks/swr-hooks';
 import { generateLogisticsPDF } from '@/lib/pdf-generator';
 import { Button } from '@/components/ui/Button';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -13,20 +14,9 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import type { PartyEvent } from '@/types';
 
 export default function ClientsPage() {
-  const [events, setEvents] = useState<PartyEvent[]>([]);
+  const { events, isLoading, mutate } = usePartyEvents();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const { addNotification } = useNotificationStore();
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
-    const data = await getPartyEvents();
-    setEvents(data);
-    setIsLoading(false);
-  }
 
   const handleDownloadPDF = (eventData: PartyEvent) => {
     generateLogisticsPDF(eventData);
@@ -37,7 +27,7 @@ export default function ClientsPage() {
     if (confirm(`Deseja concluir o evento de "${eventData.client_name}" e devolver todas as peças ao estoque livre?`)) {
       await savePartyEvent({ ...eventData, status: 'Finalizado' });
       addNotification("Itens Devolvidos", `As peças da festa "${eventData.theme}" retornaram ao acervo.`);
-      loadData();
+      mutate();
     }
   };
 

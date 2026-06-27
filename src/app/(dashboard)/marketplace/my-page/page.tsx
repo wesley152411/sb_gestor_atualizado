@@ -7,25 +7,26 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
-import { 
-  getInventoryItems, getRentalOrders, saveDecoratorProfile, saveInventoryItem,
-  getDecoratorChatMessages
-} from '@/services/api';
+import { useInventory, useRentalOrders, useDecoratorChats } from '@/hooks/swr-hooks';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/utils';
 import type { InventoryItem, RentalOrder, ChatMessage } from '@/types';
+import { 
+  saveDecoratorProfile, saveInventoryItem 
+} from '@/services/api';
 
 export default function MyPage() {
   const { decorator, updateDecorator } = useAuthStore();
   const { addNotification } = useNotificationStore();
 
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [orders, setOrders] = useState<RentalOrder[]>([]);
-  const [chats, setChats] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { items, isLoading: isItemsLoading, mutate: mutateItems } = useInventory(decorator?.id);
+  const { orders, isLoading: isOrdersLoading, mutate: mutateOrders } = useRentalOrders(decorator?.id);
+  const { chats, isLoading: isChatsLoading, mutate: mutateChats } = useDecoratorChats(decorator?.id);
+
+  const isLoading = isItemsLoading || isOrdersLoading || isChatsLoading;
 
   // Search in import modal
   const [importSearch, setImportSearch] = useState('');
@@ -50,21 +51,7 @@ export default function MyPage() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    async function loadData() {
-      if (!decorator) return;
-      const [inv, ords, msgs] = await Promise.all([
-        getInventoryItems(decorator.id),
-        getRentalOrders(decorator.id),
-        getDecoratorChatMessages(decorator.id)
-      ]);
-      setItems(inv);
-      setOrders(ords);
-      setChats(msgs);
-      setIsLoading(false);
-    }
-    loadData();
-  }, [decorator]);
+
 
   if (isLoading) return <div className="p-8 text-center text-slate-500">Carregando perfil...</div>;
 
@@ -170,8 +157,7 @@ export default function MyPage() {
       // const { data, error } = await supabase.from('inventory_items').update({ status: nextStatus, rental_price: rentalPrice }).eq('id', item.id);
       // For this implementation, `saveInventoryItem` handles both local mock and Supabase backend updates dynamically.
       const saved = await saveInventoryItem(updated);
-      
-      setItems(prev => prev.map(i => i.id === saved.id ? saved : i));
+      mutateItems();
       addNotification(
         nextStatus === 'Público' ? 'Item Publicado' : 'Item Removido',
         `"${item.name}" foi ${nextStatus === 'Público' ? 'publicado no' : 'removido do'} Marketplace.`
@@ -195,8 +181,7 @@ export default function MyPage() {
         // Update database item to be Private:
         // const { error } = await supabase.from('inventory_items').update({ status: 'Privado' }).eq('id', item.id);
         const saved = await saveInventoryItem(updated);
-        
-        setItems(prev => prev.map(i => i.id === saved.id ? saved : i));
+        mutateItems();
         addNotification('Item Removido do Marketplace', `"${item.name}" agora está como Privado no seu inventário.`);
       } catch (err) {
         addNotification('Erro', 'Falha ao remover item do Marketplace.');
@@ -220,7 +205,7 @@ export default function MyPage() {
 
     try {
       const saved = await saveInventoryItem(itemToSave);
-      setItems(prev => prev.map(i => i.id === saved.id ? saved : i));
+      mutateItems();
       setIsItemModalOpen(false);
       addNotification('Item Salvo', `O item "${saved.name}" foi salvo com sucesso.`);
     } catch (err) {

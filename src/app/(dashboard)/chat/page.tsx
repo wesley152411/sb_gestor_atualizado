@@ -3,31 +3,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
-import { getDecorators, getChatMessages, sendChatMessage } from '@/services/api';
+import { sendChatMessage } from '@/services/api';
+import { useDecorators, useChatMessages } from '@/hooks/swr-hooks';
 import { Button } from '@/components/ui/Button';
 import type { Decorator, ChatMessage } from '@/types';
 
 export default function ChatPage() {
   const { decorator } = useAuthStore();
-  const [contacts, setContacts] = useState<Decorator[]>([]);
+  const { decorators } = useDecorators();
   const [activeContact, setActiveContact] = useState<Decorator | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { messages, mutate: mutateMessages } = useChatMessages(decorator?.id, activeContact?.id);
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    async function loadContacts() {
-      const decs = await getDecorators();
-      setContacts(decs.filter(d => d.id !== decorator?.id));
-    }
-    loadContacts();
-  }, [decorator]);
-
-  useEffect(() => {
-    if (decorator && activeContact) {
-      getChatMessages(decorator.id, activeContact.id).then(setMessages);
-    }
-  }, [decorator, activeContact]);
+  const contacts = decorators.filter(d => d.id !== decorator?.id);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,18 +25,18 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     if (!decorator || !activeContact || !inputValue.trim()) return;
 
-    const newMsg = await sendChatMessage(decorator.id, activeContact.id, inputValue.trim());
-    setMessages([...messages, newMsg]);
+    await sendChatMessage(decorator.id, activeContact.id, inputValue.trim());
+    await mutateMessages();
     setInputValue('');
 
     // Simulate auto-reply (Legacy behavior kept for now as per instructions)
     setTimeout(async () => {
-      const reply = await sendChatMessage(
+      await sendChatMessage(
         activeContact.id,
         decorator.id,
         'Olá! Esta é uma resposta automática do SB GESTOR. O parceiro foi notificado e responderá em breve.'
       );
-      setMessages(prev => [...prev, reply]);
+      mutateMessages();
     }, 2000);
   };
 

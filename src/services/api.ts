@@ -159,24 +159,22 @@ export function onAuthStateChange(callback: (event: string, session: unknown) =>
 // ==================== DECORATORS ====================
 
 export async function getDecorators(): Promise<Decorator[]> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('decorators').select('*');
-      if (!error && data && data.length > 0) return data;
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/decorators');
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   return getLocal('decorators', initialDecorators);
 }
 
 export async function saveDecoratorProfile(profile: Decorator): Promise<Decorator> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('decorators').upsert(profile).select();
-      if (!error && data) return data[0];
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/decorators', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
+    });
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const decorators = getLocal('decorators', initialDecorators);
   const idx = decorators.findIndex((d) => d.id === profile.id);
   if (idx !== -1) decorators[idx] = { ...decorators[idx], ...profile };
@@ -188,28 +186,25 @@ export async function saveDecoratorProfile(profile: Decorator): Promise<Decorato
 // ==================== INVENTORY ====================
 
 export async function getInventoryItems(decoratorId?: string): Promise<InventoryItem[]> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      let query = sb.from('inventory_items').select('*');
-      if (decoratorId) query = query.eq('decorator_id', decoratorId);
-      const { data, error } = await query;
-      if (!error && data) return data;
-    } catch { /* fallback */ }
-  }
+  try {
+    const url = decoratorId ? `/api/inventory?decoratorId=${decoratorId}` : '/api/inventory';
+    const res = await fetch(url);
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const items = getLocal('inventory', initialInventory);
   return decoratorId ? items.filter((i) => i.decorator_id === decoratorId) : items;
 }
 
 export async function saveInventoryItem(item: InventoryItem): Promise<InventoryItem> {
   if (!item.id) item.id = generateId('inv');
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('inventory_items').upsert(item).select();
-      if (!error && data) return data[0];
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item),
+    });
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const items = getLocal('inventory', initialInventory);
   const idx = items.findIndex((i) => i.id === item.id);
   if (idx !== -1) items[idx] = { ...items[idx], ...item };
@@ -219,13 +214,10 @@ export async function saveInventoryItem(item: InventoryItem): Promise<InventoryI
 }
 
 export async function deleteInventoryItem(itemId: string): Promise<boolean> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { error } = await sb.from('inventory_items').delete().eq('id', itemId);
-      if (!error) return true;
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch(`/api/inventory/${itemId}`, { method: 'DELETE' });
+    if (res.ok) return true;
+  } catch { /* fallback */ }
   const items = getLocal('inventory', initialInventory);
   setLocal('inventory', items.filter((i) => i.id !== itemId));
   return true;
@@ -234,15 +226,10 @@ export async function deleteInventoryItem(itemId: string): Promise<boolean> {
 // ==================== CHAT ====================
 
 export async function getChatMessages(decoratorA: string, decoratorB: string): Promise<ChatMessage[]> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('chat_messages').select('*')
-        .or(`and(sender_id.eq.${decoratorA},receiver_id.eq.${decoratorB}),and(sender_id.eq.${decoratorB},receiver_id.eq.${decoratorA})`)
-        .order('created_at', { ascending: true });
-      if (!error && data) return data;
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch(`/api/chats?decoratorA=${decoratorA}&decoratorB=${decoratorB}`);
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const messages = getLocal('chats', initialChatMessages);
   return messages.filter((m) =>
     (m.sender_id === decoratorA && m.receiver_id === decoratorB) ||
@@ -251,15 +238,10 @@ export async function getChatMessages(decoratorA: string, decoratorB: string): P
 }
 
 export async function getDecoratorChatMessages(decoratorId: string): Promise<ChatMessage[]> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('chat_messages').select('*')
-        .or(`sender_id.eq.${decoratorId},receiver_id.eq.${decoratorId}`)
-        .order('created_at', { ascending: true });
-      if (!error && data) return data;
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch(`/api/chats?decoratorId=${decoratorId}`);
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const messages = getLocal('chats', initialChatMessages);
   return messages.filter((m) => m.sender_id === decoratorId || m.receiver_id === decoratorId)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -267,13 +249,14 @@ export async function getDecoratorChatMessages(decoratorId: string): Promise<Cha
 
 export async function sendChatMessage(senderId: string, receiverId: string, messageText: string): Promise<ChatMessage> {
   const newMsg: ChatMessage = { id: generateId('msg'), sender_id: senderId, receiver_id: receiverId, message: messageText, created_at: new Date().toISOString() };
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('chat_messages').insert(newMsg).select();
-      if (!error && data) return data[0];
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newMsg),
+    });
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const messages = getLocal('chats', initialChatMessages);
   messages.push(newMsg);
   setLocal('chats', messages);
@@ -283,15 +266,10 @@ export async function sendChatMessage(senderId: string, receiverId: string, mess
 // ==================== RENTAL ORDERS ====================
 
 export async function getRentalOrders(decoratorId: string): Promise<RentalOrder[]> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('rental_orders').select('*')
-        .or(`renter_id.eq.${decoratorId},owner_id.eq.${decoratorId}`)
-        .order('created_at', { ascending: false });
-      if (!error && data) return data;
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch(`/api/orders?decoratorId=${decoratorId}`);
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const orders = getLocal('orders', initialRentalOrders);
   return orders.filter((o) => o.renter_id === decoratorId || o.owner_id === decoratorId);
 }
@@ -309,13 +287,14 @@ export async function saveRentalOrder(order: Partial<RentalOrder>): Promise<Rent
     created_at: new Date().toISOString(),
     items: order.items,
   };
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('rental_orders').insert(newOrder).select();
-      if (!error && data) return data[0];
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newOrder),
+    });
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const orders = getLocal('orders', initialRentalOrders);
   orders.unshift(newOrder);
   setLocal('orders', orders);
@@ -325,25 +304,23 @@ export async function saveRentalOrder(order: Partial<RentalOrder>): Promise<Rent
 // ==================== CLIENTS ====================
 
 export async function getClients(): Promise<Client[]> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('clients').select('*').order('name', { ascending: true });
-      if (!error && data) return data;
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/clients');
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   return getLocal('clients', initialClients);
 }
 
 export async function saveClient(client: Partial<Client>): Promise<Client> {
   const full: Client = { id: client.id || generateId('cli'), name: client.name || '', phone: client.phone || '', address: client.address || '', theme: client.theme || '', total_value: client.total_value || 0, event_date: client.event_date || '' };
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('clients').upsert(full).select();
-      if (!error && data) return data[0];
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(full),
+    });
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const clients = getLocal('clients', initialClients);
   const idx = clients.findIndex((c) => c.id === full.id);
   if (idx !== -1) clients[idx] = { ...clients[idx], ...full };
@@ -355,13 +332,10 @@ export async function saveClient(client: Partial<Client>): Promise<Client> {
 // ==================== PARTY EVENTS ====================
 
 export async function getPartyEvents(): Promise<PartyEvent[]> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('party_events').select('*').order('event_date', { ascending: true });
-      if (!error && data) return data;
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/party-events');
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   return getLocal('party_events', initialPartyEvents);
 }
 
@@ -372,13 +346,14 @@ export async function savePartyEvent(event: Partial<PartyEvent>): Promise<PartyE
     theme: event.theme || '', total_value: event.total_value || 0, event_date: event.event_date || '',
     status: event.status || 'Pendente', items: event.items || [],
   };
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('party_events').upsert(full).select();
-      if (!error && data) return data[0];
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/party-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(full),
+    });
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const events = getLocal('party_events', initialPartyEvents);
   const idx = events.findIndex((e) => e.id === full.id);
   if (idx !== -1) events[idx] = { ...events[idx], ...full };
@@ -390,15 +365,11 @@ export async function savePartyEvent(event: Partial<PartyEvent>): Promise<PartyE
 // ==================== KITS ====================
 
 export async function getKits(decoratorId?: string): Promise<Kit[]> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      let query = sb.from('kits').select('*');
-      if (decoratorId) query = query.eq('decorator_id', decoratorId);
-      const { data, error } = await query;
-      if (!error && data) return data;
-    } catch { /* fallback */ }
-  }
+  try {
+    const url = decoratorId ? `/api/kits?decoratorId=${decoratorId}` : '/api/kits';
+    const res = await fetch(url);
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const kits = getLocal('kits', initialKits);
   return decoratorId ? kits.filter((k) => k.decorator_id === decoratorId) : kits;
 }
@@ -409,13 +380,14 @@ export async function saveKit(kit: Partial<Kit>): Promise<Kit> {
     name: kit.name || '', description: kit.description || '', image_url: kit.image_url || '',
     value: kit.value ?? null, items: kit.items || [], created_at: kit.created_at || new Date().toISOString(),
   };
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.from('kits').upsert(full).select();
-      if (!error && data) return data[0];
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch('/api/kits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(full),
+    });
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
   const kits = getLocal('kits', initialKits);
   const idx = kits.findIndex((k) => k.id === full.id);
   if (idx !== -1) kits[idx] = { ...kits[idx], ...full };
@@ -425,13 +397,10 @@ export async function saveKit(kit: Partial<Kit>): Promise<Kit> {
 }
 
 export async function deleteKit(kitId: string): Promise<boolean> {
-  const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { error } = await sb.from('kits').delete().eq('id', kitId);
-      if (!error) return true;
-    } catch { /* fallback */ }
-  }
+  try {
+    const res = await fetch(`/api/kits/${kitId}`, { method: 'DELETE' });
+    if (res.ok) return true;
+  } catch { /* fallback */ }
   const kits = getLocal('kits', initialKits);
   setLocal('kits', kits.filter((k) => k.id !== kitId));
   return true;

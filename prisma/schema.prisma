@@ -1,0 +1,109 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Decorator {
+  id               String   @id @default(uuid())
+  name             String
+  avatar_url       String
+  membership_level String
+  location         String?
+  instagram        String?
+  whatsapp         String?
+  phone            String?
+  about            String?
+  cover_url        String?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  reach            Int      @default(0)
+  contact_rate     Float    @default(0.0)
+  positive_reviews Int      @default(0)
+
+  @@map("decorators")
+}
+
+model InventoryItem {
+  id             String   @id @default(uuid())
+  decorator_id   String
+  name           String
+  description    String
+  image_url      String
+  status         String
+  stock_quantity Int
+  rental_price   Float
+  internal_cost  Float
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("inventory_items")
+}
+
+model RentalOrder {
+  id          String   @id @default(uuid())
+  renter_id   String
+  owner_id    String
+  total_value Float
+  status      String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  item_id     String?
+  event_date  String?
+  observation String?
+
+  @@map("rental_orders")
+}
+
+model ChatMessage {
+  id          String   @id @default(uuid())
+  sender_id   String
+  receiver_id String
+  message     String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("chat_messages")
+}
+
+model Client {
+  id          String   @id @default(uuid())
+  name        String
+  phone       String
+  address     String
+  theme       String
+  total_value Float
+  event_date  String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("clients")
+}
+
+model PartyEvent {
+  id          String   @id @default(uuid())
+  client_name String
+  phone       String
+  address     String
+  setup_time  String
+  start_time  String
+  theme       String
+  total_value Float
+  event_date  String
+  status      String
+  items       Json
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("party_events")
+}
+
+model Kit {
+  id           String   @id @default(uuid())
+  decorator_id String
+  name         String
+  description  String
+  image_url    String
+  value        Float?
+  items        Json
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("kits")
+}

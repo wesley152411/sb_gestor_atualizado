@@ -8,9 +8,9 @@ import {
 import { useRouter } from 'next/navigation';
 import { usePartyFormStore } from '@/stores/party-form-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useInventory, useKits } from '@/hooks/swr-hooks';
 import { 
-  getInventoryItems, getKits, saveInventoryItem, 
-  deleteInventoryItem, deleteKit, saveKit 
+  saveInventoryItem, deleteInventoryItem, deleteKit, saveKit 
 } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -26,10 +26,11 @@ export default function InventoryPage() {
   const { addNotification } = useNotificationStore();
   
   const [activeTab, setActiveTab] = useState('items');
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [kits, setKits] = useState<Kit[]>([]);
+  const { items, isLoading: isItemsLoading, mutate: mutateItems } = useInventory(decorator?.id);
+  const { kits, isLoading: isKitsLoading, mutate: mutateKits } = useKits(decorator?.id);
+  
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = isItemsLoading || isKitsLoading;
 
   // Edit Item Modal (Standard Piece)
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -45,21 +46,6 @@ export default function InventoryPage() {
   const [kitSearchQuery, setKitSearchQuery] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [editingKitId, setEditingKitId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (decorator) loadData();
-  }, [decorator]);
-
-  async function loadData() {
-    if (!decorator) return;
-    const [itemsData, kitsData] = await Promise.all([
-      getInventoryItems(decorator.id),
-      getKits(decorator.id)
-    ]);
-    setItems(itemsData);
-    setKits(kitsData);
-    setIsLoading(false);
-  }
 
   const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredKits = kits.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -81,14 +67,14 @@ export default function InventoryPage() {
     await saveInventoryItem(itemToSave);
     addNotification('Item Salvo', `A peça "${itemToSave.name}" foi salva com sucesso.`);
     setIsItemModalOpen(false);
-    loadData();
+    mutateItems();
   };
 
   const handleDeleteItem = async (id: string, name: string) => {
     if (confirm(`Tem certeza que deseja excluir "${name}"?`)) {
       await deleteInventoryItem(id);
       addNotification('Item Excluído', `A peça "${name}" foi removida do acervo.`, true);
-      loadData();
+      mutateItems();
     }
   };
 
@@ -96,7 +82,7 @@ export default function InventoryPage() {
     if (confirm(`Tem certeza que deseja excluir o kit "${name}"?`)) {
       await deleteKit(id);
       addNotification('Kit Excluído', `O kit "${name}" foi removido.`, true);
-      loadData();
+      mutateKits();
     }
   };
 
@@ -217,7 +203,7 @@ export default function InventoryPage() {
       internal_cost: 10.0
     };
     const saved = await saveInventoryItem(newItem);
-    setItems(prev => [...prev, saved]);
+    await mutateItems();
     handleLinkKitItem({ id: saved.id, name: saved.name, quantity: 1, image_url: saved.image_url });
     setKitSearchQuery('');
     addNotification('Item Criado', `A peça "${saved.name}" foi salva e vinculada ao kit.`);
@@ -253,7 +239,7 @@ export default function InventoryPage() {
     
     setIsKitModalOpen(false);
     setActiveTab('kits');
-    loadData();
+    mutateKits();
   };
 
   const handleAddKitToForm = (kit: Kit) => {

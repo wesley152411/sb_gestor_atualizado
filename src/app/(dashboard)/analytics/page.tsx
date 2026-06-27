@@ -1,30 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { DollarSign, PieChart, TrendingUp, Users } from 'lucide-react';
 import { KpiCard } from '@/components/analytics/KpiCard';
 import { FinancialChart, ThemesChart, VolumeChart } from '@/components/analytics/Charts';
-import { getClients, getPartyEvents } from '@/services/api';
+import { useClients, usePartyEvents } from '@/hooks/swr-hooks';
 import { formatCurrency } from '@/lib/utils';
 import type { Client, PartyEvent } from '@/types';
 
 export default function AnalyticsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [events, setEvents] = useState<PartyEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { clients, isLoading: isClientsLoading } = useClients();
+  const { events, isLoading: isEventsLoading } = usePartyEvents();
 
-  useEffect(() => {
-    async function loadData() {
-      const [clientsData, eventsData] = await Promise.all([
-        getClients(),
-        getPartyEvents(),
-      ]);
-      setClients(clientsData);
-      setEvents(eventsData);
-      setIsLoading(false);
-    }
-    loadData();
-  }, []);
+  const isLoading = isClientsLoading || isEventsLoading;
 
   if (isLoading) {
     return <div className="p-8 text-center text-slate-500">Carregando dashboard...</div>;
