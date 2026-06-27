@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { 
   Plus, Search, SlidersHorizontal, Package, LayoutGrid, 
-  DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, Minus, X
+  DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, Minus, X, ShoppingCart
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { usePartyFormStore } from '@/stores/party-form-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { 
   getInventoryItems, getKits, saveInventoryItem, 
@@ -18,6 +20,8 @@ import { formatCurrency, getPlaceholderImage } from '@/lib/utils';
 import type { InventoryItem, Kit } from '@/types';
 
 export default function InventoryPage() {
+  const router = useRouter();
+  const { addItem: addPartyFormItem, clear: clearPartyForm } = usePartyFormStore();
   const { decorator } = useAuthStore();
   const { addNotification } = useNotificationStore();
   
@@ -40,6 +44,7 @@ export default function InventoryPage() {
   const [linkedItems, setLinkedItems] = useState<{ id: string; name: string; quantity: number; image_url?: string }[]>([]);
   const [kitSearchQuery, setKitSearchQuery] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [editingKitId, setEditingKitId] = useState<string | null>(null);
 
   useEffect(() => {
     if (decorator) loadData();
@@ -103,6 +108,32 @@ export default function InventoryPage() {
     setCoverImageUrl('');
     setLinkedItems([]);
     setKitSearchQuery('');
+    setEditingKitId(null);
+    setIsKitModalOpen(true);
+  };
+
+  const handleOpenEditKitModal = (kit: Kit) => {
+    setKitName(kit.name);
+    setKitDescription(kit.description || '');
+    setKitValue(kit.value !== null && kit.value !== undefined ? kit.value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }) : '');
+    setCoverImageUrl(kit.image_url);
+    
+    const mappedItems = kit.items.map(ki => {
+      const match = items.find(i => i.id === ki.id);
+      return {
+        id: ki.id,
+        name: ki.name,
+        quantity: ki.quantity,
+        image_url: match?.image_url
+      };
+    });
+    setLinkedItems(mappedItems);
+    
+    setKitSearchQuery('');
+    setEditingKitId(kit.id);
     setIsKitModalOpen(true);
   };
 
@@ -204,6 +235,7 @@ export default function InventoryPage() {
       : null;
 
     const kitData: Partial<Kit> = {
+      id: editingKitId || undefined,
       decorator_id: decorator.id,
       name: kitName.trim(),
       description: kitDescription.trim(),
@@ -222,6 +254,18 @@ export default function InventoryPage() {
     setIsKitModalOpen(false);
     setActiveTab('kits');
     loadData();
+  };
+
+  const handleAddKitToForm = (kit: Kit) => {
+    clearPartyForm();
+    kit.items.forEach(ki => {
+      const match = items.find(i => i.id === ki.id);
+      if (match) {
+        addPartyFormItem(match, ki.quantity);
+      }
+    });
+    addNotification('Kit Importado', `As peças do kit "${kit.name}" foram enviadas para o formulário.`);
+    router.push('/party-form');
   };
 
   const kitSearchResults = kitSearchQuery.trim() === ''
@@ -446,7 +490,26 @@ export default function InventoryPage() {
                       </div>
                     )}
                   </div>
+                  
+                  {/* Adicionar ao Formulário Button */}
+                  <button 
+                    type="button"
+                    onClick={() => handleAddKitToForm(kit)}
+                    className="btn-primary"
+                    style={{ width: '100%', marginTop: '14px', marginBottom: '8px', justifyContent: 'center', backgroundColor: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 12px' }}
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Adicionar ao formulário
+                  </button>
+
                   <div className="acervo-card-actions">
+                    <button 
+                      className="acervo-action-btn" 
+                      onClick={() => handleOpenEditKitModal(kit)}
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Editar
+                    </button>
                     <button 
                       className="acervo-action-btn danger" 
                       onClick={() => handleDeleteKit(kit.id, kit.name)}
@@ -537,7 +600,7 @@ export default function InventoryPage() {
       <Modal
         isOpen={isKitModalOpen}
         onClose={() => setIsKitModalOpen(false)}
-        title="Criar Nova Peça/Kit"
+        title={editingKitId ? "Editar Kit" : "Criar Nova Peça/Kit"}
         className="max-w-xl"
         footer={
           <>

@@ -250,6 +250,21 @@ export async function getChatMessages(decoratorA: string, decoratorB: string): P
   ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
+export async function getDecoratorChatMessages(decoratorId: string): Promise<ChatMessage[]> {
+  const sb = getSupabaseClient();
+  if (sb) {
+    try {
+      const { data, error } = await sb.from('chat_messages').select('*')
+        .or(`sender_id.eq.${decoratorId},receiver_id.eq.${decoratorId}`)
+        .order('created_at', { ascending: true });
+      if (!error && data) return data;
+    } catch { /* fallback */ }
+  }
+  const messages = getLocal('chats', initialChatMessages);
+  return messages.filter((m) => m.sender_id === decoratorId || m.receiver_id === decoratorId)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
 export async function sendChatMessage(senderId: string, receiverId: string, messageText: string): Promise<ChatMessage> {
   const newMsg: ChatMessage = { id: generateId('msg'), sender_id: senderId, receiver_id: receiverId, message: messageText, created_at: new Date().toISOString() };
   const sb = getSupabaseClient();

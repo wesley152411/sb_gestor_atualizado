@@ -7,6 +7,9 @@ export const initialDecorators: Decorator[] = [
     avatar_url: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&q=80',
     membership_level: 'Pro Member',
     location: 'São Paulo - Zona Sul, SP',
+    reach: 264,
+    contact_rate: 33.3,
+    positive_reviews: 9,
   },
   {
     id: 'dec-2',
@@ -14,6 +17,9 @@ export const initialDecorators: Decorator[] = [
     avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&h=150&fit=crop&q=80',
     membership_level: 'Membro Premium',
     location: 'Campinas, SP',
+    reach: 520,
+    contact_rate: 45.5,
+    positive_reviews: 15,
   },
   {
     id: 'dec-3',
@@ -21,6 +27,9 @@ export const initialDecorators: Decorator[] = [
     avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&h=150&fit=crop&q=80',
     membership_level: 'Membro Standard',
     location: 'Santo André, SP',
+    reach: 180,
+    contact_rate: 25.0,
+    positive_reviews: 6,
   },
 ];
 

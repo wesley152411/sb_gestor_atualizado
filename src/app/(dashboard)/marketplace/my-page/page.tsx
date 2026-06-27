@@ -3,19 +3,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Camera, MapPin, AtSign, Phone, Info, Plus, Pencil, 
-  Eye, EyeOff, Search, Smartphone
+  Eye, EyeOff, Search, Smartphone, Download, Store, ToggleLeft, List
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { 
-  getInventoryItems, getRentalOrders, saveDecoratorProfile, saveInventoryItem 
+  getInventoryItems, getRentalOrders, saveDecoratorProfile, saveInventoryItem,
+  getDecoratorChatMessages
 } from '@/services/api';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/utils';
-import type { InventoryItem, RentalOrder } from '@/types';
+import type { InventoryItem, RentalOrder, ChatMessage } from '@/types';
 
 export default function MyPage() {
   const { decorator, updateDecorator } = useAuthStore();
@@ -23,6 +24,7 @@ export default function MyPage() {
 
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [orders, setOrders] = useState<RentalOrder[]>([]);
+  const [chats, setChats] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Search in import modal
@@ -51,12 +53,14 @@ export default function MyPage() {
   useEffect(() => {
     async function loadData() {
       if (!decorator) return;
-      const [inv, ords] = await Promise.all([
+      const [inv, ords, msgs] = await Promise.all([
         getInventoryItems(decorator.id),
-        getRentalOrders(decorator.id)
+        getRentalOrders(decorator.id),
+        getDecoratorChatMessages(decorator.id)
       ]);
       setItems(inv);
       setOrders(ords);
+      setChats(msgs);
       setIsLoading(false);
     }
     loadData();
@@ -66,12 +70,11 @@ export default function MyPage() {
 
   const publicItems = items.filter(i => i.status === 'Público');
   
-  // Simulated stats
-  const recentOrders = orders.filter(o => new Date(o.created_at).getMonth() === new Date().getMonth());
-  const reach = publicItems.length > 0 ? Math.max(50, publicItems.length * 48 + recentOrders.length * 120) : 0;
+  // Real stats consumed directly from the database (decorator object):
+  const reach = decorator?.reach ?? 0;
   const reachText = reach > 999 ? (reach / 1000).toFixed(1) + 'k' : reach.toString();
-  const inquiryRate = publicItems.length > 0 ? ((recentOrders.length / Math.max(1, publicItems.length)) * 100).toFixed(1) : '0.0';
-  const reviewCount = Math.max(0, recentOrders.length * 3 + publicItems.length * 2);
+  const inquiryRate = (decorator?.contact_rate ?? 0).toFixed(1);
+  const reviewCount = decorator?.positive_reviews ?? 0;
 
   // Image Upload Handlers
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,7 +163,14 @@ export default function MyPage() {
     };
 
     try {
+      // ==========================================
+      // INTEGRATION POINT: DATABASE UPDATE / FETCH
+      // ==========================================
+      // If updating directly via Supabase / Fetch API:
+      // const { data, error } = await supabase.from('inventory_items').update({ status: nextStatus, rental_price: rentalPrice }).eq('id', item.id);
+      // For this implementation, `saveInventoryItem` handles both local mock and Supabase backend updates dynamically.
       const saved = await saveInventoryItem(updated);
+      
       setItems(prev => prev.map(i => i.id === saved.id ? saved : i));
       addNotification(
         nextStatus === 'Público' ? 'Item Publicado' : 'Item Removido',
@@ -179,7 +189,13 @@ export default function MyPage() {
         status: 'Privado' as const
       };
       try {
+        // ==========================================
+        // INTEGRATION POINT: DATABASE UPDATE / FETCH
+        // ==========================================
+        // Update database item to be Private:
+        // const { error } = await supabase.from('inventory_items').update({ status: 'Privado' }).eq('id', item.id);
         const saved = await saveInventoryItem(updated);
+        
         setItems(prev => prev.map(i => i.id === saved.id ? saved : i));
         addNotification('Item Removido do Marketplace', `"${item.name}" agora está como Privado no seu inventário.`);
       } catch (err) {
@@ -325,7 +341,47 @@ export default function MyPage() {
         </div>
 
         <div className="mt-12">
-          <h2 className="text-xl font-bold mb-6">Peças no Marketplace ({publicItems.length})</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '24px', flexWrap: 'wrap', gap: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+            {/* Lado Esquerdo (Título e Badge) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Store className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+              <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>Meus Itens no Marketplace</h2>
+              <span style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
+                {publicItems.length} {publicItems.length === 1 ? 'visível' : 'visíveis'}
+              </span>
+            </div>
+
+            {/* Lado Direito (Botões de Ação) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {/* Botão com formato de toggle/switch vazio */}
+              <button 
+                type="button"
+                className="btn-icon"
+                style={{ width: '38px', height: '38px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Alternar Visualização"
+              >
+                <ToggleLeft className="w-5 h-5" style={{ color: 'var(--text-light)' }} />
+              </button>
+
+              {/* Botão com ícone de lista */}
+              <button 
+                type="button"
+                className="btn-icon"
+                style={{ width: '38px', height: '38px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Visualizar como Lista"
+              >
+                <List className="w-5 h-5" style={{ color: 'var(--text-light)' }} />
+              </button>
+
+              {/* Botão Principal */}
+              <Button 
+                icon={Plus} 
+                onClick={() => setIsImportModalOpen(true)}
+              >
+                Adicionar Item
+              </Button>
+            </div>
+          </div>
           <div className="cards-grid">
             {publicItems.length === 0 ? (
               <div className="col-span-full py-12 text-center text-slate-500 border border-dashed rounded-lg">
@@ -443,59 +499,90 @@ export default function MyPage() {
       <Modal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        title="Importar Itens do Inventário"
-        className="max-w-2xl"
+        title={
+          <div className="flex items-center gap-2.5">
+            <Download className="w-5 h-5 text-indigo-600" />
+            <span className="font-bold text-lg text-slate-900">Importar do Inventário</span>
+          </div>
+        }
+        className="max-w-3xl w-full"
+        footer={
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(false)}>
+            Fechar
+          </Button>
+        }
       >
-        <div className="space-y-4">
+        <div className="space-y-5">
+          <p className="text-sm text-slate-500 font-normal leading-relaxed -mt-2">
+            Selecione os itens do seu inventário que deseja publicar no Marketplace. Ao importar, o item ficará visível para outras decoradoras alugarem.
+          </p>
+
           <Input
             icon={Search}
-            placeholder="Buscar nos meus itens..."
+            placeholder="Buscar item no inventário..."
             value={importSearch}
             onChange={(e) => setImportSearch(e.target.value)}
+            className="w-full focus:border-indigo-600 focus:ring-indigo-600/20"
           />
-          <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2">
+
+          <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2 border border-slate-100 rounded-lg p-2 bg-slate-50/50">
             {filteredImportItems.length === 0 ? (
-              <div className="text-center py-8 text-slate-500 text-sm">
+              <div className="text-center py-12 text-slate-500 text-sm">
                 Nenhum item encontrado no seu acervo.
               </div>
             ) : (
               filteredImportItems.map(item => {
                 const isPublic = item.status === 'Público';
                 return (
-                  <div key={item.id} className="import-inv-item">
-                    <img 
-                      className="import-inv-img" 
-                      src={item.image_url} 
-                      alt={item.name} 
-                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                    />
+                  <div key={item.id} className="import-inv-item bg-white border border-slate-100 rounded-lg hover:border-slate-200 transition">
+                    {item.image_url ? (
+                      <img 
+                        className="import-inv-img" 
+                        src={item.image_url} 
+                        alt={item.name} 
+                        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                      />
+                    ) : null}
                     <div className="import-inv-info">
                       <span className="import-inv-name">{item.name}</span>
-                      <span className="import-inv-meta">
+                      <span className="import-inv-meta block mt-0.5">
                         Estoque: {item.stock_quantity} un • {formatCurrency(item.rental_price)}/locação
                       </span>
-                      <span className={`import-inv-status ${isPublic ? 'public' : 'private'}`}>
-                        {isPublic ? (
-                          <>
-                            <Eye className="w-3.5 h-3.5 inline mr-1" />
-                            Publicado
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="w-3.5 h-3.5 inline mr-1" />
-                            Privado
-                          </>
-                        )}
-                      </span>
+                      <div className="mt-1">
+                        <span className={`import-inv-status ${isPublic ? 'public' : 'private'}`}>
+                          {isPublic ? (
+                            <>
+                              <Eye className="w-3.5 h-3.5 inline mr-1" />
+                              Publicado
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="w-3.5 h-3.5 inline mr-1" />
+                              Privado
+                            </>
+                          )}
+                        </span>
+                      </div>
                     </div>
-                    <Button
-                      variant={isPublic ? 'secondary' : 'primary'}
-                      size="sm"
-                      icon={isPublic ? EyeOff : Eye}
+                    
+                    {/* Database Update Action Button */}
+                    <button
+                      className={`import-inv-btn ${isPublic ? 'unpublish' : 'publish'}`}
+                      style={isPublic ? { border: '1px solid var(--danger)', backgroundColor: 'transparent' } : undefined}
                       onClick={() => handleTogglePublish(item)}
                     >
-                      {isPublic ? 'Despublicar' : 'Publicar'}
-                    </Button>
+                      {isPublic ? (
+                        <span className="flex items-center gap-1">
+                          <EyeOff className="w-3.5 h-3.5" />
+                          Despublicar
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-3.5 h-3.5" />
+                          Publicar
+                        </span>
+                      )}
+                    </button>
                   </div>
                 );
               })

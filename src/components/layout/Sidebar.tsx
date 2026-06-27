@@ -4,13 +4,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, Package, ShoppingCart, Users, 
-  Settings, Plus, LifeBuoy, LogOut 
+  Settings, LifeBuoy, LogOut, ShoppingBag, Store, MessageSquare 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const menuItems = [
   { href: '/analytics', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/inventory', label: 'Meu Acervo', icon: Package },
+  { href: '/marketplace', label: 'Marketplace', icon: ShoppingBag },
+  { href: '/marketplace/my-page', label: 'Minha Página', icon: Store },
+  { href: '/chat', label: 'Chat B2B', icon: MessageSquare },
   { href: '/party-form', label: 'Formulário', icon: ShoppingCart },
   { href: '/clients', label: 'Clientes', icon: Users },
   { href: '/settings', label: 'Configurações', icon: Settings },
@@ -18,6 +21,7 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+
 
   return (
     <aside className="sidebar-v2">
@@ -31,7 +35,9 @@ export function Sidebar() {
       <nav className="sidebar-v2-nav">
         <ul className="sidebar-v2-menu">
           {menuItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const isActive = item.href === '/marketplace'
+              ? pathname === '/marketplace'
+              : (pathname === item.href || pathname.startsWith(item.href + '/'));
             return (
               <li key={item.href}>
                 <Link
@@ -49,11 +55,6 @@ export function Sidebar() {
 
       {/* Bottom */}
       <div className="sidebar-v2-bottom">
-        <Link href="/party-form" className="sidebar-v2-cta">
-          <Plus className="w-4 h-4" />
-          Novo Aluguel
-        </Link>
-
         <div className="sidebar-v2-bottom-links">
           <a href="#" className="sidebar-v2-bottom-link">
             <LifeBuoy className="w-4 h-4" />

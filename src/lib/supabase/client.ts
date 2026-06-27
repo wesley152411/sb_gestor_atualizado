@@ -17,16 +17,26 @@ export function getSupabaseClient() {
     return null;
   }
 
-  // Validate that the key looks valid (Supabase anon keys are JWTs starting with "eyJ")
-  if (!key.startsWith('eyJ')) {
-    console.warn('Supabase anon key appears invalid. Using localStorage fallback.');
+  // Initialize client with credentials from environment and set a 2.5s network timeout
+  try {
+    supabaseInstance = createBrowserClient(url, key, {
+      global: {
+        fetch: (input, init) => {
+          return Promise.race([
+            fetch(input, init),
+            new Promise<Response>((_, reject) =>
+              setTimeout(() => reject(new TypeError('Supabase fetch query timed out')), 2500)
+            )
+          ]);
+        }
+      }
+    });
+    return supabaseInstance;
+  } catch (err) {
+    console.warn('Failed to initialize Supabase client. Using localStorage fallback.', err);
     connectionFailed = true;
     return null;
   }
-
-  // Initialize client with credentials from environment
-  supabaseInstance = createBrowserClient(url, key);
-  return supabaseInstance;
 }
 
 // Call this if a Supabase operation fails, to disable further attempts

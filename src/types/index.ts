@@ -12,6 +12,9 @@ export interface Decorator {
   about?: string;
   cover_url?: string;
   created_at?: string;
+  reach?: number;
+  contact_rate?: number;
+  positive_reviews?: number;
 }
 
 export interface InventoryItem {
