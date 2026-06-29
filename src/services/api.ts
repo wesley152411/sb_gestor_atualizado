@@ -378,6 +378,7 @@ export async function saveKit(kit: Partial<Kit>): Promise<Kit> {
   const full: Kit = {
     id: kit.id || generateId('kit'), decorator_id: kit.decorator_id || '',
     name: kit.name || '', description: kit.description || '', image_url: kit.image_url || '',
+    status: kit.status || 'Privado',
     value: kit.value ?? null, items: kit.items || [], created_at: kit.created_at || new Date().toISOString(),
   };
   try {

@@ -10,7 +10,7 @@ import { usePartyFormStore } from '@/stores/party-form-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useInventory, useKits } from '@/hooks/swr-hooks';
 import { 
-  saveInventoryItem, deleteInventoryItem, deleteKit, saveKit 
+  saveInventoryItem, deleteInventoryItem, deleteKit, saveKit, uploadImage 
 } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -47,8 +47,27 @@ export default function InventoryPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [editingKitId, setEditingKitId] = useState<string | null>(null);
 
+  // Helper to count total pieces in a kit
+  const getKitTotalPieces = (kit: Kit) => {
+    return kit.items.reduce((sum, item) => sum + item.quantity, 0);
+  };
+
+  const singlePieceKits = kits.filter(k => getKitTotalPieces(k) === 1);
+  const multiPieceKits = kits.filter(k => getKitTotalPieces(k) > 1);
+
   const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredKits = kits.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredSinglePieceKits = singlePieceKits.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredMultiPieceKits = multiPieceKits.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  // Synchronize coverImageUrl with the single linked item's image_url in state (Peças Avulsas only)
+  useEffect(() => {
+    const totalPieces = linkedItems.reduce((sum, i) => sum + i.quantity, 0);
+    if (totalPieces === 1 && linkedItems.length === 1) {
+      if (linkedItems[0].image_url !== coverImageUrl) {
+        setLinkedItems(prev => prev.map((item, idx) => idx === 0 ? { ...item, image_url: coverImageUrl } : item));
+      }
+    }
+  }, [coverImageUrl, linkedItems.length]);
 
   // Item Modal Handlers
   const handleOpenItemModal = (item?: InventoryItem) => {
@@ -123,14 +142,30 @@ export default function InventoryPage() {
     setIsKitModalOpen(true);
   };
 
-  const handleCoverImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const processImageUpload = async (file: File): Promise<string> => {
+    if (!decorator) return '';
+    const path = `${decorator.id}/${Date.now()}_${file.name}`;
+    try {
+      const url = await uploadImage(file, 'inventory', path);
+      if (url) return url;
+    } catch (err) {
+      console.warn('Storage upload failed, falling back to base64', err);
+    }
+    
+    return new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCoverImageUrl(reader.result as string);
+        resolve(reader.result as string);
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const imageUrl = await processImageUpload(file);
+      setCoverImageUrl(imageUrl);
     }
   };
 
@@ -143,16 +178,21 @@ export default function InventoryPage() {
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCoverImageUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      const imageUrl = await processImageUpload(file);
+      setCoverImageUrl(imageUrl);
+    }
+  };
+
+  const handleItemImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const imageUrl = await processImageUpload(file);
+      setEditingItem(prev => ({ ...prev, image_url: imageUrl }));
     }
   };
 
@@ -196,7 +236,7 @@ export default function InventoryPage() {
       decorator_id: decorator.id,
       name: name,
       description: 'Peça avulsa criada via kit',
-      image_url: getPlaceholderImage(name),
+      image_url: coverImageUrl || '',
       status: 'Privado',
       stock_quantity: 10,
       rental_price: 25.0,
@@ -225,7 +265,7 @@ export default function InventoryPage() {
       decorator_id: decorator.id,
       name: kitName.trim(),
       description: kitDescription.trim(),
-      image_url: coverImageUrl || 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400',
+      image_url: coverImageUrl || '',
       value: parsedValue,
       items: linkedItems.map(i => ({
         id: i.id,
@@ -233,6 +273,21 @@ export default function InventoryPage() {
         quantity: i.quantity
       }))
     };
+
+    // If it's a single-piece kit (Peça Avulsa), automatically sync the cover photo to the linked InventoryItem
+    const totalPieces = linkedItems.reduce((sum, i) => sum + i.quantity, 0);
+    if (totalPieces === 1 && linkedItems.length === 1) {
+      const singleItem = linkedItems[0];
+      const originalItem = items.find(i => i.id === singleItem.id);
+      if (originalItem && originalItem.image_url !== coverImageUrl) {
+        const updatedItem = {
+          ...originalItem,
+          image_url: coverImageUrl
+        };
+        await saveInventoryItem(updatedItem);
+        mutateItems();
+      }
+    }
 
     await saveKit(kitData);
     addNotification('Kit Salvo', `O kit "${kitData.name}" foi registrado com sucesso.`);
@@ -312,7 +367,7 @@ export default function InventoryPage() {
             </div>
           </div>
           <div className="acervo-stat-body">
-            <span className="acervo-stat-value">{kits.length}</span>
+            <span className="acervo-stat-value">{multiPieceKits.length}</span>
             <span className="acervo-stat-trend neutral">Estável</span>
           </div>
         </div>
@@ -337,13 +392,13 @@ export default function InventoryPage() {
             className={`acervo-segment ${activeTab === 'items' ? 'active' : ''}`}
             onClick={() => setActiveTab('items')}
           >
-            Peças Avulsas ({items.length})
+            Peças Avulsas ({items.length + singlePieceKits.length})
           </button>
           <button 
             className={`acervo-segment ${activeTab === 'kits' ? 'active' : ''}`}
             onClick={() => setActiveTab('kits')}
           >
-            Kits Prontos ({kits.length})
+            Kits Prontos ({multiPieceKits.length})
           </button>
         </div>
 
@@ -366,7 +421,7 @@ export default function InventoryPage() {
       {/* ===== PRODUCT GRID ===== */}
       {activeTab === 'items' && (
         <div className="acervo-product-grid">
-          {filteredItems.length === 0 ? (
+          {filteredItems.length === 0 && filteredSinglePieceKits.length === 0 ? (
             <div className="acervo-empty-state">
               <Package className="w-12 h-12" />
               <h3>Nenhuma peça encontrada</h3>
@@ -376,75 +431,141 @@ export default function InventoryPage() {
               </Button>
             </div>
           ) : (
-            filteredItems.map(item => (
-              <div key={item.id} className="acervo-product-card">
-                {/* Image area */}
-                <div className="acervo-card-image">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} />
-                  ) : (
-                    <div className="acervo-card-placeholder">
-                      <ImageIcon className="w-8 h-8" />
+            <>
+              {filteredItems.map(item => (
+                <div key={item.id} className="acervo-product-card">
+                  {/* Image area */}
+                  <div className="acervo-card-image">
+                    {item.image_url ? (
+                      <img src={item.image_url} alt={item.name} />
+                    ) : (
+                      <div className="acervo-card-placeholder">
+                        <ImageIcon className="w-8 h-8" />
+                      </div>
+                    )}
+                    {/* Status tag */}
+                    <div className={`acervo-card-tag ${item.status === 'Público' ? 'public' : 'private'}`}>
+                      <span className={`acervo-tag-dot ${item.status === 'Público' ? 'public' : 'private'}`} />
+                      {item.status}
                     </div>
-                  )}
-                  {/* Status tag */}
-                  <div className={`acervo-card-tag ${item.status === 'Público' ? 'public' : 'private'}`}>
-                    <span className={`acervo-tag-dot ${item.status === 'Público' ? 'public' : 'private'}`} />
-                    {item.status}
+                  </div>
+                  
+                  {/* Content */}
+                  <div className="acervo-card-content">
+                    <h3 className="acervo-card-title">{item.name}</h3>
+                    <p className="acervo-card-desc">{item.description}</p>
+
+                    {/* Metrics */}
+                    <div className="acervo-card-metrics">
+                      <div>
+                        <span className="acervo-metric-label">ESTOQUE</span>
+                        <span className="acervo-metric-value">{item.stock_quantity} un</span>
+                      </div>
+                      <div className="acervo-metric-right">
+                        <span className="acervo-metric-label">LOCAÇÃO B2B</span>
+                        <span className="acervo-metric-value acervo-price">{formatCurrency(item.rental_price)}</span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="acervo-card-actions">
+                      <button 
+                        className="acervo-action-btn" 
+                        onClick={() => handleOpenItemModal(item)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Editar
+                      </button>
+                      <button 
+                        className="acervo-action-btn danger" 
+                        onClick={() => handleDeleteItem(item.id, item.name)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Excluir
+                      </button>
+                    </div>
                   </div>
                 </div>
-                
-                {/* Content */}
-                <div className="acervo-card-content">
-                  <h3 className="acervo-card-title">{item.name}</h3>
-                  <p className="acervo-card-desc">{item.description}</p>
-
-                  {/* Metrics */}
-                  <div className="acervo-card-metrics">
-                    <div>
-                      <span className="acervo-metric-label">ESTOQUE</span>
-                      <span className="acervo-metric-value">{item.stock_quantity} un</span>
-                    </div>
-                    <div className="acervo-metric-right">
-                      <span className="acervo-metric-label">LOCAÇÃO B2B</span>
-                      <span className="acervo-metric-value acervo-price">{formatCurrency(item.rental_price)}</span>
+              ))}
+              
+              {filteredSinglePieceKits.map(kit => (
+                <div key={kit.id} className="acervo-product-card kit-border">
+                  <div className="acervo-card-image">
+                    {kit.image_url ? (
+                      <img src={kit.image_url} alt={kit.name} />
+                    ) : (
+                      <div className="acervo-card-placeholder">
+                        <LayoutGrid className="w-8 h-8" />
+                      </div>
+                    )}
+                    <div className="acervo-card-tag kit">
+                      <span className="acervo-tag-dot kit" />
+                      Peça Avulsa
                     </div>
                   </div>
+                  <div className="acervo-card-content">
+                    <h3 className="acervo-card-title">{kit.name}</h3>
+                    <p className="acervo-card-desc">{kit.description}</p>
+                    <div className="acervo-card-metrics">
+                      <div>
+                        <span className="acervo-metric-label">TOTAL DE PEÇAS</span>
+                        <span className="acervo-metric-value">
+                          {kit.items.reduce((sum, i) => sum + i.quantity, 0)} itens
+                        </span>
+                      </div>
+                      {kit.value !== null && kit.value !== undefined && (
+                        <div className="acervo-metric-right">
+                          <span className="acervo-metric-label">VALOR DA PEÇA</span>
+                          <span className="acervo-metric-value acervo-price">{formatCurrency(kit.value)}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Adicionar ao Formulário Button */}
+                    <button 
+                      type="button"
+                      onClick={() => handleAddKitToForm(kit)}
+                      className="btn-primary"
+                      style={{ width: '100%', marginTop: '14px', marginBottom: '8px', justifyContent: 'center', backgroundColor: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 12px' }}
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Adicionar ao formulário
+                    </button>
 
-                  {/* Actions */}
-                  <div className="acervo-card-actions">
-                    <button 
-                      className="acervo-action-btn" 
-                      onClick={() => handleOpenItemModal(item)}
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Editar
-                    </button>
-                    <button 
-                      className="acervo-action-btn danger" 
-                      onClick={() => handleDeleteItem(item.id, item.name)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Excluir
-                    </button>
+                    <div className="acervo-card-actions">
+                      <button 
+                        className="acervo-action-btn" 
+                        onClick={() => handleOpenEditKitModal(kit)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Editar
+                      </button>
+                      <button 
+                        className="acervo-action-btn danger" 
+                        onClick={() => handleDeleteKit(kit.id, kit.name)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Excluir
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </>
           )}
         </div>
       )}
 
       {activeTab === 'kits' && (
         <div className="acervo-product-grid">
-          {filteredKits.length === 0 ? (
+          {filteredMultiPieceKits.length === 0 ? (
             <div className="acervo-empty-state">
               <LayoutGrid className="w-12 h-12" />
               <h3>Nenhum kit encontrado</h3>
               <p>Monte kits com suas peças para facilitar a locação.</p>
             </div>
           ) : (
-            filteredKits.map(kit => (
+            filteredMultiPieceKits.map(kit => (
               <div key={kit.id} className="acervo-product-card kit-border">
                 <div className="acervo-card-image">
                   {kit.image_url ? (
@@ -538,8 +659,49 @@ export default function InventoryPage() {
               onChange={e => setEditingItem({...editingItem, description: e.target.value})} 
             />
           </div>
+          <div className="form-group">
+            <label className="form-label">Imagem da Peça</label>
+            <div className="flex gap-4 items-center mb-2">
+              {editingItem.image_url ? (
+                <div className="relative w-20 h-20 border border-slate-100 rounded-lg overflow-hidden flex-shrink-0">
+                  <img src={editingItem.image_url} alt="Visualização" className="w-full h-full object-cover" />
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingItem(prev => ({ ...prev, image_url: '' }))}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
+                    title="Remover imagem"
+                    style={{ padding: '2px', lineHeight: 1 }}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-20 h-20 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-slate-400 flex-shrink-0">
+                  <ImageIcon className="w-6 h-6" />
+                </div>
+              )}
+              <div className="flex-1">
+                <Button 
+                  type="button" 
+                  variant="secondary"
+                  onClick={() => document.getElementById('item-image-file-input')?.click()}
+                >
+                  Fazer Upload de Imagem
+                </Button>
+                <input 
+                  id="item-image-file-input"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleItemImageUpload}
+                />
+                <p className="text-[11px] text-slate-400 mt-1">PNG, JPG ou WEBP. Máximo 5MB.</p>
+              </div>
+            </div>
+          </div>
+          
           <Input 
-            label="URL da Imagem" 
+            label="Ou use uma URL de Imagem existente" 
             value={editingItem.image_url || ''} 
             onChange={e => setEditingItem({...editingItem, image_url: e.target.value})} 
             placeholder="https://..."

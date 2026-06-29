@@ -35,6 +35,7 @@ export interface Kit {
   name: string;
   description: string;
   image_url: string;
+  status: 'Público' | 'Privado';
   value: number | null;
   items: KitItem[];
   created_at: string;

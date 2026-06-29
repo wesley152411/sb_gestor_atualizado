@@ -7,15 +7,15 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
-import { useInventory, useRentalOrders, useDecoratorChats } from '@/hooks/swr-hooks';
+import { useInventory, useKits, useRentalOrders, useDecoratorChats } from '@/hooks/swr-hooks';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/utils';
-import type { InventoryItem, RentalOrder, ChatMessage } from '@/types';
+import type { InventoryItem, Kit, RentalOrder, ChatMessage } from '@/types';
 import { 
-  saveDecoratorProfile, saveInventoryItem 
+  saveDecoratorProfile, saveInventoryItem, saveKit 
 } from '@/services/api';
 
 export default function MyPage() {
@@ -23,10 +23,11 @@ export default function MyPage() {
   const { addNotification } = useNotificationStore();
 
   const { items, isLoading: isItemsLoading, mutate: mutateItems } = useInventory(decorator?.id);
+  const { kits, isLoading: isKitsLoading, mutate: mutateKits } = useKits(decorator?.id);
   const { orders, isLoading: isOrdersLoading, mutate: mutateOrders } = useRentalOrders(decorator?.id);
   const { chats, isLoading: isChatsLoading, mutate: mutateChats } = useDecoratorChats(decorator?.id);
 
-  const isLoading = isItemsLoading || isOrdersLoading || isChatsLoading;
+  const isLoading = isItemsLoading || isKitsLoading || isOrdersLoading || isChatsLoading;
 
   // Search in import modal
   const [importSearch, setImportSearch] = useState('');
@@ -35,6 +36,7 @@ export default function MyPage() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [isKitEditModalOpen, setIsKitEditModalOpen] = useState(false);
 
   // Edit Profile Form State
   const [editProfileForm, setEditProfileForm] = useState({
@@ -47,15 +49,37 @@ export default function MyPage() {
 
   // Edit Item Form State
   const [editingItem, setEditingItem] = useState<Partial<InventoryItem>>({});
+  const [editingKit, setEditingKit] = useState<Partial<Kit>>({});
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const [isAboutExpanded, setIsAboutExpanded] = useState(false);
 
 
 
   if (isLoading) return <div className="p-8 text-center text-slate-500">Carregando perfil...</div>;
 
-  const publicItems = items.filter(i => i.status === 'Público');
+  const isAboutLong = (decorator?.about || '').length > 200 || (decorator?.about || '').includes('\n');
+
+  const publicItems = items ? items.filter(i => i.status === 'Público') : [];
+  const publicKits = kits ? kits.filter(k => k.status === 'Público') : [];
+
+  const unifiedPublicItems = [
+    ...publicItems.map(i => ({ ...i, isKit: false as const })),
+    ...publicKits.map(k => ({ 
+      id: k.id,
+      decorator_id: k.decorator_id,
+      name: k.name,
+      description: k.description,
+      image_url: k.image_url,
+      status: k.status,
+      stock_quantity: 1,
+      rental_price: k.value ?? 0,
+      isKit: true as const,
+      rawKit: k
+    }))
+  ];
   
   // Real stats consumed directly from the database (decorator object):
   const reach = decorator?.reach ?? 0;
@@ -132,67 +156,114 @@ export default function MyPage() {
   };
 
   // Import Items Toggle Handler
-  const handleTogglePublish = async (item: InventoryItem) => {
+  const handleTogglePublish = async (item: any) => {
     const isPublic = item.status === 'Público';
     const nextStatus = isPublic ? 'Privado' : 'Público';
     
-    let rentalPrice = item.rental_price;
-    if (nextStatus === 'Público' && (!rentalPrice || rentalPrice === 0)) {
-      const priceStr = window.prompt(`Defina o preço de locação B2B para "${item.name}" (R$):`, '50.00');
-      if (priceStr === null) return;
-      rentalPrice = parseFloat(priceStr) || 50.00;
-    }
+    if (item.isKit) {
+      let rentalPrice = item.rental_price;
+      if (nextStatus === 'Público' && (!rentalPrice || rentalPrice === 0)) {
+        const priceStr = window.prompt(`Defina o preço de locação B2B para o kit "${item.name}" (R$):`, '150.00');
+        if (priceStr === null) return;
+        rentalPrice = parseFloat(priceStr) || 150.00;
+      }
 
-    const updated = {
-      ...item,
-      status: nextStatus as 'Público' | 'Privado',
-      rental_price: rentalPrice
-    };
+      const updatedKit = {
+        ...item.rawKit,
+        status: nextStatus,
+        value: rentalPrice
+      };
 
-    try {
-      // ==========================================
-      // INTEGRATION POINT: DATABASE UPDATE / FETCH
-      // ==========================================
-      // If updating directly via Supabase / Fetch API:
-      // const { data, error } = await supabase.from('inventory_items').update({ status: nextStatus, rental_price: rentalPrice }).eq('id', item.id);
-      // For this implementation, `saveInventoryItem` handles both local mock and Supabase backend updates dynamically.
-      const saved = await saveInventoryItem(updated);
-      mutateItems();
-      addNotification(
-        nextStatus === 'Público' ? 'Item Publicado' : 'Item Removido',
-        `"${item.name}" foi ${nextStatus === 'Público' ? 'publicado no' : 'removido do'} Marketplace.`
-      );
-    } catch (err) {
-      addNotification('Erro', 'Falha ao alterar status do item.');
+      try {
+        await saveKit(updatedKit);
+        mutateKits();
+        addNotification(
+          nextStatus === 'Público' ? 'Kit Publicado' : 'Kit Removido',
+          `"${item.name}" foi ${nextStatus === 'Público' ? 'publicado no' : 'removido do'} Marketplace.`
+        );
+      } catch (err) {
+        addNotification('Erro', 'Falha ao alterar status do kit.');
+      }
+    } else {
+      let rentalPrice = item.rental_price;
+      if (nextStatus === 'Público' && (!rentalPrice || rentalPrice === 0)) {
+        const priceStr = window.prompt(`Defina o preço de locação B2B para "${item.name}" (R$):`, '50.00');
+        if (priceStr === null) return;
+        rentalPrice = parseFloat(priceStr) || 50.00;
+      }
+
+      const updatedItem = {
+        id: item.id,
+        decorator_id: item.decorator_id,
+        name: item.name,
+        description: item.description,
+        image_url: item.image_url,
+        status: nextStatus as 'Público' | 'Privado',
+        stock_quantity: item.stock_quantity,
+        rental_price: rentalPrice,
+        internal_cost: item.internal_cost
+      } as InventoryItem;
+
+      try {
+        await saveInventoryItem(updatedItem);
+        mutateItems();
+        addNotification(
+          nextStatus === 'Público' ? 'Item Publicado' : 'Item Removido',
+          `"${item.name}" foi ${nextStatus === 'Público' ? 'publicado no' : 'removido do'} Marketplace.`
+        );
+      } catch (err) {
+        addNotification('Erro', 'Falha ao alterar status do item.');
+      }
     }
   };
 
   // Remove Item from Marketplace (tornar privado)
-  const handleRemoveItem = async (item: InventoryItem) => {
+  const handleRemoveItem = async (item: any) => {
     if (window.confirm(`Deseja remover "${item.name}" do Marketplace? O item continuará no seu inventário como Privado.`)) {
-      const updated = {
-        ...item,
-        status: 'Privado' as const
-      };
-      try {
-        // ==========================================
-        // INTEGRATION POINT: DATABASE UPDATE / FETCH
-        // ==========================================
-        // Update database item to be Private:
-        // const { error } = await supabase.from('inventory_items').update({ status: 'Privado' }).eq('id', item.id);
-        const saved = await saveInventoryItem(updated);
-        mutateItems();
-        addNotification('Item Removido do Marketplace', `"${item.name}" agora está como Privado no seu inventário.`);
-      } catch (err) {
-        addNotification('Erro', 'Falha ao remover item do Marketplace.');
+      if (item.isKit) {
+        const updatedKit = {
+          ...item.rawKit,
+          status: 'Privado' as const
+        };
+        try {
+          await saveKit(updatedKit);
+          mutateKits();
+          addNotification('Kit Removido do Marketplace', `"${item.name}" agora está como Privado.`);
+        } catch (err) {
+          addNotification('Erro', 'Falha ao remover kit do Marketplace.');
+        }
+      } else {
+        const updatedItem = {
+          id: item.id,
+          decorator_id: item.decorator_id,
+          name: item.name,
+          description: item.description,
+          image_url: item.image_url,
+          status: 'Privado' as const,
+          stock_quantity: item.stock_quantity,
+          rental_price: item.rental_price,
+          internal_cost: item.internal_cost
+        } as InventoryItem;
+        try {
+          await saveInventoryItem(updatedItem);
+          mutateItems();
+          addNotification('Item Removido do Marketplace', `"${item.name}" agora está como Privado no seu inventário.`);
+        } catch (err) {
+          addNotification('Erro', 'Falha ao remover item do Marketplace.');
+        }
       }
     }
   };
 
   // Edit Item Details Modal Handlers
-  const handleOpenItemModal = (item: InventoryItem) => {
-    setEditingItem(item);
-    setIsItemModalOpen(true);
+  const handleOpenItemModal = (item: any) => {
+    if (item.isKit) {
+      setEditingKit(item.rawKit);
+      setIsKitEditModalOpen(true);
+    } else {
+      setEditingItem(item);
+      setIsItemModalOpen(true);
+    }
   };
 
   const handleSaveItem = async () => {
@@ -204,17 +275,45 @@ export default function MyPage() {
     } as InventoryItem;
 
     try {
-      const saved = await saveInventoryItem(itemToSave);
+      await saveInventoryItem(itemToSave);
       mutateItems();
       setIsItemModalOpen(false);
-      addNotification('Item Salvo', `O item "${saved.name}" foi salvo com sucesso.`);
+      addNotification('Item Salvo', `O item "${editingItem.name}" foi salvo com sucesso.`);
     } catch (err) {
       addNotification('Erro', 'Falha ao salvar item.');
     }
   };
 
+  const handleSaveEditedKit = async () => {
+    if (!decorator || !editingKit.name) return;
+    try {
+      await saveKit(editingKit);
+      mutateKits();
+      setIsKitEditModalOpen(false);
+      addNotification('Kit Salvo', `O kit "${editingKit.name}" foi salvo com sucesso.`);
+    } catch (err) {
+      addNotification('Erro', 'Falha ao salvar kit.');
+    }
+  };
+
   // Filter items for import list
-  const filteredImportItems = items.filter(item => 
+  const unifiedImportItems = [
+    ...(items || []).map(i => ({ ...i, isKit: false as const })),
+    ...(kits || []).map(k => ({
+      id: k.id,
+      decorator_id: k.decorator_id,
+      name: k.name,
+      description: k.description,
+      image_url: k.image_url,
+      status: k.status,
+      stock_quantity: 1,
+      rental_price: k.value ?? 0,
+      isKit: true as const,
+      rawKit: k
+    }))
+  ];
+
+  const filteredImportItems = unifiedImportItems.filter(item => 
     item.name.toLowerCase().includes(importSearch.toLowerCase()) ||
     (item.description || '').toLowerCase().includes(importSearch.toLowerCase())
   );
@@ -263,19 +362,16 @@ export default function MyPage() {
         <div className="flex-1 mt-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="mypage-profile-name">{decorator?.name}</h1>
-            <div className="flex items-center gap-4 mt-2">
-              <span className="flex items-center gap-1 text-sm text-slate-600">
+            <div className="flex items-center mt-2" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <span className="flex items-center gap-1 text-sm text-slate-600" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <MapPin className="w-4 h-4"/> {decorator?.location || 'Não informado'}
               </span>
               <Badge variant="success">{decorator?.membership_level || 'Membro'}</Badge>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2" style={{ marginTop: '8px' }}>
             <Button variant="secondary" icon={Pencil} onClick={handleOpenEditProfile}>
               Editar Perfil
-            </Button>
-            <Button icon={Plus} onClick={() => setIsImportModalOpen(true)}>
-              Adicionar Item
             </Button>
           </div>
         </div>
@@ -285,7 +381,7 @@ export default function MyPage() {
         <div className="mypage-stats-row">
           <div className="mypage-stat-card">
             <span className="mypage-stat-label">Itens Publicados</span>
-            <span className="mypage-stat-value">{publicItems.length}</span>
+            <span className="mypage-stat-value">{unifiedPublicItems.length}</span>
           </div>
           <div className="mypage-stat-card">
             <span className="mypage-stat-label">Alcance (mês)</span>
@@ -301,7 +397,7 @@ export default function MyPage() {
           </div>
         </div>
 
-        <div className="mypage-contact-row">
+        <div className="mypage-contact-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '16px' }}>
           <div className="mypage-contact-card">
             <div className="contact-icon bg-pink-100 text-pink-600"><AtSign className="w-6 h-6"/></div>
             <div>
@@ -316,12 +412,40 @@ export default function MyPage() {
               <span className="contact-value">{decorator?.whatsapp || 'Não informado'}</span>
             </div>
           </div>
-          <div className="mypage-contact-card">
-            <div className="contact-icon"><Info className="w-6 h-6"/></div>
-            <div>
-              <span className="contact-label">Sobre</span>
-              <span className="contact-value text-xs line-clamp-2">{decorator?.about || 'Nenhuma informação.'}</span>
-            </div>
+        </div>
+
+        <div className="mypage-contact-card" style={{ display: 'flex', width: '100%', marginBottom: '24px', gap: '16px', alignItems: 'flex-start' }}>
+          <div className="contact-icon" style={{ flexShrink: 0 }}><Info className="w-6 h-6"/></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span className="contact-label" style={{ display: 'block', marginBottom: '4px' }}>Sobre</span>
+            <p 
+              className="contact-value" 
+              style={{ 
+                margin: 0, 
+                fontSize: '13.5px', 
+                color: 'var(--text-secondary)', 
+                lineHeight: '1.6', 
+                wordBreak: 'break-word', 
+                whiteSpace: 'pre-wrap',
+                display: isAboutExpanded ? 'block' : '-webkit-box',
+                WebkitLineClamp: isAboutExpanded ? 'none' : 3,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              {decorator?.about || 'Nenhuma informação.'}
+            </p>
+            {isAboutLong && (
+              <button
+                type="button"
+                onClick={() => setIsAboutExpanded(!isAboutExpanded)}
+                className="text-indigo-600 hover:text-indigo-800 font-bold text-xs mt-2 focus:outline-none transition-colors"
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              >
+                {isAboutExpanded ? 'Mostrar menos' : 'Ler mais'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -332,7 +456,7 @@ export default function MyPage() {
               <Store className="w-6 h-6" style={{ color: 'var(--primary)' }} />
               <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>Meus Itens no Marketplace</h2>
               <span style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
-                {publicItems.length} {publicItems.length === 1 ? 'visível' : 'visíveis'}
+                {unifiedPublicItems.length} {unifiedPublicItems.length === 1 ? 'visível' : 'visíveis'}
               </span>
             </div>
 
@@ -368,16 +492,25 @@ export default function MyPage() {
             </div>
           </div>
           <div className="cards-grid">
-            {publicItems.length === 0 ? (
+            {unifiedPublicItems.length === 0 ? (
               <div className="col-span-full py-12 text-center text-slate-500 border border-dashed rounded-lg">
                 Nenhum item publicado. Clique em "Adicionar Item" para publicar seus itens no Marketplace.
               </div>
             ) : (
-              publicItems.map(item => (
-                <div key={item.id} className="inventory-card">
+              unifiedPublicItems.map(item => (
+                <div key={item.id} className={`inventory-card ${item.isKit ? 'kit-border' : ''}`}>
                   <div className="card-img-wrapper" style={{ position: 'relative' }}>
-                    <img src={item.image_url} alt={item.name} />
+                    {item.image_url ? (
+                      <img src={item.image_url} alt={item.name} />
+                    ) : (
+                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        {item.isKit ? <List className="w-8 h-8" /> : <Store className="w-8 h-8" />}
+                      </div>
+                    )}
                     <span className="mypage-card-status confirmed absolute top-2 right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase">Publicado</span>
+                    {item.isKit && (
+                      <span className="absolute top-2 left-2 bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase">Kit</span>
+                    )}
                   </div>
                   <div className="card-body flex flex-col justify-between h-[180px]">
                     <div>
@@ -387,8 +520,12 @@ export default function MyPage() {
                     <div>
                       <div className="card-stats flex justify-between mt-4">
                         <div>
-                          <span className="stat-label block text-[10px] text-slate-400 font-semibold uppercase">Estoque</span>
-                          <span className="stat-val font-bold text-sm">{item.stock_quantity} un</span>
+                          <span className="stat-label block text-[10px] text-slate-400 font-semibold uppercase">
+                            {item.isKit ? 'Itens do Kit' : 'Estoque'}
+                          </span>
+                          <span className="stat-val font-bold text-sm">
+                            {item.isKit ? `${item.rawKit.items.length} un` : `${item.stock_quantity} un`}
+                          </span>
                         </div>
                         <div className="text-right">
                           <span className="stat-label block text-[10px] text-slate-400 font-semibold uppercase">Locação B2B</span>
@@ -527,11 +664,20 @@ export default function MyPage() {
                         alt={item.name} 
                         onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                       />
-                    ) : null}
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0">
+                        {item.isKit ? <List className="w-5 h-5" /> : <Store className="w-5 h-5" />}
+                      </div>
+                    )}
                     <div className="import-inv-info">
-                      <span className="import-inv-name">{item.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="import-inv-name">{item.name}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${item.isKit ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {item.isKit ? 'Kit' : 'Peça'}
+                        </span>
+                      </div>
                       <span className="import-inv-meta block mt-0.5">
-                        Estoque: {item.stock_quantity} un • {formatCurrency(item.rental_price)}/locação
+                        {item.isKit ? 'Itens do kit' : `Estoque: ${item.stock_quantity} un`} • {formatCurrency(item.rental_price)}/locação
                       </span>
                       <div className="mt-1">
                         <span className={`import-inv-status ${isPublic ? 'public' : 'private'}`}>
@@ -642,6 +788,62 @@ export default function MyPage() {
               label="Custo Interno (R$)" 
               value={editingItem.internal_cost || ''} 
               onChange={e => setEditingItem({...editingItem, internal_cost: Number(e.target.value)})} 
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Kit Modal */}
+      <Modal 
+        isOpen={isKitEditModalOpen} 
+        onClose={() => setIsKitEditModalOpen(false)} 
+        title="Editar Kit"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsKitEditModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveEditedKit}>Salvar Kit</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input 
+            label="Nome do Kit" 
+            value={editingKit.name || ''} 
+            onChange={e => setEditingKit({...editingKit, name: e.target.value})} 
+          />
+          <div className="form-group">
+            <label className="form-label">Descrição</label>
+            <textarea 
+              className="form-input" 
+              rows={3}
+              value={editingKit.description || ''} 
+              onChange={e => setEditingKit({...editingKit, description: e.target.value})} 
+            />
+          </div>
+          <Input 
+            label="URL da Imagem" 
+            value={editingKit.image_url || ''} 
+            onChange={e => setEditingKit({...editingKit, image_url: e.target.value})} 
+            placeholder="https://..."
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="form-group">
+              <label className="form-label">Status no Marketplace</label>
+              <select 
+                className="form-input"
+                value={editingKit.status || 'Privado'}
+                onChange={e => setEditingKit({...editingKit, status: e.target.value as 'Público' | 'Privado'})}
+              >
+                <option value="Privado">Privado (Apenas eu)</option>
+                <option value="Público">Público (Visível B2B)</option>
+              </select>
+            </div>
+            <Input 
+              type="number"
+              step="0.01"
+              label="Preço Locação B2B (R$)" 
+              value={editingKit.value || ''} 
+              onChange={e => setEditingKit({...editingKit, value: Number(e.target.value)})} 
             />
           </div>
         </div>

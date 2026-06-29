@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ShoppingBag, X } from 'lucide-react';
+import { ShoppingBag, X, List, Store } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
 import { useNotificationStore } from '@/stores/notification-store';
-import { getDecorators, getInventoryItems, saveRentalOrder } from '@/services/api';
+import { getDecorators, getInventoryItems, getKits, saveRentalOrder } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { formatCurrency } from '@/lib/utils';
-import type { Decorator, InventoryItem } from '@/types';
+import type { Decorator, InventoryItem, Kit } from '@/types';
 
 export default function MarketplacePage() {
   const { decorator } = useAuthStore();
@@ -20,6 +20,7 @@ export default function MarketplacePage() {
 
   const [partners, setPartners] = useState<Decorator[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [kits, setKits] = useState<Kit[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -30,9 +31,10 @@ export default function MarketplacePage() {
 
   useEffect(() => {
     async function loadData() {
-      const [decs, inv] = await Promise.all([getDecorators(), getInventoryItems()]);
+      const [decs, inv, kts] = await Promise.all([getDecorators(), getInventoryItems(), getKits()]);
       setPartners(decs);
       setInventory(inv);
+      setKits(kts);
       setIsLoading(false);
     }
     loadData();
@@ -40,13 +42,30 @@ export default function MarketplacePage() {
 
   // Marketplace rules: Only public items, exclude own items
   const publicItems = inventory.filter(i => i.status === 'Público' && i.decorator_id !== decorator?.id);
+  const publicKits = kits.filter(k => k.status === 'Público' && k.decorator_id !== decorator?.id);
   
+  const unifiedPublicItems = [
+    ...publicItems.map(i => ({ ...i, isKit: false as const })),
+    ...publicKits.map(k => ({ 
+      id: k.id,
+      decorator_id: k.decorator_id,
+      name: k.name,
+      description: k.description,
+      image_url: k.image_url,
+      status: k.status,
+      stock_quantity: 1,
+      rental_price: k.value ?? 0,
+      isKit: true as const,
+      rawKit: k
+    }))
+  ];
+
   const displayedItems = selectedPartnerId === 'all' 
-    ? publicItems 
-    : publicItems.filter(i => i.decorator_id === selectedPartnerId);
+    ? unifiedPublicItems 
+    : unifiedPublicItems.filter(i => i.decorator_id === selectedPartnerId);
 
   // Filter partners that actually have public items
-  const activePartnerIds = Array.from(new Set(publicItems.map(i => i.decorator_id)));
+  const activePartnerIds = Array.from(new Set(unifiedPublicItems.map(i => i.decorator_id)));
   const activePartners = partners.filter(p => activePartnerIds.includes(p.id));
 
   const handleAddToCart = (item: InventoryItem) => {
@@ -153,9 +172,18 @@ export default function MarketplacePage() {
             displayedItems.map(item => {
               const partner = partners.find(p => p.id === item.decorator_id);
               return (
-                <div key={item.id} className="inventory-card">
-                  <div className="card-img-wrapper">
-                    <img src={item.image_url} alt={item.name} />
+                <div key={item.id} className={`inventory-card ${item.isKit ? 'kit-border' : ''}`}>
+                  <div className="card-img-wrapper" style={{ position: 'relative' }}>
+                    {item.image_url ? (
+                      <img src={item.image_url} alt={item.name} />
+                    ) : (
+                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        {item.isKit ? <List className="w-8 h-8" /> : <Store className="w-8 h-8" />}
+                      </div>
+                    )}
+                    {item.isKit && (
+                      <span className="absolute top-2 left-2 bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase">Kit</span>
+                    )}
                   </div>
                   <div className="card-body">
                     <div className="flex items-center gap-2 mb-2">
@@ -165,8 +193,12 @@ export default function MarketplacePage() {
                     <h3 className="card-title">{item.name}</h3>
                     <div className="card-stats mt-auto">
                       <div>
-                        <span className="stat-label">Disponível</span>
-                        <span className="stat-val">{item.stock_quantity} un</span>
+                        <span className="stat-label">
+                          {item.isKit ? 'Itens do Kit' : 'Disponível'}
+                        </span>
+                        <span className="stat-val">
+                          {item.isKit ? `${item.rawKit.items.length} un` : `${item.stock_quantity} un`}
+                        </span>
                       </div>
                       <div className="text-right">
                         <span className="stat-label">Valor (B2B)</span>
@@ -174,7 +206,7 @@ export default function MarketplacePage() {
                       </div>
                     </div>
                     <div className="card-actions mt-4">
-                      <Button className="w-full" icon={ShoppingBag} onClick={() => handleAddToCart(item)}>Adicionar</Button>
+                      <Button className="w-full" icon={ShoppingBag} onClick={() => handleAddToCart(item as any)}>Adicionar</Button>
                     </div>
                   </div>
                 </div>

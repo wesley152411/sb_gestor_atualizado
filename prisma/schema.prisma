@@ -101,6 +101,7 @@ model Kit {
   name         String
   description  String
   image_url    String
+  status       String   @default("Privado")
   value        Float?
   items        Json
   created_at   DateTime @default(now()) @db.Timestamptz(6)
