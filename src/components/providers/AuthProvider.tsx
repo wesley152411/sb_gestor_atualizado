@@ -20,11 +20,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function initAuth() {
       try {
-        // Give Supabase 3s max to respond, then fallback
-        const session = await withTimeout(getSession(), 3000, null);
+        // Give Supabase 15s max to respond, then fallback
+        const session = await withTimeout(getSession(), 15000, null);
         
         if (session?.user) {
-          const decorators = await withTimeout(getDecorators(), 3000, []);
+          const decorators = await withTimeout(getDecorators(), 15000, []);
           const profile = decorators.find((d: Decorator) => d.id === (session.user as { id: string }).id);
           
           if (profile) {
@@ -34,13 +34,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           // No session — use mock decorator for demo/development
-          const decorators = await withTimeout(getDecorators(), 3000, []);
+          const decorators = await withTimeout(getDecorators(), 15000, []);
           setDecorator(decorators[0] || null);
         }
       } catch {
         // Fallback: try local data
         try {
-          const decorators = await withTimeout(getDecorators(), 2000, []);
+          const decorators = await withTimeout(getDecorators(), 10000, []);
           setDecorator(decorators[0] || null);
         } catch {
           setDecorator(null);

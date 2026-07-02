@@ -1,110 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model Decorator {
-  id               String   @id @default(uuid())
-  name             String
-  avatar_url       String
-  membership_level String
-  location         String?
-  instagram        String?
-  whatsapp         String?
-  phone            String?
-  about            String?
-  cover_url        String?
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  reach            Int      @default(0)
-  contact_rate     Float    @default(0.0)
-  positive_reviews Int      @default(0)
+  id                                                  String          @id @default(uuid())
+  name                                                String
+  avatar_url                                          String?
+  membership_level                                    String?         @default("Membro")
+  location                                            String?
+  created_at                                          DateTime        @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  instagram                                           String?
+  whatsapp                                            String?
+  phone                                               String?
+  about                                               String?
+  cover_url                                           String?
+  reach                                               Int?            @default(0)
+  contact_rate                                        Decimal?        @default(0.0) @db.Decimal
+  positive_reviews                                    Int?            @default(0)
+  chat_messages_chat_messages_receiver_idTodecorators ChatMessage[]   @relation("chat_messages_receiver_idTodecorators")
+  chat_messages_chat_messages_sender_idTodecorators   ChatMessage[]   @relation("chat_messages_sender_idTodecorators")
+  consumables                                         consumables[]
+  forum_posts                                         forum_posts[]
+  inventory_items                                     InventoryItem[]
+  kits                                                Kit[]
+  rental_orders_rental_orders_owner_idTodecorators    RentalOrder[]   @relation("rental_orders_owner_idTodecorators")
+  rental_orders_rental_orders_renter_idTodecorators   RentalOrder[]   @relation("rental_orders_renter_idTodecorators")
 
   @@map("decorators")
 }
 
 model InventoryItem {
-  id             String   @id @default(uuid())
-  decorator_id   String
+  id             String        @id @default(uuid())
+  decorator_id   String?
   name           String
-  description    String
-  image_url      String
-  status         String
-  stock_quantity Int
-  rental_price   Float
-  internal_cost  Float
-  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  description    String?
+  image_url      String?
+  status         String?
+  stock_quantity Int?          @default(0)
+  rental_price   Decimal?      @default(0.00) @db.Decimal(10, 2)
+  internal_cost  Decimal?      @default(0.00) @db.Decimal(10, 2)
+  created_at     DateTime      @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  decorators     Decorator?    @relation(fields: [decorator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rental_orders  RentalOrder[]
 
+  @@index([decorator_id], map: "idx_inv_decorator")
   @@map("inventory_items")
 }
 
 model RentalOrder {
-  id          String   @id @default(uuid())
-  renter_id   String
-  owner_id    String
-  total_value Float
-  status      String
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  item_id     String?
-  event_date  String?
-  observation String?
+  id                                             String         @id @default(uuid())
+  renter_id                                      String?
+  owner_id                                       String?
+  total_value                                    Decimal        @db.Decimal(10, 2)
+  status                                         String?        @default("Pendente")
+  created_at                                     DateTime       @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  item_id                                        String?
+  event_date                                     DateTime?      @db.Date
+  observation                                    String?
+  inventory_items                                InventoryItem? @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  decorators_rental_orders_owner_idTodecorators  Decorator?     @relation("rental_orders_owner_idTodecorators", fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  decorators_rental_orders_renter_idTodecorators Decorator?     @relation("rental_orders_renter_idTodecorators", fields: [renter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([owner_id], map: "idx_orders_owner")
+  @@index([renter_id], map: "idx_orders_renter")
   @@map("rental_orders")
 }
 
 model ChatMessage {
-  id          String   @id @default(uuid())
-  sender_id   String
-  receiver_id String
-  message     String
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  id                                               String     @id @default(uuid())
+  sender_id                                        String?
+  receiver_id                                      String?
+  message                                          String
+  created_at                                       DateTime   @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  decorators_chat_messages_receiver_idTodecorators Decorator? @relation("chat_messages_receiver_idTodecorators", fields: [receiver_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  decorators_chat_messages_sender_idTodecorators   Decorator? @relation("chat_messages_sender_idTodecorators", fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([receiver_id], map: "idx_chats_receiver")
+  @@index([sender_id], map: "idx_chats_sender")
   @@map("chat_messages")
 }
 
 model Client {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String
-  phone       String
-  address     String
-  theme       String
-  total_value Float
-  event_date  String
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  phone       String?
+  address     String?
+  theme       String?
+  total_value Decimal?  @db.Decimal(10, 2)
+  event_date  DateTime? @db.Date
+  created_at  DateTime  @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
 
   @@map("clients")
 }
 
 model PartyEvent {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   client_name String
-  phone       String
-  address     String
-  setup_time  String
-  start_time  String
-  theme       String
-  total_value Float
-  event_date  String
-  status      String
-  items       Json
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  phone       String?
+  address     String?
+  setup_time  String?
+  start_time  String?
+  theme       String?
+  total_value Decimal?  @db.Decimal(10, 2)
+  event_date  DateTime? @db.Date
+  status      String?
+  items       Json?
+  created_at  DateTime  @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
 
   @@map("party_events")
 }
 
 model Kit {
-  id           String   @id @default(uuid())
-  decorator_id String
+  id           String     @id @default(uuid())
+  decorator_id String?
   name         String
-  description  String
-  image_url    String
-  status       String   @default("Privado")
-  value        Float?
-  items        Json
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  description  String?
+  image_url    String?
+  value        Decimal?   @default(0.00) @db.Decimal(10, 2)
+  items        Json?
+  created_at   DateTime   @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  status       String?    @default("Privado") @db.VarChar(255)
+  decorators   Decorator? @relation(fields: [decorator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("kits")
+}
+
+model consumables {
+  id               String     @id
+  decorator_id     String?
+  name             String
+  category         String
+  current_quantity Int
+  min_quantity     Int
+  unit             String
+  created_at       DateTime   @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  decorators       Decorator? @relation(fields: [decorator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model forum_posts {
+  id         String     @id
+  author_id  String?
+  title      String
+  content    String
+  category   String?    @default("Geral")
+  created_at DateTime   @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  decorators Decorator? @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }

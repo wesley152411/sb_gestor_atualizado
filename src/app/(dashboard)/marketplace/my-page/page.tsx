@@ -84,7 +84,7 @@ export default function MyPage() {
   // Real stats consumed directly from the database (decorator object):
   const reach = decorator?.reach ?? 0;
   const reachText = reach > 999 ? (reach / 1000).toFixed(1) + 'k' : reach.toString();
-  const inquiryRate = (decorator?.contact_rate ?? 0).toFixed(1);
+  const inquiryRate = Number(decorator?.contact_rate ?? 0).toFixed(1);
   const reviewCount = decorator?.positive_reviews ?? 0;
 
   // Image Upload Handlers

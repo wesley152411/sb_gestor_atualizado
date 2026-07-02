@@ -5,7 +5,9 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatDate(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-BR');
+  if (!dateStr) return '';
+  const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+  return new Date(datePart + 'T00:00:00').toLocaleDateString('pt-BR');
 }
 
 export function formatDateTime(dateStr: string): string {
