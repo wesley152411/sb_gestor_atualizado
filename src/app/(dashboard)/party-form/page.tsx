@@ -48,7 +48,7 @@ export default function PartyFormPage() {
       if (!decorator) return;
       const [inv, evts, kt] = await Promise.all([
         getInventoryItems(decorator.id),
-        getPartyEvents(),
+        getPartyEvents(decorator.id),
         getKits(decorator.id)
       ]);
       setInventory(inv);
@@ -83,6 +83,7 @@ export default function PartyFormPage() {
     }
 
     await savePartyEvent({
+      decorator_id: decorator?.id,
       client_name: clientName,
       phone,
       address,

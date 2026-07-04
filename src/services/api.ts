@@ -5,7 +5,7 @@ import {
 } from '@/lib/mock-data';
 import type {
   Decorator, InventoryItem, ChatMessage, RentalOrder,
-  Client, PartyEvent, Kit, SignupMetadata, AuthResult,
+  Client, PartyEvent, Kit, SignupMetadata, AuthResult, CalendarMonthData,
 } from '@/types';
 import { generateId } from '@/lib/utils';
 
@@ -331,12 +331,14 @@ export async function saveClient(client: Partial<Client>): Promise<Client> {
 
 // ==================== PARTY EVENTS ====================
 
-export async function getPartyEvents(): Promise<PartyEvent[]> {
+export async function getPartyEvents(decoratorId?: string): Promise<PartyEvent[]> {
   try {
-    const res = await fetch('/api/party-events');
+    const url = decoratorId ? `/api/party-events?decoratorId=${decoratorId}` : '/api/party-events';
+    const res = await fetch(url);
     if (res.ok) return await res.json();
   } catch { /* fallback */ }
-  return getLocal('party_events', initialPartyEvents);
+  const events = getLocal('party_events', initialPartyEvents);
+  return decoratorId ? events.filter((e) => e.decorator_id === decoratorId) : events;
 }
 
 export async function savePartyEvent(event: Partial<PartyEvent>): Promise<PartyEvent> {
@@ -344,7 +346,7 @@ export async function savePartyEvent(event: Partial<PartyEvent>): Promise<PartyE
     id: event.id || generateId('evt'), client_name: event.client_name || '', phone: event.phone || '',
     address: event.address || '', setup_time: event.setup_time || '', start_time: event.start_time || '',
     theme: event.theme || '', total_value: event.total_value || 0, event_date: event.event_date || '',
-    status: event.status || 'Pendente', items: event.items || [],
+    status: event.status || 'Pendente', items: event.items || [], decorator_id: event.decorator_id,
   };
   try {
     const res = await fetch('/api/party-events', {
@@ -360,6 +362,26 @@ export async function savePartyEvent(event: Partial<PartyEvent>): Promise<PartyE
   else events.push(full);
   setLocal('party_events', events);
   return full;
+}
+
+// ==================== CALENDAR ====================
+
+export async function getCalendarEvents(decoratorId: string, year: number, month: number): Promise<CalendarMonthData> {
+  try {
+    const res = await fetch(`/api/calendar?decoratorId=${decoratorId}&year=${year}&month=${month}`);
+    if (res.ok) return await res.json();
+  } catch { /* fallback */ }
+
+  const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+  const isInMonth = (dateStr?: string) => !!dateStr && dateStr.startsWith(monthKey);
+
+  const orders = getLocal('orders', initialRentalOrders).filter(
+    (o) => (o.renter_id === decoratorId || o.owner_id === decoratorId) && isInMonth(o.event_date)
+  );
+  const events = getLocal('party_events', initialPartyEvents).filter(
+    (e) => e.decorator_id === decoratorId && isInMonth(e.event_date)
+  );
+  return { rentalOrders: orders, partyEvents: events };
 }
 
 // ==================== KITS ====================

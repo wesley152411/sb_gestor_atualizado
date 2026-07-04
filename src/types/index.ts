@@ -83,12 +83,22 @@ export interface RentalOrder {
   status: string;
   created_at: string;
   items?: RentalOrderItem[];
+  owner?: RentalOrderContact;
+  renter?: RentalOrderContact;
+}
+
+export interface RentalOrderContact {
+  id: string;
+  name: string;
+  phone?: string;
 }
 
 export interface RentalOrderItem {
   name: string;
   quantity: number;
   price: number;
+  item_id?: string;
+  kit_id?: string;
   item?: InventoryItem;
 }
 
@@ -121,6 +131,12 @@ export interface PartyEvent {
   event_date: string;
   status: 'Confirmado' | 'Pendente' | 'Finalizado';
   items: PartyEventItem[];
+  decorator_id?: string;
+}
+
+export interface CalendarMonthData {
+  rentalOrders: RentalOrder[];
+  partyEvents: PartyEvent[];
 }
 
 export interface Notification {

@@ -1,5 +1,37 @@
 import { prisma } from '@/lib/prisma';
+import { toDbDate } from '@/lib/utils';
 import { NextResponse } from 'next/server';
+
+const ORDER_INCLUDE = {
+  rental_order_items: true,
+  decorators_rental_orders_owner_idTodecorators: {
+    select: { id: true, name: true, phone: true },
+  },
+  decorators_rental_orders_renter_idTodecorators: {
+    select: { id: true, name: true, phone: true },
+  },
+} as const;
+
+function serializeOrder(order: any) {
+  const {
+    rental_order_items,
+    decorators_rental_orders_owner_idTodecorators,
+    decorators_rental_orders_renter_idTodecorators,
+    ...rest
+  } = order;
+  return {
+    ...rest,
+    items: rental_order_items?.map((i: any) => ({
+      name: i.name,
+      quantity: i.quantity,
+      price: i.price ? Number(i.price) : 0,
+      item_id: i.item_id ?? undefined,
+      kit_id: i.kit_id ?? undefined,
+    })),
+    owner: decorators_rental_orders_owner_idTodecorators ?? undefined,
+    renter: decorators_rental_orders_renter_idTodecorators ?? undefined,
+  };
+}
 
 export async function GET(request: Request) {
   try {
@@ -18,8 +50,9 @@ export async function GET(request: Request) {
         ],
       },
       orderBy: { created_at: 'desc' },
+      include: ORDER_INCLUDE,
     });
-    return NextResponse.json(orders);
+    return NextResponse.json(orders.map(serializeOrder));
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -34,17 +67,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    // Since items are nested in standard object but might not be in DB schema, 
-    // we drop the extra nested items field when storing in rental_orders.
-    const { items, ...orderData } = data;
+    const { items, ...orderData } = data as any;
+    const orderItems = items as
+      | { name: string; quantity: number; price: number; item_id?: string; kit_id?: string }[]
+      | undefined;
+    if ('event_date' in orderData) {
+      orderData.event_date = toDbDate(orderData.event_date);
+    }
 
-    const updated = await prisma.rentalOrder.upsert({
-      where: { id },
-      update: orderData,
-      create: { id, ...orderData },
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.rentalOrder.upsert({
+        where: { id },
+        update: orderData,
+        create: { id, ...orderData },
+      });
+
+      if (orderItems) {
+        await tx.rentalOrderItem.deleteMany({ where: { order_id: id } });
+        if (orderItems.length > 0) {
+          await tx.rentalOrderItem.createMany({
+            data: orderItems.map((i) => ({
+              order_id: id,
+              item_id: i.item_id,
+              kit_id: i.kit_id,
+              name: i.name,
+              quantity: i.quantity,
+              price: i.price,
+            })),
+          });
+        }
+      }
+
+      return tx.rentalOrder.findUniqueOrThrow({ where: { id }, include: ORDER_INCLUDE });
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(serializeOrder(updated));
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

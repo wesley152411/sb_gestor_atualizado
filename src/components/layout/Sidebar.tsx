@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, Package, ShoppingCart, Users, 
-  Settings, LifeBuoy, LogOut, ShoppingBag, Store, MessageSquare 
+import {
+  LayoutDashboard, Package, ShoppingCart, Users,
+  Settings, LifeBuoy, LogOut, ShoppingBag, Store, MessageSquare, CalendarDays
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +15,7 @@ const menuItems = [
   { href: '/marketplace/my-page', label: 'Minha Página', icon: Store },
   { href: '/chat', label: 'Chat B2B', icon: MessageSquare },
   { href: '/party-form', label: 'Formulário', icon: ShoppingCart },
+  { href: '/calendar', label: 'Calendário', icon: CalendarDays },
   { href: '/clients', label: 'Clientes', icon: Users },
   { href: '/settings', label: 'Configurações', icon: Settings },
 ];

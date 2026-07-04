@@ -1,5 +1,5 @@
 import useSWR, { mutate } from 'swr';
-import type { Decorator, InventoryItem, RentalOrder, ChatMessage, Client, PartyEvent, Kit } from '@/types';
+import type { Decorator, InventoryItem, RentalOrder, ChatMessage, Client, PartyEvent, Kit, CalendarMonthData } from '@/types';
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -74,10 +74,25 @@ export function useClients() {
   };
 }
 
-export function usePartyEvents() {
-  const { data, error, isLoading, mutate: revalidate } = useSWR<PartyEvent[]>('/api/party-events', fetcher);
+export function usePartyEvents(decoratorId?: string) {
+  const url = decoratorId ? `/api/party-events?decoratorId=${decoratorId}` : '/api/party-events';
+  const { data, error, isLoading, mutate: revalidate } = useSWR<PartyEvent[]>(url, fetcher);
   return {
     events: data || [],
+    error,
+    isLoading,
+    mutate: revalidate,
+  };
+}
+
+export function useCalendarEvents(decoratorId?: string, year?: number, month?: number) {
+  const url = decoratorId && year && month
+    ? `/api/calendar?decoratorId=${decoratorId}&year=${year}&month=${month}`
+    : null;
+  const { data, error, isLoading, mutate: revalidate } = useSWR<CalendarMonthData>(url, fetcher);
+  return {
+    rentalOrders: data?.rentalOrders || [],
+    partyEvents: data?.partyEvents || [],
     error,
     isLoading,
     mutate: revalidate,

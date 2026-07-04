@@ -85,12 +85,16 @@ export default function MarketplacePage() {
     }
 
     const ownerId = cartItems[0].item.decorator_id;
-    const orderItems = cartItems.map(c => ({
-      name: c.item.name,
-      quantity: c.quantity,
-      price: c.item.rental_price,
-      item: c.item
-    }));
+    const orderItems = cartItems.map(c => {
+      const raw = c.item as InventoryItem & { isKit?: boolean };
+      return {
+        name: raw.name,
+        quantity: c.quantity,
+        price: raw.rental_price,
+        item_id: raw.isKit ? undefined : raw.id,
+        kit_id: raw.isKit ? raw.id : undefined,
+      };
+    });
 
     await saveRentalOrder({
       renter_id: decorator.id,

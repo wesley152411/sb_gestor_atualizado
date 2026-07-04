@@ -1,9 +1,14 @@
 import { prisma } from '@/lib/prisma';
+import { toDbDate } from '@/lib/utils';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const decoratorId = searchParams.get('decoratorId');
+
     const events = await prisma.partyEvent.findMany({
+      where: decoratorId ? { decorator_id: decoratorId } : undefined,
       orderBy: { event_date: 'asc' },
     });
     return NextResponse.json(events);
@@ -19,6 +24,10 @@ export async function POST(request: Request) {
 
     if (!id) {
       return NextResponse.json({ error: 'Event ID is required' }, { status: 400 });
+    }
+
+    if ('event_date' in data) {
+      data.event_date = toDbDate(data.event_date);
     }
 
     const updated = await prisma.partyEvent.upsert({

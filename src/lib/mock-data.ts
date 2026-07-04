@@ -129,6 +129,7 @@ export const initialKits: Kit[] = [
     id: 'kit-1', decorator_id: 'dec-1', name: 'Kit Seleção Brasileira',
     description: 'Decoração completa com tema futebol Brasil. Painéis, mesas, letreiros e balões.',
     image_url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=600&q=80',
+    status: 'Público',
     value: null,
     items: [
       { id: 'inv-1', name: 'Cadeira Dior Dourada Resina', quantity: 50 },
@@ -142,6 +143,7 @@ export const initialKits: Kit[] = [
     id: 'kit-2', decorator_id: 'dec-1', name: 'Kit Princesa Encantada',
     description: 'Decoração mágica para festas infantis em tons rose e dourado.',
     image_url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=600&q=80',
+    status: 'Público',
     value: null,
     items: [
       { id: 'inv-1', name: 'Cadeira Dior Dourada Resina', quantity: 30 },

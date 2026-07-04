@@ -2679,3 +2679,51 @@ img { max-width: 100%; display: block; }
   background: rgba(245, 158, 11, 0.9);
   color: white;
 }
+
+/* ==================== CALENDAR PAGE ==================== */
+.calendar-panel {
+  display: flex;
+  justify-content: center;
+}
+
+.sb-calendar {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--primary-light);
+  --rdp-today-color: var(--primary);
+  --rdp-day_button-border-radius: var(--radius-md);
+  width: 100%;
+  max-width: 480px;
+}
+
+.sb-calendar .rdp-day_button {
+  position: relative;
+}
+
+.calendar-day-dot {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+}
+
+.calendar-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.calendar-detail-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+}
+
+@media (max-width: 640px) {
+  .sb-calendar {
+    max-width: 100%;
+  }
+}

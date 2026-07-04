@@ -26,6 +26,16 @@ export function formatTime(dateStr: string): string {
   });
 }
 
+// ==================== BANCO DE DADOS ====================
+
+// Normaliza uma data 'YYYY-MM-DD' (vinda de <input type="date">) para um Date
+// UTC meia-noite, formato exigido pelo Prisma para colunas @db.Date.
+export function toDbDate(dateStr?: string | null): Date | undefined {
+  if (!dateStr) return undefined;
+  const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+  return new Date(`${datePart}T00:00:00.000Z`);
+}
+
 // ==================== MÁSCARAS ====================
 
 export function cnpjMask(value: string): string {
