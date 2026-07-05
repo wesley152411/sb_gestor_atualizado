@@ -13,28 +13,60 @@ import { useNotificationStore } from '@/stores/notification-store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { PartyEvent } from '@/types';
 
+const STATUS_OPTIONS: PartyEvent['status'][] = ['Pendente', 'Confirmado', 'Finalizado'];
+
 export default function ClientsPage() {
   const { events, isLoading, mutate } = usePartyEvents();
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<Set<PartyEvent['status']>>(new Set());
+  const [monthFilter, setMonthFilter] = useState(''); // 'YYYY-MM', vazio = todos os períodos
   const { addNotification } = useNotificationStore();
 
-  const handleDownloadPDF = (eventData: PartyEvent) => {
-    generateLogisticsPDF(eventData);
-    addNotification('PDF Gerado', `Logística de ${eventData.client_name} baixada.`);
+  const handleDownloadPDF = async (eventData: PartyEvent) => {
+    try {
+      await generateLogisticsPDF(eventData);
+      addNotification('PDF Gerado', `Logística de ${eventData.client_name} baixada.`);
+    } catch (error) {
+      console.error('Falha ao gerar PDF logístico:', error);
+      addNotification('Erro ao Gerar PDF', 'Não foi possível gerar o PDF logístico.', true);
+    }
   };
 
   const handleConcludeEvent = async (eventData: PartyEvent) => {
     if (confirm(`Deseja concluir o evento de "${eventData.client_name}" e devolver todas as peças ao estoque livre?`)) {
-      await savePartyEvent({ ...eventData, status: 'Finalizado' });
-      addNotification("Itens Devolvidos", `As peças da festa "${eventData.theme}" retornaram ao acervo.`);
-      mutate();
+      try {
+        await savePartyEvent({ ...eventData, status: 'Finalizado' });
+        addNotification("Itens Devolvidos", `As peças da festa "${eventData.theme}" retornaram ao acervo.`);
+        mutate();
+      } catch (error) {
+        console.error('Falha ao concluir evento:', error);
+        addNotification('Erro ao Concluir Evento', 'Não foi possível atualizar o status no servidor.', true);
+      }
     }
   };
 
-  const filteredEvents = events.filter(e => 
-    e.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.theme.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const toggleStatusFilter = (status: PartyEvent['status']) => {
+    setStatusFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
+
+  const hasActiveFilters = statusFilter.size > 0 || monthFilter !== '';
+  const clearFilters = () => {
+    setStatusFilter(new Set());
+    setMonthFilter('');
+  };
+
+  const filteredEvents = events.filter(e => {
+    const matchesSearch = e.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.theme.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter.size === 0 || statusFilter.has(e.status);
+    const matchesMonth = monthFilter === '' || (e.event_date?.slice(0, 7) === monthFilter);
+    return matchesSearch && matchesStatus && matchesMonth;
+  });
 
   if (isLoading) return <div className="p-8 text-center text-slate-500">Carregando clientes...</div>;
 
@@ -47,12 +79,39 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      <div className="mb-6">
-        <SearchInput 
-          placeholder="Buscar cliente ou tema..." 
+      <div className="clients-filter-bar mb-6">
+        <SearchInput
+          placeholder="Buscar cliente ou tema..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
+
+        <div className="status-chip-group">
+          {STATUS_OPTIONS.map((status) => (
+            <button
+              key={status}
+              type="button"
+              className={`status-chip ${statusFilter.has(status) ? 'active' : ''}`}
+              onClick={() => toggleStatusFilter(status)}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+
+        <input
+          type="month"
+          className="form-input month-filter-input"
+          value={monthFilter}
+          onChange={(e) => setMonthFilter(e.target.value)}
+          aria-label="Filtrar por mês do evento"
+        />
+
+        {hasActiveFilters && (
+          <button type="button" className="clients-clear-filters" onClick={clearFilters}>
+            Limpar filtros
+          </button>
+        )}
       </div>
 
       <Table headers={['Cliente', 'Telefone', 'Data do Evento', 'Tema', 'Status', 'Valor', 'Ações']}>

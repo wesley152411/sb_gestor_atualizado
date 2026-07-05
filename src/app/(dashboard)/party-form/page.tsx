@@ -8,10 +8,11 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { usePartyFormStore } from '@/stores/party-form-store';
 import { useNotificationStore } from '@/stores/notification-store';
-import { 
-  getInventoryItems, getPartyEvents, savePartyEvent, 
-  getKits, saveInventoryItem 
+import {
+  getInventoryItems, getPartyEvents, savePartyEvent,
+  getKits, saveInventoryItem
 } from '@/services/api';
+import { generateLogisticsPDF } from '@/lib/pdf-generator';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -42,6 +43,7 @@ export default function PartyFormPage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [modalTab, setModalTab] = useState<'items' | 'kits'>('items');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -70,7 +72,7 @@ export default function PartyFormPage() {
 
     // Logic: Check Stock Conflicts
     const conflicts = checkStockConflicts(eventDate, formItems.map(f => ({ id: f.item.id, quantity: f.quantity, name: f.item.name })));
-    
+
     if (conflicts.blocked.length > 0) {
       alert(`Conflito BLOQUEANTE! Peças já confirmadas noutros eventos:\n${conflicts.blocked.join('\n')}`);
       return;
@@ -82,29 +84,47 @@ export default function PartyFormPage() {
       }
     }
 
-    await savePartyEvent({
-      decorator_id: decorator?.id,
-      client_name: clientName,
-      phone,
-      address,
-      setup_time: setupTime,
-      start_time: startTime,
-      theme,
-      event_date: eventDate,
-      total_value: Number(totalValue) || 0,
-      status: contractStatus,
-      items: formItems.map(f => ({
-        id: f.item.id,
-        name: f.item.name,
-        quantity: f.quantity,
-        price: f.item.rental_price
-      }))
-    });
+    setIsSaving(true);
+    try {
+      const savedEvent = await savePartyEvent({
+        decorator_id: decorator?.id,
+        client_name: clientName,
+        phone,
+        address,
+        setup_time: setupTime,
+        start_time: startTime,
+        theme,
+        event_date: eventDate,
+        total_value: Number(totalValue) || 0,
+        status: contractStatus,
+        items: formItems.map(f => ({
+          id: f.item.id,
+          name: f.item.name,
+          quantity: f.quantity,
+          price: f.item.rental_price
+        }))
+      });
 
-    addNotification('Evento Criado', `A festa para ${clientName} foi registrada.`);
-    
-    // Clear form
-    handleClearForm();
+      addNotification('Evento Criado', `A festa para ${clientName} foi registrada.`);
+
+      try {
+        await generateLogisticsPDF(savedEvent);
+      } catch (pdfError) {
+        console.error('Falha ao gerar PDF logístico:', pdfError);
+        addNotification(
+          'Erro ao Gerar PDF',
+          'O evento foi salvo, mas não foi possível gerar o PDF logístico. Tente baixá-lo novamente pela tela de Clientes.',
+          true
+        );
+      }
+
+      handleClearForm();
+    } catch (saveError) {
+      console.error('Falha ao salvar evento:', saveError);
+      addNotification('Erro ao Salvar Evento', 'Não foi possível salvar o evento. Verifique sua conexão e tente novamente.', true);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleClearForm = () => {
@@ -304,13 +324,14 @@ export default function PartyFormPage() {
             </select>
           </div>
 
-          <Button 
-            className="w-full mt-4" 
-            size="lg" 
-            icon={UploadCloud} 
+          <Button
+            className="w-full mt-4"
+            size="lg"
+            icon={UploadCloud}
             onClick={handleSaveEvent}
+            isLoading={isSaving}
           >
-            Confirmar Contrato e Gerar PDF Logístico
+            {isSaving ? 'Gerando PDF...' : 'Confirmar Contrato e Gerar PDF Logístico'}
           </Button>
         </div>
 

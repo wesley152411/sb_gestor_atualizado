@@ -1,7 +1,9 @@
 // ==================== FORMATAÇÃO ====================
 
-export function formatCurrency(value: number): string {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+export function formatCurrency(value: number | string): string {
+  // Campos Decimal do Prisma chegam como string via API (ex: "35.00"); Number()
+  // normaliza antes de formatar, já que string.toLocaleString ignora as opções de moeda.
+  return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export function formatDate(dateStr: string): string {

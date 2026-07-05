@@ -348,14 +348,31 @@ export async function savePartyEvent(event: Partial<PartyEvent>): Promise<PartyE
     theme: event.theme || '', total_value: event.total_value || 0, event_date: event.event_date || '',
     status: event.status || 'Pendente', items: event.items || [], decorator_id: event.decorator_id,
   };
+
+  let res: Response;
   try {
-    const res = await fetch('/api/party-events', {
+    res = await fetch('/api/party-events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(full),
     });
-    if (res.ok) return await res.json();
-  } catch { /* fallback */ }
+  } catch {
+    // Network unreachable — fall back to local demo storage.
+    return savePartyEventLocally(full);
+  }
+
+  if (res.ok) return await res.json();
+
+  // Server was reached but rejected the write (e.g. a DB constraint violation).
+  // Surface this instead of silently discarding it into local storage, since
+  // that previously made saves look successful while the event never reached
+  // the real database (invisible to the Calendar and any other decorator).
+  const errorBody = await res.json().catch(() => ({}));
+  console.error('savePartyEvent server error:', res.status, errorBody);
+  throw new Error(errorBody.error || `O servidor recusou salvar o evento (erro ${res.status}).`);
+}
+
+function savePartyEventLocally(full: PartyEvent): PartyEvent {
   const events = getLocal('party_events', initialPartyEvents);
   const idx = events.findIndex((e) => e.id === full.id);
   if (idx !== -1) events[idx] = { ...events[idx], ...full };

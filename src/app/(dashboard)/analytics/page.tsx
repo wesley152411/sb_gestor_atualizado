@@ -3,31 +3,59 @@
 import { DollarSign, PieChart, TrendingUp, Users } from 'lucide-react';
 import { KpiCard } from '@/components/analytics/KpiCard';
 import { FinancialChart, ThemesChart, VolumeChart } from '@/components/analytics/Charts';
-import { useClients, usePartyEvents } from '@/hooks/swr-hooks';
+import { useAuthStore } from '@/stores/auth-store';
+import { usePartyEvents, useInventory } from '@/hooks/swr-hooks';
 import { formatCurrency } from '@/lib/utils';
-import type { Client, PartyEvent } from '@/types';
+import { useState } from 'react';
+import type { PartyEvent } from '@/types';
+
+// Somente contratos fechados/entregues contam como receita real —
+// "Pendente" é apenas orçamento, ainda não é uma venda confirmada.
+const REVENUE_STATUSES: PartyEvent['status'][] = ['Confirmado', 'Finalizado'];
+
+function monthKey(dateStr?: string): string {
+  return dateStr ? dateStr.slice(0, 7) : '';
+}
 
 export default function AnalyticsPage() {
-  const { clients, isLoading: isClientsLoading } = useClients();
-  const { events, isLoading: isEventsLoading } = usePartyEvents();
+  const { decorator } = useAuthStore();
+  const { events, isLoading: isEventsLoading } = usePartyEvents(decorator?.id);
+  const { items: inventory, isLoading: isInventoryLoading } = useInventory(decorator?.id);
+  const [monthFilter, setMonthFilter] = useState(''); // 'YYYY-MM', vazio = todos os períodos
 
-  const isLoading = isClientsLoading || isEventsLoading;
+  const isLoading = isEventsLoading || isInventoryLoading;
 
   if (isLoading) {
     return <div className="p-8 text-center text-slate-500">Carregando dashboard...</div>;
   }
 
-  // --- KPI Calculations ---
-  const totalRevenue = events.reduce((sum, e) => sum + e.total_value, 0);
-  const totalCost = totalRevenue * 0.35; // Simulated 35% cost
+  // Custo real por peça, cadastrado no Acervo (itens excluídos depois de usados
+  // num evento não têm custo disponível e são ignorados no cálculo de custo).
+  const inventoryCostMap = new Map(inventory.map((i) => [i.id, Number(i.internal_cost) || 0]));
+
+  const eventCost = (event: PartyEvent) =>
+    (event.items || []).reduce((sum, item) => {
+      const unitCost = inventoryCostMap.get(item.id);
+      return unitCost !== undefined ? sum + unitCost * item.quantity : sum;
+    }, 0);
+
+  // --- KPI Calculations (respeitam o filtro de período) ---
+  const revenueEvents = events.filter((e) =>
+    REVENUE_STATUSES.includes(e.status) &&
+    (monthFilter === '' || monthKey(e.event_date) === monthFilter)
+  );
+
+  const totalRevenue = revenueEvents.reduce((sum, e) => sum + Number(e.total_value), 0);
+  const totalCost = revenueEvents.reduce((sum, e) => sum + eventCost(e), 0);
   const totalProfit = totalRevenue - totalCost;
   const margin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : '0';
-  
-  const themeCounts = events.reduce((acc, e) => {
+  const avgTicket = revenueEvents.length > 0 ? totalRevenue / revenueEvents.length : 0;
+
+  const themeCounts = revenueEvents.reduce((acc, e) => {
     acc[e.theme] = (acc[e.theme] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  
+
   let topTheme = 'Nenhum';
   let maxCount = 0;
   for (const [theme, count] of Object.entries(themeCounts)) {
@@ -37,22 +65,29 @@ export default function AnalyticsPage() {
     }
   }
 
-  const avgTicket = events.length > 0 ? totalRevenue / events.length : 0;
+  // --- Chart Data: últimos 6 meses reais (independente do filtro de período,
+  // que serve só para recortar os KPIs acima) ---
+  const now = new Date();
+  const monthBuckets = Array.from({ length: 6 }, (_, idx) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - idx), 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+    return { key, label: label.charAt(0).toUpperCase() + label.slice(1) };
+  });
 
-  // --- Chart Data ---
-  // Mock monthly data for charts based on total
-  const financialLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
-  const revenueData = [1200, 1900, 1500, 2200, 1800, totalRevenue];
-  const costData = revenueData.map(r => r * 0.35);
+  const eventsByMonth = monthBuckets.map(({ key }) =>
+    events.filter((e) => REVENUE_STATUSES.includes(e.status) && monthKey(e.event_date) === key)
+  );
+
+  const financialLabels = monthBuckets.map((b) => b.label);
+  const revenueData = eventsByMonth.map((evts) => evts.reduce((sum, e) => sum + Number(e.total_value), 0));
+  const costData = eventsByMonth.map((evts) => evts.reduce((sum, e) => sum + eventCost(e), 0));
+  const volumeData = eventsByMonth.map((evts) => evts.length);
 
   const themeLabels = Object.keys(themeCounts).slice(0, 4);
   const themeData = Object.values(themeCounts).slice(0, 4);
-  
-  // If no data, provide fallbacks for donut chart to look good
   const finalThemeLabels = themeLabels.length > 0 ? themeLabels : ['Vazio'];
   const finalThemeData = themeData.length > 0 ? themeData : [1];
-
-  const volumeData = [1, 3, 2, 4, 2, events.length];
 
   return (
     <div>
@@ -60,6 +95,20 @@ export default function AnalyticsPage() {
         <div>
           <h1 className="page-title">Dashboard Analítico</h1>
           <p className="page-subtitle">Acompanhe as métricas de desempenho do seu acervo e eventos.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="month"
+            className="form-input month-filter-input"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            aria-label="Filtrar por mês do evento"
+          />
+          {monthFilter !== '' && (
+            <button type="button" className="clients-clear-filters" onClick={() => setMonthFilter('')}>
+              Ver todos os períodos
+            </button>
+          )}
         </div>
       </div>
 
@@ -94,7 +143,7 @@ export default function AnalyticsPage() {
         <div className="chart-card">
           <div className="chart-card-header">
             <h3 className="chart-card-title">Saúde Financeira</h3>
-            <p className="chart-card-subtitle">Comparativo de faturamento vs custos estimados (6 meses)</p>
+            <p className="chart-card-subtitle">Comparativo de faturamento vs custos reais (6 meses)</p>
           </div>
           <div className="chart-wrapper">
             <FinancialChart labels={financialLabels} revenue={revenueData} costs={costData} />

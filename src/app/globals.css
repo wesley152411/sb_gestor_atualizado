@@ -892,6 +892,65 @@ img { max-width: 100%; display: block; }
   color: var(--primary);
 }
 
+/* ==================== CLIENTS FILTER BAR ==================== */
+.clients-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.status-chip-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-chip {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.status-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.status-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.month-filter-input {
+  width: auto;
+  padding: 9px 14px;
+  font-size: 13px;
+}
+
+.clients-clear-filters {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px;
+}
+
+.clients-clear-filters:hover {
+  color: var(--primary);
+}
+
 /* ==================== TOAST ==================== */
 .toast-container {
   position: fixed;

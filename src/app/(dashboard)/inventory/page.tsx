@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  Plus, Search, SlidersHorizontal, Package, LayoutGrid, 
-  DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, Minus, X, ShoppingCart
+import {
+  Plus, Search, SlidersHorizontal, Package, LayoutGrid,
+  DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, Minus, X, ShoppingCart, Check
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { usePartyFormStore } from '@/stores/party-form-store';
@@ -21,15 +21,16 @@ import type { InventoryItem, Kit } from '@/types';
 
 export default function InventoryPage() {
   const router = useRouter();
-  const { addItem: addPartyFormItem, clear: clearPartyForm } = usePartyFormStore();
+  const { items: partyFormItems, addItem: addPartyFormItem, clear: clearPartyForm } = usePartyFormStore();
   const { decorator } = useAuthStore();
   const { addNotification } = useNotificationStore();
-  
+
   const [activeTab, setActiveTab] = useState('items');
   const { items, isLoading: isItemsLoading, mutate: mutateItems } = useInventory(decorator?.id);
   const { kits, isLoading: isKitsLoading, mutate: mutateKits } = useKits(decorator?.id);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [addedItemIds, setAddedItemIds] = useState<Set<string>>(new Set());
   const isLoading = isItemsLoading || isKitsLoading;
 
   // Edit Item Modal (Standard Piece)
@@ -309,6 +310,27 @@ export default function InventoryPage() {
     router.push('/party-form');
   };
 
+  // Peças Avulsas: quantidade já presente no formulário em andamento para uma peça
+  const getPartyFormQty = (itemId: string) => partyFormItems.find(p => p.item.id === itemId)?.quantity || 0;
+
+  const handleAddItemToForm = (item: InventoryItem) => {
+    const currentQty = getPartyFormQty(item.id);
+    if (currentQty + 1 > item.stock_quantity) {
+      addNotification('Estoque Insuficiente', `Não há mais unidades disponíveis de "${item.name}" (estoque: ${item.stock_quantity} un).`, true);
+      return;
+    }
+    addPartyFormItem(item, 1);
+    addNotification('Peça Adicionada', `"${item.name}" foi adicionada ao formulário em andamento.`);
+    setAddedItemIds(prev => new Set(prev).add(item.id));
+    setTimeout(() => {
+      setAddedItemIds(prev => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }, 2000);
+  };
+
   const kitSearchResults = kitSearchQuery.trim() === ''
     ? []
     : items.filter(item => item.name.toLowerCase().includes(kitSearchQuery.toLowerCase()));
@@ -467,17 +489,44 @@ export default function InventoryPage() {
                       </div>
                     </div>
 
+                    {/* Adicionar ao Formulário Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleAddItemToForm(item)}
+                      disabled={getPartyFormQty(item.id) >= item.stock_quantity}
+                      className="btn-primary"
+                      style={{
+                        width: '100%', marginTop: '14px', marginBottom: '8px', justifyContent: 'center',
+                        backgroundColor: addedItemIds.has(item.id) ? '#16a34a' : '#2563eb',
+                        display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 12px',
+                        opacity: getPartyFormQty(item.id) >= item.stock_quantity ? 0.5 : 1,
+                        cursor: getPartyFormQty(item.id) >= item.stock_quantity ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {addedItemIds.has(item.id) ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Adicionado ✓
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart className="w-4 h-4" />
+                          Adicionar ao formulário
+                        </>
+                      )}
+                    </button>
+
                     {/* Actions */}
                     <div className="acervo-card-actions">
-                      <button 
-                        className="acervo-action-btn" 
+                      <button
+                        className="acervo-action-btn"
                         onClick={() => handleOpenItemModal(item)}
                       >
                         <Pencil className="w-4 h-4" />
                         Editar
                       </button>
-                      <button 
-                        className="acervo-action-btn danger" 
+                      <button
+                        className="acervo-action-btn danger"
                         onClick={() => handleDeleteItem(item.id, item.name)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -487,7 +536,7 @@ export default function InventoryPage() {
                   </div>
                 </div>
               ))}
-              
+
               {filteredSinglePieceKits.map(kit => (
                 <div key={kit.id} className="acervo-product-card kit-border">
                   <div className="acervo-card-image">
