@@ -3,14 +3,16 @@
 import { useMemo, useState } from 'react';
 import { DayPicker, type DayButtonProps, type NavProps } from 'react-day-picker';
 import { ptBR } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Package, Phone, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package, Phone, User, Download } from 'lucide-react';
 import 'react-day-picker/style.css';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCalendarEvents } from '@/hooks/swr-hooks';
+import { useNotificationStore } from '@/stores/notification-store';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { formatDate } from '@/lib/utils';
+import { generateLogisticsPDF } from '@/lib/pdf-generator';
 import type { RentalOrder, PartyEvent } from '@/types';
 
 function toDateKey(dateStr?: string): string {
@@ -31,6 +33,7 @@ interface DayBucket {
 
 export default function CalendarPage() {
   const { decorator } = useAuthStore();
+  const { addNotification } = useNotificationStore();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
@@ -38,6 +41,16 @@ export default function CalendarPage() {
   const month = currentMonth.getMonth() + 1;
 
   const { rentalOrders, partyEvents, isLoading } = useCalendarEvents(decorator?.id, year, month);
+
+  const handleDownloadPDF = async (event: PartyEvent) => {
+    try {
+      await generateLogisticsPDF(event);
+      addNotification('PDF Gerado', `Logística de ${event.client_name} baixada.`);
+    } catch (err) {
+      console.error('Falha ao gerar PDF logístico:', err);
+      addNotification('Erro ao Gerar PDF', 'Não foi possível gerar o PDF logístico.', true);
+    }
+  };
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, DayBucket>();
@@ -153,12 +166,20 @@ export default function CalendarPage() {
                   </li>
                 ))}
               </ul>
-              <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
+              <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mb-3">
                 <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{event.client_name}</span>
                 {event.phone && (
                   <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{event.phone}</span>
                 )}
               </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Download}
+                onClick={() => handleDownloadPDF(event)}
+              >
+                Gerar PDF Logístico
+              </Button>
             </div>
           ))}
 

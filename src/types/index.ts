@@ -104,12 +104,13 @@ export interface RentalOrderItem {
 
 export interface Client {
   id: string;
+  decorator_id?: string;
   name: string;
-  phone: string;
-  address: string;
-  theme: string;
-  total_value: number;
-  event_date: string;
+  phone?: string;
+  email?: string;
+  cpf?: string;
+  address?: string;
+  created_at?: string;
 }
 
 export interface PartyEventItem {
@@ -132,6 +133,36 @@ export interface PartyEvent {
   status: 'Confirmado' | 'Pendente' | 'Finalizado';
   items: PartyEventItem[];
   decorator_id?: string;
+  client_id?: string;
+  public_token?: string;
+  source_item_id?: string;
+  source_kit_id?: string;
+}
+
+// Dados públicos de um card (peça/kit) de origem, exibidos na página do link de orçamento.
+export interface QuoteSourceCard {
+  id: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  price: number;
+  isKit: boolean;
+  items?: PartyEventItem[];
+}
+
+export interface QuoteLinkData {
+  token: string;
+  status: 'Confirmado' | 'Pendente' | 'Finalizado';
+  decorator: { name: string; whatsapp?: string };
+  card: QuoteSourceCard;
+  client_name: string;
+  phone: string;
+  email?: string;
+  cpf?: string;
+  address: string;
+  event_date: string;
+  setup_time: string;
+  start_time: string;
 }
 
 export interface CalendarMonthData {

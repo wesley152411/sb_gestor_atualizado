@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { 
-  Camera, MapPin, AtSign, Phone, Info, Plus, Pencil, 
-  Eye, EyeOff, Search, Smartphone, Download, Store, ToggleLeft, List
+import {
+  Camera, MapPin, AtSign, Phone, Info, Plus, Pencil,
+  Eye, EyeOff, Search, Smartphone, Download, Store, ToggleLeft, List, Link2
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
@@ -14,8 +14,8 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/utils';
 import type { InventoryItem, Kit, RentalOrder, ChatMessage } from '@/types';
-import { 
-  saveDecoratorProfile, saveInventoryItem, saveKit 
+import {
+  saveDecoratorProfile, saveInventoryItem, saveKit, createQuoteLink
 } from '@/services/api';
 
 export default function MyPage() {
@@ -252,6 +252,19 @@ export default function MyPage() {
           addNotification('Erro', 'Falha ao remover item do Marketplace.');
         }
       }
+    }
+  };
+
+  // Send public quote link to end client
+  const handleSendLink = async (item: any) => {
+    if (!decorator) return;
+    try {
+      const token = await createQuoteLink(decorator.id, item.isKit ? { kitId: item.id } : { itemId: item.id });
+      const url = `${window.location.origin}/orcamento/${token}`;
+      await navigator.clipboard.writeText(url);
+      addNotification('Link Copiado!', `Envie este link para a cliente preencher os dados de "${item.name}".`);
+    } catch (err: any) {
+      addNotification('Erro', err.message || 'Falha ao gerar o link de orçamento.');
     }
   };
 
@@ -533,18 +546,25 @@ export default function MyPage() {
                         </div>
                       </div>
                       <div className="flex gap-2 mt-4">
-                        <Button 
-                          variant="secondary" 
-                          size="sm" 
-                          className="flex-1" 
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
                           icon={Pencil}
                           onClick={() => handleOpenItemModal(item)}
                         >
                           Editar
                         </Button>
-                        <Button 
-                          variant="danger" 
-                          size="sm" 
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={Link2}
+                          onClick={() => handleSendLink(item)}
+                          title="Enviar Link para Cliente"
+                        />
+                        <Button
+                          variant="danger"
+                          size="sm"
                           icon={EyeOff}
                           onClick={() => handleRemoveItem(item)}
                           title="Remover do Marketplace"

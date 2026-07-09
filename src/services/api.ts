@@ -312,7 +312,15 @@ export async function getClients(): Promise<Client[]> {
 }
 
 export async function saveClient(client: Partial<Client>): Promise<Client> {
-  const full: Client = { id: client.id || generateId('cli'), name: client.name || '', phone: client.phone || '', address: client.address || '', theme: client.theme || '', total_value: client.total_value || 0, event_date: client.event_date || '' };
+  const full: Client = {
+    id: client.id || generateId('cli'),
+    decorator_id: client.decorator_id,
+    name: client.name || '',
+    phone: client.phone || '',
+    email: client.email || '',
+    cpf: client.cpf || '',
+    address: client.address || '',
+  };
   try {
     const res = await fetch('/api/clients', {
       method: 'POST',
@@ -379,6 +387,22 @@ function savePartyEventLocally(full: PartyEvent): PartyEvent {
   else events.push(full);
   setLocal('party_events', events);
   return full;
+}
+
+// ==================== QUOTE LINKS ====================
+
+export async function createQuoteLink(decoratorId: string, source: { itemId?: string; kitId?: string }): Promise<string> {
+  const res = await fetch('/api/quote-links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decoratorId, ...source }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Não foi possível gerar o link de orçamento.');
+  }
+  const { token } = await res.json();
+  return token;
 }
 
 // ==================== CALENDAR ====================

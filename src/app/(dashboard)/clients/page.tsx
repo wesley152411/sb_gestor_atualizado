@@ -61,6 +61,8 @@ export default function ClientsPage() {
   };
 
   const filteredEvents = events.filter(e => {
+    // Ignora rascunhos de link de orçamento ainda não preenchidos pela cliente.
+    if (!e.client_name.trim()) return false;
     const matchesSearch = e.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       e.theme.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter.size === 0 || statusFilter.has(e.status);

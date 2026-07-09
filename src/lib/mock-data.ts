@@ -107,8 +107,8 @@ export const initialRentalOrders: RentalOrder[] = [
 ];
 
 export const initialClients: Client[] = [
-  { id: 'cli-1', name: 'Mariana Silva', phone: '11988887777', address: 'Av. Paulista, 1000 - São Paulo, SP', theme: 'Casamento Clássico', total_value: 4500.00, event_date: '2026-06-15' },
-  { id: 'cli-2', name: 'Juliana Souza', phone: '11977776666', address: 'Rua Augusta, 500 - São Paulo, SP', theme: 'Festa Infantil Bosque', total_value: 2800.00, event_date: '2026-06-15' },
+  { id: 'cli-1', name: 'Mariana Silva', phone: '11988887777', address: 'Av. Paulista, 1000 - São Paulo, SP' },
+  { id: 'cli-2', name: 'Juliana Souza', phone: '11977776666', address: 'Rua Augusta, 500 - São Paulo, SP' },
 ];
 
 export const initialPartyEvents: PartyEvent[] = [
