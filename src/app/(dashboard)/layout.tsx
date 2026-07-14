@@ -9,11 +9,11 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthProvider>
-      <div className="app-layout">
+      <div className="flex min-h-screen bg-surface">
         <Sidebar />
-        <main className="main-area">
+        <main className="flex-1 ml-[260px] flex flex-col">
           <Header />
-          <div className="main-content">
+          <div className="flex-1 p-8">
             {children}
           </div>
         </main>

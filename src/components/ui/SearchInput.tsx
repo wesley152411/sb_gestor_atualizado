@@ -1,21 +1,23 @@
 'use client';
 
-import { InputHTMLAttributes } from 'react';
 import { Search } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
-interface SearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
-  containerClassName?: string;
+interface SearchInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
 }
 
-export function SearchInput({ className, containerClassName, ...props }: SearchInputProps) {
+export function SearchInput({ value, onChange, placeholder = 'Buscar...' }: SearchInputProps) {
   return (
-    <div className={cn("search-bar", containerClassName)}>
-      <Search className="w-4 h-4" />
+    <div className="relative">
+      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
       <input
-        type="search"
-        className={cn(className)}
-        {...props}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
       />
     </div>
   );
