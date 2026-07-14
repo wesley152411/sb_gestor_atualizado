@@ -7,6 +7,7 @@ import {
   Settings, LifeBuoy, LogOut, ShoppingBag, Store, MessageSquare, CalendarDays
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth-store';
 
 const menuItems = [
   { href: '/analytics', label: 'Dashboard', icon: LayoutDashboard },
@@ -22,14 +23,14 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-
+  const { decorator } = useAuthStore();
 
   return (
     <aside className="sidebar-v2">
       {/* Logo */}
       <div className="sidebar-v2-logo">
         <div className="sidebar-v2-logo-icon">SB</div>
-        <span className="sidebar-v2-logo-text">Premium Rental Mgmt</span>
+        <span className="sidebar-v2-logo-text">{decorator?.name || 'SB GESTOR'}</span>
       </div>
 
       {/* Nav */}

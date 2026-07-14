@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LogOut, Key, User, Camera } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
-import { saveDecoratorProfile, signOut, resetPassword } from '@/services/api';
+import { saveDecoratorProfile, signOut, resetPassword, uploadImage } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import type { Decorator } from '@/types';
@@ -14,6 +14,8 @@ export default function SettingsPage() {
   const { addNotification } = useNotificationStore();
   const [profile, setProfile] = useState<Partial<Decorator>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (decorator) setProfile(decorator);
@@ -22,10 +24,55 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     if (!profile.id) return;
     setIsLoading(true);
+    // Nota: whatsapp / instagram / about / cover_url não têm mais campo nesta tela,
+    // mas continuam no estado (carregados do perfil) e são re-salvos sem alteração,
+    // preservando os dados usados na Minha Página e no orçamento público.
     const updated = await saveDecoratorProfile(profile as Decorator);
     updateDecorator(updated);
     addNotification('Perfil Atualizado', 'Suas informações foram salvas com sucesso.');
     setIsLoading(false);
+  };
+
+  // Envia para o Supabase Storage (bucket "avatars"); se falhar, cai para base64.
+  // Mesmo padrão usado no upload de imagens do Acervo.
+  const processAvatarUpload = async (file: File): Promise<string> => {
+    if (!profile.id) return '';
+    const path = `${profile.id}/${Date.now()}_${file.name}`;
+    try {
+      const url = await uploadImage(file, 'avatars', path);
+      if (url) return url;
+    } catch (err) {
+      console.warn('Storage upload failed, falling back to base64', err);
+    }
+    return new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleAvatarSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite reenviar o mesmo arquivo depois
+    if (!file || !profile.id) return;
+    if (!file.type.startsWith('image/')) {
+      addNotification('Arquivo inválido', 'Selecione um arquivo de imagem.', true);
+      return;
+    }
+    setIsUploadingAvatar(true);
+    try {
+      const avatar_url = await processAvatarUpload(file);
+      const updatedProfile = { ...profile, avatar_url };
+      setProfile(updatedProfile);
+      const saved = await saveDecoratorProfile(updatedProfile as Decorator);
+      updateDecorator(saved);
+      addNotification('Foto Atualizada', 'Sua foto de perfil foi alterada com sucesso.');
+    } catch (err) {
+      console.error(err);
+      addNotification('Erro', 'Não foi possível alterar a foto.', true);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -47,81 +94,94 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="page-header mb-8">
+    <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+      <div className="page-header">
         <div>
           <h1 className="page-title">Configurações da Conta</h1>
-          <p className="page-subtitle">Gerencie seu perfil, preferências e segurança.</p>
+          <p className="page-subtitle">Gerencie seu perfil e segurança.</p>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-8">
-        <div className="p-6 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
-          <User className="text-indigo-600" />
-          <h2 className="text-lg font-bold">Perfil da Decoradora</h2>
-        </div>
-        
-        <div className="p-6 space-y-6">
-          <div className="flex items-center gap-6 pb-6 border-b border-slate-100">
-            <div className="relative group cursor-pointer">
-              <img src={profile.avatar_url} alt="Avatar" className="w-24 h-24 rounded-full object-cover border-4 border-slate-100" />
-              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <Camera className="text-white w-6 h-6" />
+      {/* input de arquivo escondido, acionado pelos botões de foto */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleAvatarSelected}
+        style={{ display: 'none' }}
+      />
+
+      <div className="settings-grid">
+        {/* Card Perfil */}
+        <div className="settings-card settings-profile">
+          <div className="settings-avatar-wrap">
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt="Avatar" className="settings-avatar" />
+            ) : (
+              <div className="settings-avatar-placeholder">
+                <User size={40} />
               </div>
-            </div>
-            <div className="flex-1">
-              <Input label="Nome da Empresa" value={profile.name || ''} onChange={e => setProfile({...profile, name: e.target.value})} />
-            </div>
+            )}
+            <button
+              type="button"
+              className="settings-avatar-btn"
+              aria-label="Trocar foto"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+            >
+              <Camera size={16} />
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <Input label="WhatsApp" placeholder="(00) 00000-0000" value={profile.whatsapp || ''} onChange={e => setProfile({...profile, whatsapp: e.target.value})} />
-            <Input label="Instagram" placeholder="@suaempresa" value={profile.instagram || ''} onChange={e => setProfile({...profile, instagram: e.target.value})} />
-            <Input label="Cidade / Estado" value={profile.location || ''} onChange={e => setProfile({...profile, location: e.target.value})} className="col-span-2" />
-          </div>
+          <div className="settings-profile-name">{profile.name || 'Minha Empresa'}</div>
+          {profile.location && <div className="settings-profile-loc">{profile.location}</div>}
 
-          <div className="form-group">
-            <label className="form-label">Sobre a Empresa</label>
-            <textarea 
-              className="form-input" 
-              rows={4}
-              placeholder="Conte um pouco sobre sua empresa, estilo de decoração e diferenciais..."
-              value={profile.about || ''}
-              onChange={e => setProfile({...profile, about: e.target.value})}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Camera}
+            onClick={() => fileInputRef.current?.click()}
+            isLoading={isUploadingAvatar}
+          >
+            Alterar foto
+          </Button>
+        </div>
+
+        {/* Coluna Dados + Segurança */}
+        <div className="settings-right">
+          {/* Bloco Dados */}
+          <div className="settings-card">
+            <Input
+              label="Nome da Empresa"
+              value={profile.name || ''}
+              onChange={e => setProfile({ ...profile, name: e.target.value })}
             />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">URL da Foto de Capa (Marketplace)</label>
-            <Input placeholder="https://..." value={profile.cover_url || ''} onChange={e => setProfile({...profile, cover_url: e.target.value})} />
-            <p className="text-xs text-slate-500 mt-2">Esta foto aparecerá na sua página pública de locação B2B.</p>
-          </div>
-
-          <div className="pt-4 flex justify-end">
-            <Button onClick={handleSaveProfile} isLoading={isLoading}>Salvar Alterações</Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="p-6 border-b border-slate-200 bg-slate-50">
-          <h2 className="text-lg font-bold text-red-600">Zona de Perigo & Segurança</h2>
-        </div>
-        <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
-            <div>
-              <h4 className="font-bold">Alterar Senha</h4>
-              <p className="text-sm text-slate-500">Enviaremos um link de recuperação para seu e-mail.</p>
+            <div className="settings-actions-end">
+              <Button onClick={handleSaveProfile} isLoading={isLoading}>Salvar Alterações</Button>
             </div>
-            <Button variant="secondary" icon={Key} onClick={handleResetPassword}>Redefinir</Button>
           </div>
-          
-          <div className="flex items-center justify-between p-4 border border-red-100 bg-red-50 rounded-lg">
-            <div>
-              <h4 className="font-bold text-red-700">Encerrar Sessão</h4>
-              <p className="text-sm text-red-500">Sair da sua conta neste dispositivo.</p>
+
+          {/* Bloco Segurança */}
+          <div className="settings-card">
+            <h2 className="settings-section-title">Segurança</h2>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-row-title">Alterar senha</div>
+                <div className="settings-row-desc">Enviaremos um link por e-mail.</div>
+              </div>
+              <Button variant="secondary" icon={Key} onClick={handleResetPassword}>Redefinir</Button>
             </div>
-            <Button variant="danger" icon={LogOut} onClick={handleLogout}>Sair da Conta</Button>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-row-title">Encerrar sessão</div>
+                <div className="settings-row-desc">Sair da conta neste dispositivo.</div>
+              </div>
+              <Button variant="secondary" className="btn-danger-outline" icon={LogOut} onClick={handleLogout}>
+                Sair da Conta
+              </Button>
+            </div>
           </div>
         </div>
       </div>
