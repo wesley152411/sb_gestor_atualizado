@@ -1,12 +1,13 @@
 'use client';
 
-import { DollarSign, PieChart, TrendingUp, Users } from 'lucide-react';
+import { CalendarDays, DollarSign, Package, AlertTriangle, Truck, TrendingUp } from 'lucide-react';
 import { KpiCard } from '@/components/analytics/KpiCard';
 import { FinancialChart, ThemesChart, VolumeChart } from '@/components/analytics/Charts';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePartyEvents, useInventory } from '@/hooks/swr-hooks';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { useState } from 'react';
+import { Badge } from '@/components/ui/Badge';
 import type { PartyEvent } from '@/types';
 
 // Somente contratos fechados/entregues contam como receita real —
@@ -26,7 +27,14 @@ export default function AnalyticsPage() {
   const isLoading = isEventsLoading || isInventoryLoading;
 
   if (isLoading) {
-    return <div className="p-8 text-center text-slate-500">Carregando dashboard...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-500 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-slate-400">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   // Custo real por peça, cadastrado no Acervo (itens excluídos depois de usados
@@ -89,12 +97,31 @@ export default function AnalyticsPage() {
   const finalThemeLabels = themeLabels.length > 0 ? themeLabels : ['Vazio'];
   const finalThemeData = themeData.length > 0 ? themeData : [1];
 
+  // --- Dados para tabela e logística (design da branch de UI) ---
+  const upcomingEvents = [...events]
+    .filter(e => new Date(e.event_date) >= now)
+    .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+    .slice(0, 5);
+
+  const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  const logisticsEvents = events.filter(e => {
+    const d = new Date(e.event_date);
+    return d >= now && d <= in48h;
+  });
+
+  const getPaymentStatus = (status: string) => {
+    if (status === 'Confirmado') return { label: 'Pago', variant: 'success' as const };
+    if (status === 'Pendente') return { label: 'Pendente', variant: 'warning' as const };
+    return { label: 'Atrasado', variant: 'danger' as const };
+  };
+
   return (
-    <div>
-      <div className="page-header">
+    <div className="animate-fade-in">
+      {/* Cabeçalho com filtro de mês */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
         <div>
-          <h1 className="page-title">Dashboard Analítico</h1>
-          <p className="page-subtitle">Acompanhe as métricas de desempenho do seu acervo e eventos.</p>
+          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Dashboard Analítico</h1>
+          <p className="text-sm text-slate-400 mt-1">Acompanhe métricas de desempenho, logística e conflitos de estoque.</p>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -112,62 +139,152 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div className="kpi-grid">
+      {/* KPI Cards — dados reais (sócio) + visual novo (UI branch) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <KpiCard
-          title="Faturamento Bruto"
+          title="Receita Total"
           value={formatCurrency(totalRevenue)}
           icon={DollarSign}
           variant="emerald"
+          trend={{ value: `Margem: ${margin}%`, direction: totalProfit >= 0 ? 'up' : 'down' }}
         />
         <KpiCard
-          title="Margem de Lucro"
-          value={`${margin}%`}
+          title="Lucro Líquido"
+          value={formatCurrency(totalProfit)}
           icon={TrendingUp}
           variant="indigo"
+          trend={{ value: `Ticket médio: ${formatCurrency(avgTicket)}`, direction: 'up' }}
         />
         <KpiCard
-          title="Ticket Médio"
-          value={formatCurrency(avgTicket)}
-          icon={PieChart}
+          title="Eventos Confirmados"
+          value={String(revenueEvents.length)}
+          icon={CalendarDays}
           variant="amber"
         />
         <KpiCard
-          title="Tema em Alta"
+          title="Tema Mais Pedido"
           value={topTheme}
-          icon={Users}
+          icon={Package}
           variant="red"
         />
       </div>
 
-      <div className="charts-grid">
-        <div className="chart-card">
-          <div className="chart-card-header">
-            <h3 className="chart-card-title">Saúde Financeira</h3>
-            <p className="chart-card-subtitle">Comparativo de faturamento vs custos reais (6 meses)</p>
+      {/* Tabela de Próximos Eventos + Logística (design da branch de UI) */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+        {/* Tabela */}
+        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h3 className="text-base font-bold text-slate-800">Próximos Eventos</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Seus 5 eventos mais próximos</p>
           </div>
-          <div className="chart-wrapper">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50/50">
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cliente</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Data</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tema</th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Valor</th>
+                  <th className="text-center px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {upcomingEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-400">
+                      Nenhum evento agendado
+                    </td>
+                  </tr>
+                ) : (
+                  upcomingEvents.map((evt) => {
+                    const payment = getPaymentStatus(evt.status);
+                    return (
+                      <tr key={evt.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="text-sm font-semibold text-slate-700">{evt.client_name}</span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-500">{formatDate(evt.event_date)}</td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-slate-600">{evt.theme}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="text-sm font-semibold text-slate-700">{formatCurrency(evt.total_value)}</span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <Badge variant={payment.variant}>{payment.label}</Badge>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Quadro de Logística */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-brand-500" />
+              <h3 className="text-base font-bold text-slate-800">Logística 48h</h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">Entregas e montagens pendentes</p>
+          </div>
+          <div className="p-4 flex flex-col gap-3">
+            {logisticsEvents.length === 0 ? (
+              <div className="text-center py-8 text-sm text-slate-400">
+                Nenhuma entrega programada
+              </div>
+            ) : (
+              logisticsEvents.map((evt) => (
+                <div key={evt.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-brand-200 transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-slate-700">{evt.client_name}</span>
+                    <Badge variant={evt.status === 'Confirmado' ? 'success' : 'warning'}>
+                      {evt.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-1">
+                    📍 {evt.address || 'Endereço não informado'}
+                  </p>
+                  <div className="flex items-center gap-3 text-xs text-slate-400">
+                    <span>📅 {formatDate(evt.event_date)}</span>
+                    <span>🕐 Montagem: {evt.setup_time || '--:--'}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {evt.items?.length || 0} itens • {evt.items?.reduce((s, i) => s + i.quantity, 0) || 0} peças
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Gráficos com dados reais do sócio */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 className="text-base font-bold text-slate-800 mb-1">Saúde Financeira</h3>
+          <p className="text-xs text-slate-400 mb-4">Comparativo de faturamento vs custos reais (6 meses)</p>
+          <div className="h-[260px]">
             <FinancialChart labels={financialLabels} revenue={revenueData} costs={costData} />
           </div>
         </div>
-
-        <div className="chart-card">
-          <div className="chart-card-header">
-            <h3 className="chart-card-title">Temas Mais Locados</h3>
-            <p className="chart-card-subtitle">Distribuição por estilo de festa</p>
-          </div>
-          <div className="chart-wrapper">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <h3 className="text-base font-bold text-slate-800 mb-1">Temas Mais Locados</h3>
+          <p className="text-xs text-slate-400 mb-4">Distribuição por estilo de festa</p>
+          <div className="h-[260px]">
             <ThemesChart labels={finalThemeLabels} dataValues={finalThemeData} />
           </div>
         </div>
+      </div>
 
-        <div className="chart-card" style={{ gridColumn: '1 / -1' }}>
-          <div className="chart-card-header">
-            <h3 className="chart-card-title">Volume de Eventos</h3>
-            <p className="chart-card-subtitle">Quantidade de festas realizadas por mês</p>
-          </div>
-          <div className="chart-wrapper" style={{ height: '220px' }}>
-            <VolumeChart labels={financialLabels} dataValues={volumeData} />
-          </div>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <h3 className="text-base font-bold text-slate-800 mb-1">Volume de Eventos</h3>
+        <p className="text-xs text-slate-400 mb-4">Quantidade de festas realizadas por mês</p>
+        <div className="h-[220px]">
+          <VolumeChart labels={financialLabels} dataValues={volumeData} />
         </div>
       </div>
     </div>

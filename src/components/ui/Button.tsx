@@ -1,82 +1,51 @@
 'use client';
 
-import { LucideIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { ButtonHTMLAttributes } from 'react';
+import { forwardRef } from 'react';
+import type { LucideIcon } from 'lucide-react';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
-  size?: 'sm' | 'md' | 'lg' | 'icon';
+/* Variantes visuais do botão premium */
+const variants = {
+  primary: 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-md hover:shadow-lg hover:from-brand-700 hover:to-brand-600 active:scale-[0.97]',
+  secondary: 'bg-white text-slate-700 border border-slate-200 shadow-sm hover:bg-slate-50 hover:border-slate-300 active:scale-[0.97]',
+  ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-800',
+  danger: 'bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 active:scale-[0.97]',
+} as const;
+
+const sizes = {
+  sm: 'px-3 py-1.5 text-xs gap-1.5',
+  md: 'px-4 py-2 text-sm gap-2',
+  lg: 'px-6 py-3 text-base gap-2.5',
+  /* Botão quadrado com só ícone, usado no calendário */
+  icon: 'p-2 text-sm',
+} as const;
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: keyof typeof variants;
+  size?: keyof typeof sizes;
+  children?: React.ReactNode;
+  /* Suporte ao padrão usado nas pages do sócio */
   icon?: LucideIcon;
-  iconPosition?: 'left' | 'right';
   isLoading?: boolean;
 }
 
-export function Button({
-  children,
-  className,
-  variant = 'primary',
-  size = 'md',
-  icon: Icon,
-  iconPosition = 'left',
-  isLoading,
-  disabled,
-  ...props
-}: ButtonProps) {
-  const baseStyles = 'btn-base';
-  
-  const variants = {
-    primary: 'btn-primary',
-    secondary: 'btn-secondary',
-    danger: 'btn-danger',
-    ghost: 'btn-ghost',
-  };
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant = 'primary', size = 'md', className = '', children, icon: Icon, isLoading, ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        disabled={isLoading || props.disabled}
+        className={`inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:pointer-events-none ${variants[variant]} ${sizes[size]} ${className}`}
+        {...props}
+      >
+        {isLoading ? (
+          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        ) : Icon ? (
+          <Icon className="w-4 h-4" />
+        ) : null}
+        {children}
+      </button>
+    );
+  }
+);
 
-  const sizes = {
-    sm: 'btn-sm',
-    md: 'btn-md',
-    lg: 'btn-lg',
-    icon: 'btn-icon-sz',
-  };
-
-  const iconSize = size === 'sm' ? '14px' : size === 'lg' ? '18px' : '16px';
-
-  return (
-    <button
-      className={cn(
-        baseStyles,
-        variants[variant],
-        sizes[size],
-        className
-      )}
-      disabled={disabled || isLoading}
-      {...props}
-    >
-      {isLoading ? (
-        <span 
-          style={{
-            width: '16px',
-            height: '16px',
-            border: '2px solid currentColor',
-            borderTopColor: 'transparent',
-            borderRadius: '50%',
-            display: 'inline-block',
-            animation: 'spin 1s linear infinite'
-          }}
-        />
-      ) : Icon && iconPosition === 'left' ? (
-        <Icon 
-          style={{ width: iconSize, height: iconSize, flexShrink: 0 }} 
-        />
-      ) : null}
-      
-      {children && <span>{children}</span>}
-      
-      {!isLoading && Icon && iconPosition === 'right' && (
-        <Icon 
-          style={{ width: iconSize, height: iconSize, flexShrink: 0 }} 
-        />
-      )}
-    </button>
-  );
-}
+Button.displayName = 'Button';
