@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, DollarSign, Package, AlertTriangle, Truck } from 'lucide-react';
+import { CalendarDays, DollarSign, Package, AlertTriangle, Truck, TrendingUp } from 'lucide-react';
 import { KpiCard } from '@/components/analytics/KpiCard';
 import { FinancialChart, ThemesChart, VolumeChart } from '@/components/analytics/Charts';
 import { useAuthStore } from '@/stores/auth-store';
@@ -151,7 +151,7 @@ export default function AnalyticsPage() {
         <KpiCard
           title="Lucro Líquido"
           value={formatCurrency(totalProfit)}
-          icon={TrendingUp ?? CalendarDays}
+          icon={TrendingUp}
           variant="indigo"
           trend={{ value: `Ticket médio: ${formatCurrency(avgTicket)}`, direction: 'up' }}
         />

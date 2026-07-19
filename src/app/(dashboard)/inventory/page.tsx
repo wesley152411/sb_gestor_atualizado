@@ -612,7 +612,7 @@ export default function InventoryPage() {
                   {kitSearchResults.map(item => (
                     <div key={item.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg group">
                       <div className="flex items-center gap-3">
-                        <img src={item.image_url || getPlaceholderImage(item.name)} alt={item.name} className="w-8 h-8 rounded-md object-cover" />
+                        <img src={item.image_url || ''} alt={item.name} className="w-8 h-8 rounded-md object-cover bg-slate-100" />
                         <div>
                           <p className="text-sm font-semibold text-slate-700 truncate max-w-[200px]">{item.name}</p>
                           <p className="text-[10px] text-slate-500">{item.stock_quantity} un disponíveis</p>
