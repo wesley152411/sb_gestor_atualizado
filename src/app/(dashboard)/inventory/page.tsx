@@ -79,7 +79,10 @@ export default function InventoryPage() {
   const handleOpenEditPieceModal = (item: InventoryItem) => {
     setKitName(item.name);
     setKitDescription(item.description || '');
-    setKitValue('');
+    setKitValue(item.rental_price ? item.rental_price.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }) : '');
     setCoverImageUrl(item.image_url || '');
     setLinkedItems([]);
     setKitSearchQuery('');
@@ -262,6 +265,10 @@ export default function InventoryPage() {
     // (preservando campos não expostos no modal), em vez de criar um Kit.
     if (editingItemId) {
       try {
+        // "Valor (opcional)" mapeia para o preço de locação da peça.
+        const parsedPrice = kitValue.trim() !== ''
+          ? Number(kitValue.replace(/\D/g, '')) / 100
+          : (editingItem.rental_price ?? 0);
         const updatedItem = {
           ...editingItem,
           id: editingItemId,
@@ -269,6 +276,7 @@ export default function InventoryPage() {
           name: kitName.trim(),
           description: kitDescription.trim(),
           image_url: coverImageUrl || '',
+          rental_price: parsedPrice,
         } as InventoryItem;
         await saveInventoryItem(updatedItem);
         addNotification('Peça Salva', `A peça "${updatedItem.name}" foi atualizada com sucesso.`);
@@ -740,55 +748,14 @@ export default function InventoryPage() {
             />
           </div>
 
-          {editingItemId ? (
-            /* Modo Peça Avulsa: campos específicos da peça (mantém a capacidade
-               de editar status/estoque/preços que existia no modal antigo). */
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="form-group">
-                  <label className="form-label">Status no Marketplace</label>
-                  <select
-                    className="form-input"
-                    value={editingItem.status || 'Privado'}
-                    onChange={e => setEditingItem(prev => ({ ...prev, status: e.target.value as 'Público' | 'Privado' }))}
-                  >
-                    <option value="Privado">Privado (Apenas eu)</option>
-                    <option value="Público">Público (Visível B2B)</option>
-                  </select>
-                </div>
-                <Input
-                  type="number"
-                  label="Qtd em Estoque"
-                  value={editingItem.stock_quantity ?? ''}
-                  onChange={e => setEditingItem(prev => ({ ...prev, stock_quantity: Number(e.target.value) }))}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  type="number"
-                  step="0.01"
-                  label="Preço Locação B2B (R$)"
-                  value={editingItem.rental_price ?? ''}
-                  onChange={e => setEditingItem(prev => ({ ...prev, rental_price: Number(e.target.value) }))}
-                />
-                <Input
-                  type="number"
-                  step="0.01"
-                  label="Custo Interno (R$)"
-                  value={editingItem.internal_cost ?? ''}
-                  onChange={e => setEditingItem(prev => ({ ...prev, internal_cost: Number(e.target.value) }))}
-                />
-              </div>
-            </>
-          ) : (
-            <Input
-              type="text"
-              label="Valor (opcional)"
-              placeholder="R$ 0,00"
-              value={kitValue}
-              onChange={handleKitValueChange}
-            />
-          )}
+          {/* Mesma estrutura do modal "Nova Peça" (construtor) — usada também na edição. */}
+          <Input
+            type="text"
+            label="Valor (opcional)"
+            placeholder="R$ 0,00"
+            value={kitValue}
+            onChange={handleKitValueChange}
+          />
 
           {/* Cover Photo Drag and Drop area */}
           <div className="form-group">
@@ -839,7 +806,7 @@ export default function InventoryPage() {
           </div>
 
           {/* Seção Itens do Kit — apenas no fluxo de Kit (peças avulsas não têm sub-itens) */}
-          {!editingItemId && (
+          {/* Itens do Kit — mesma seção do modal "Nova Peça", exibida também na edição */}
           <div className="border-t border-slate-100 pt-4">
             <label className="form-label font-bold text-slate-800" style={{ fontSize: '15px' }}>Itens do Kit</label>
             
@@ -953,7 +920,6 @@ export default function InventoryPage() {
             </div>
 
           </div>
-          )}
         </div>
       </Modal>
     </div>

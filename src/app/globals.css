@@ -88,6 +88,7 @@ img { max-width: 100%; display: block; }
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  transition: margin-left var(--transition-normal);
 }
 
 .main-header {
@@ -122,15 +123,44 @@ img { max-width: 100%; display: block; }
   bottom: 0;
   z-index: 100;
   overflow-y: auto;
-  transition: transform var(--transition-normal);
+  overflow-x: hidden;
+  transition: width var(--transition-normal), transform var(--transition-normal);
 }
 
 /* Logo */
 .sidebar-v2-logo {
-  padding: 28px 24px 24px;
+  padding: 28px 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sidebar-v2-brand {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.sidebar-v2-toggle {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-v2-toggle:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
 }
 
 .sidebar-v2-logo-icon {
@@ -3159,6 +3189,26 @@ img { max-width: 100%; display: block; }
   gap: 24px;
 }
 
+.settings-logo-preview {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-light);
+  overflow: hidden;
+}
+
+.settings-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .settings-section-title {
   font-size: 16px;
   font-weight: 800;
@@ -3388,4 +3438,229 @@ img { max-width: 100%; display: block; }
 .mp-card-link-btn:hover {
   border-color: var(--border-strong);
   background: var(--bg-input);
+}
+
+/* ==================== SIDEBAR RECOLHIDO (colapsado) ==================== */
+.sidebar-v2.collapsed {
+  width: 84px;
+}
+
+.sidebar-v2.collapsed + .main-area {
+  margin-left: 84px;
+}
+
+/* No estado recolhido, só o botão de menu fica no topo (centralizado) */
+.sidebar-v2.collapsed .sidebar-v2-logo {
+  justify-content: center;
+  padding: 28px 0 24px;
+}
+
+.sidebar-v2.collapsed .sidebar-v2-brand {
+  display: none;
+}
+
+/* Oculta os textos, mantendo apenas os ícones */
+.sidebar-v2.collapsed .sidebar-v2-link span,
+.sidebar-v2.collapsed .sidebar-v2-bottom-link span {
+  display: none;
+}
+
+/* Centraliza os ícones dos links */
+.sidebar-v2.collapsed .sidebar-v2-menu {
+  padding: 0 12px;
+}
+
+.sidebar-v2.collapsed .sidebar-v2-link,
+.sidebar-v2.collapsed .sidebar-v2-bottom-link {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* ==================== HEADER: DROPDOWNS (sino / carrinho) ==================== */
+.header-count-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 9px;
+  border: 2px solid var(--bg-card);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-dropdown-count {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+
+.dropdown-scroll {
+  overflow-y: auto;
+  max-height: 360px;
+}
+
+.dropdown-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.dropdown-empty-cart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 16px;
+  color: var(--text-light);
+}
+
+/* Item de notificação (botão clicável) */
+.notification-item-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  font: inherit;
+}
+
+.notification-item-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notification-item-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.notification-item-msg {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Itens do carrinho */
+.cart-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cart-dropdown-thumb {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-light);
+}
+
+.cart-dropdown-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cart-dropdown-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cart-dropdown-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cart-dropdown-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cart-dropdown-remove {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-light);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.cart-dropdown-remove:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.cart-dropdown-footer {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.cart-dropdown-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.cart-dropdown-total strong {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.cart-dropdown-actions {
+  display: flex;
+  gap: 8px;
 }

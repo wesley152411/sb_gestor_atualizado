@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Download, CheckSquare } from 'lucide-react';
+import { Search, Download, CheckSquare, FileText } from 'lucide-react';
 import { savePartyEvent } from '@/services/api';
-import { usePartyEvents } from '@/hooks/swr-hooks';
+import { usePartyEvents, useClients, useDecorators } from '@/hooks/swr-hooks';
 import { generateLogisticsPDF } from '@/lib/pdf-generator';
+import { generateQuotePDF } from '@/lib/quote-pdf';
 import { Button } from '@/components/ui/Button';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Table } from '@/components/ui/TableAndTabs';
@@ -17,6 +18,8 @@ const STATUS_OPTIONS: PartyEvent['status'][] = ['Pendente', 'Confirmado', 'Final
 
 export default function ClientsPage() {
   const { events, isLoading, mutate } = usePartyEvents();
+  const { clients } = useClients();
+  const { decorators } = useDecorators();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<Set<PartyEvent['status']>>(new Set());
   const [monthFilter, setMonthFilter] = useState(''); // 'YYYY-MM', vazio = todos os períodos
@@ -29,6 +32,20 @@ export default function ClientsPage() {
     } catch (error) {
       console.error('Falha ao gerar PDF logístico:', error);
       addNotification('Erro ao Gerar PDF', 'Não foi possível gerar o PDF logístico.', true);
+    }
+  };
+
+  // PDF de orçamento: resolve o cliente e a decoradora DONA do evento,
+  // para nunca misturar dados/logo entre contas diferentes.
+  const handleDownloadQuotePDF = async (eventData: PartyEvent) => {
+    try {
+      const client = clients.find(c => c.id === eventData.client_id) || null;
+      const owner = decorators.find(d => d.id === eventData.decorator_id) || null;
+      await generateQuotePDF(eventData, client, owner);
+      addNotification('PDF Gerado', `Orçamento de ${eventData.client_name} baixado.`);
+    } catch (error) {
+      console.error('Falha ao gerar PDF de orçamento:', error);
+      addNotification('Erro ao Gerar PDF', 'Não foi possível gerar o PDF do orçamento.', true);
     }
   };
 
@@ -138,9 +155,17 @@ export default function ClientsPage() {
               <td className="font-bold">{formatCurrency(event.total_value)}</td>
               <td>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="secondary" 
-                    size="icon" 
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    title="Baixar PDF do Orçamento"
+                    onClick={() => handleDownloadQuotePDF(event)}
+                  >
+                    <FileText className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="icon"
                     title="Baixar PDF Logístico"
                     onClick={() => handleDownloadPDF(event)}
                   >

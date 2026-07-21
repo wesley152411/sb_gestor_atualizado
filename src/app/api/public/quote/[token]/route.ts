@@ -51,6 +51,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
       event_date: quote.event_date ? quote.event_date.toISOString().split('T')[0] : '',
       setup_time: quote.setup_time || '',
       start_time: quote.start_time || '',
+      observation: quote.observation || '',
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -61,7 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   try {
     const { token } = await params;
     const body = await request.json();
-    const { name, phone, email, cpf, address, event_date, setup_time, start_time } = body;
+    const { name, phone, email, cpf, address, event_date, setup_time, start_time, observation } = body;
 
     if (!name || !event_date) {
       return NextResponse.json({ error: 'Nome e data do evento são obrigatórios' }, { status: 400 });
@@ -109,6 +110,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
         event_date: toDbDate(event_date),
         setup_time,
         start_time,
+        observation: observation ?? null,
       },
     });
 

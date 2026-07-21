@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, Key, User, Camera } from 'lucide-react';
+import { LogOut, Key, User, Camera, Image as ImageIcon } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { saveDecoratorProfile, signOut, resetPassword, uploadImage } from '@/services/api';
@@ -15,7 +15,9 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Partial<Decorator>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (decorator) setProfile(decorator);
@@ -75,6 +77,45 @@ export default function SettingsPage() {
     }
   };
 
+  // Logo da empresa — usada no PDF de orçamento (identidade da decoradora).
+  const handleLogoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !profile.id) return;
+    if (!file.type.startsWith('image/')) {
+      addNotification('Arquivo inválido', 'Selecione um arquivo de imagem.', true);
+      return;
+    }
+    setIsUploadingLogo(true);
+    try {
+      const path = `${profile.id}/logo_${Date.now()}_${file.name}`;
+      let logo_url = '';
+      try {
+        const url = await uploadImage(file, 'logos', path);
+        if (url) logo_url = url;
+      } catch (err) {
+        console.warn('Storage upload failed, falling back to base64', err);
+      }
+      if (!logo_url) {
+        logo_url = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+      }
+      const updatedProfile = { ...profile, logo_url };
+      setProfile(updatedProfile);
+      const saved = await saveDecoratorProfile(updatedProfile as Decorator);
+      updateDecorator(saved);
+      addNotification('Logo Atualizada', 'Sua logo será usada nos PDFs de orçamento.');
+    } catch (err) {
+      console.error(err);
+      addNotification('Erro', 'Não foi possível enviar a logo.', true);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
   const handleLogout = async () => {
     if (confirm('Deseja realmente sair?')) {
       await signOut();
@@ -108,6 +149,13 @@ export default function SettingsPage() {
         type="file"
         accept="image/*"
         onChange={handleAvatarSelected}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleLogoSelected}
         style={{ display: 'none' }}
       />
 
@@ -158,6 +206,36 @@ export default function SettingsPage() {
             />
             <div className="settings-actions-end">
               <Button onClick={handleSaveProfile} isLoading={isLoading}>Salvar Alterações</Button>
+            </div>
+          </div>
+
+          {/* Bloco Logo da Empresa (usada no PDF de orçamento) */}
+          <div className="settings-card">
+            <h2 className="settings-section-title">Logo da empresa</h2>
+            <div className="settings-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+                <div className="settings-logo-preview">
+                  {profile.logo_url ? (
+                    <img src={profile.logo_url} alt="Logo da empresa" />
+                  ) : (
+                    <ImageIcon size={22} />
+                  )}
+                </div>
+                <div>
+                  <div className="settings-row-title">Sua identidade no PDF</div>
+                  <div className="settings-row-desc">
+                    Esta logo aparece no topo dos orçamentos em PDF enviados às clientes.
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                icon={ImageIcon}
+                onClick={() => logoInputRef.current?.click()}
+                isLoading={isUploadingLogo}
+              >
+                {profile.logo_url ? 'Trocar' : 'Enviar'}
+              </Button>
             </div>
           </div>
 

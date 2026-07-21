@@ -1,10 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Package, ShoppingCart, Users,
-  Settings, LifeBuoy, LogOut, ShoppingBag, Store, MessageSquare, CalendarDays
+  Settings, LifeBuoy, ShoppingBag, Store, MessageSquare, CalendarDays, Menu
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -18,19 +19,30 @@ const menuItems = [
   { href: '/party-form', label: 'Formulário', icon: ShoppingCart },
   { href: '/calendar', label: 'Calendário', icon: CalendarDays },
   { href: '/clients', label: 'Clientes', icon: Users },
-  { href: '/settings', label: 'Configurações', icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { decorator } = useAuthStore();
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className="sidebar-v2">
-      {/* Logo */}
+    <aside className={cn('sidebar-v2', collapsed && 'collapsed')}>
+      {/* Logo + toggle */}
       <div className="sidebar-v2-logo">
-        <div className="sidebar-v2-logo-icon">SB</div>
-        <span className="sidebar-v2-logo-text">{decorator?.name || 'SB GESTOR'}</span>
+        <div className="sidebar-v2-brand">
+          <div className="sidebar-v2-logo-icon">SB</div>
+          <span className="sidebar-v2-logo-text">{decorator?.name || 'SB GESTOR'}</span>
+        </div>
+        <button
+          type="button"
+          className="sidebar-v2-toggle"
+          onClick={() => setCollapsed(c => !c)}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        >
+          <Menu className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Nav */}
@@ -62,10 +74,13 @@ export function Sidebar() {
             <LifeBuoy className="w-4 h-4" />
             <span>Suporte</span>
           </a>
-          <a href="/login" className="sidebar-v2-bottom-link">
-            <LogOut className="w-4 h-4" />
-            <span>Sair</span>
-          </a>
+          <Link
+            href="/settings"
+            className={cn('sidebar-v2-bottom-link', pathname.startsWith('/settings') && 'active')}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Configurações</span>
+          </Link>
         </div>
       </div>
     </aside>

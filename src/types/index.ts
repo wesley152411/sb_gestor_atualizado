@@ -11,6 +11,7 @@ export interface Decorator {
   phone?: string;
   about?: string;
   cover_url?: string;
+  logo_url?: string;
   created_at?: string;
   reach?: number;
   contact_rate?: number;
@@ -137,6 +138,7 @@ export interface PartyEvent {
   public_token?: string;
   source_item_id?: string;
   source_kit_id?: string;
+  observation?: string;
 }
 
 // Dados públicos de um card (peça/kit) de origem, exibidos na página do link de orçamento.
@@ -163,6 +165,7 @@ export interface QuoteLinkData {
   event_date: string;
   setup_time: string;
   start_time: string;
+  observation?: string;
 }
 
 export interface CalendarMonthData {
