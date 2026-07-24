@@ -3664,3 +3664,137 @@ img { max-width: 100%; display: block; }
   display: flex;
   gap: 8px;
 }
+
+/* ==================== PREVIEW DO DOCUMENTO (aba Clientes) ==================== */
+.quote-doc { font-size: 14px; color: var(--text-primary); }
+
+.quote-doc-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #e4d5cd;
+}
+
+.quote-doc-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.quote-doc-logo-fallback {
+  background: #b85450;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.quote-doc-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #2f2a26;
+}
+
+.quote-doc-subtitle { font-size: 13px; color: #8a8078; }
+.quote-doc-date { font-size: 12px; color: #8a8078; white-space: nowrap; }
+
+.quote-doc-section-title {
+  position: relative;
+  font-weight: 800;
+  font-size: 15px;
+  color: #2f2a26;
+  margin: 20px 0 10px;
+  padding-left: 30px;
+}
+
+.quote-doc-section-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 22px;
+  height: 3px;
+  background: #b85450;
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+
+.quote-doc-product {
+  background: #fbf7f2;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.quote-doc-product-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2f2a26;
+}
+
+.quote-doc-product-desc { font-size: 13px; color: #8a8078; margin-top: 2px; }
+
+.quote-doc-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1e9e3;
+}
+
+.quote-doc-field-label { color: #8a8078; font-size: 13px; }
+.quote-doc-field-value { color: #2f2a26; font-size: 13px; font-weight: 700; text-align: right; }
+
+.quote-doc-obs {
+  background: #fbf7f2;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #2f2a26;
+  white-space: pre-wrap;
+}
+
+.quote-doc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.quote-doc-table th {
+  text-align: left;
+  font-size: 10.5px;
+  letter-spacing: 0.4px;
+  color: #8a8078;
+  background: #fbf7f2;
+  padding: 7px 8px;
+}
+
+.quote-doc-table td {
+  padding: 9px 8px;
+  border-bottom: 1px dashed #e4d5cd;
+  color: #2f2a26;
+}
+
+.quote-doc-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #8a8078;
+  margin-left: 14px;
+}
+
+.quote-doc-box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #b0a69e;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.quote-doc-stage { margin-bottom: 12px; }
+.quote-doc-stage-title { font-weight: 700; font-size: 13.5px; color: #2f2a26; margin-bottom: 4px; }
+.quote-doc-stage ul { margin: 0; padding-left: 18px; }
+.quote-doc-stage li { font-size: 13px; color: #8a8078; line-height: 1.6; }
