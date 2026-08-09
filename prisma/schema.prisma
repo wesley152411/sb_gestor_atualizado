@@ -1,5 +1,8 @@
 generator client {
   provider = "prisma-client-js"
+  // native = ambiente local (Windows); rhel-openssl = Netlify Functions (AWS Lambda).
+  // Sem isso, o Prisma Client não roda no deploy.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
