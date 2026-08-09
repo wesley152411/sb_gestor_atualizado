@@ -2,13 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Package, Phone, User, Download, Plus } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, Package, Phone, Download, Plus,
+  CheckCircle2, Clock, Sparkles, Cylinder, LayoutPanelLeft, Grip, Table,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCalendarEvents } from '@/hooks/swr-hooks';
 import { useNotificationStore } from '@/stores/notification-store';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { Badge } from '@/components/ui/Badge';
 import { generateLogisticsPDF } from '@/lib/pdf-generator';
 import type { RentalOrder, PartyEvent } from '@/types';
 
@@ -51,10 +54,24 @@ function getWeekDays(anchor: Date): Date[] {
     new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
 }
 
-function statusVariant(status?: string): 'success' | 'warning' | 'neutral' {
-  if (status === 'Confirmado') return 'success';
-  if (status === 'Pendente') return 'warning';
-  return 'neutral';
+type StatusKey = 'success' | 'warning' | 'neutral';
+
+function statusMeta(status?: string): { key: StatusKey; Icon: LucideIcon; label: string } {
+  if (status === 'Confirmado') return { key: 'success', Icon: CheckCircle2, label: status };
+  if (status === 'Pendente') return { key: 'warning', Icon: Clock, label: status };
+  return { key: 'neutral', Icon: Clock, label: status || '—' };
+}
+
+// Give each item a more meaningful glyph than a generic box, inferred from its
+// name. Falls back to Package when nothing matches.
+function iconForItem(name?: string): LucideIcon {
+  const n = (name || '').toLowerCase();
+  if (n.includes('mesa')) return Table;
+  if (n.includes('painel') || n.includes('painéis') || n.includes('paineis')) return LayoutPanelLeft;
+  if (n.includes('cilindro') || n.includes('conjunto')) return Cylinder;
+  if (n.includes('tapete') || n.includes('grama')) return Grip;
+  if (n.includes('alga') || n.includes('flor') || n.includes('planta')) return Sparkles;
+  return Package;
 }
 
 export default function CalendarPage() {
@@ -258,6 +275,7 @@ export default function CalendarPage() {
         isOpen={!!selectedDay}
         onClose={() => setSelectedDay(null)}
         title={selectedDay ? formatFullDate(selectedDay) : ''}
+        footer={<Button onClick={() => setSelectedDay(null)}>Fechar Visualização</Button>}
       >
         <DayDetails bucket={selectedBucket} decoratorId={decorator?.id} onDownloadPDF={handleDownloadPDF} />
       </Modal>
@@ -291,67 +309,94 @@ function DayDetails({ bucket, decoratorId, onDownloadPDF }: {
   decoratorId?: string;
   onDownloadPDF: (event: PartyEvent) => void;
 }) {
+  const isEmpty = !bucket?.rentalOrders.length && !bucket?.partyEvents.length;
+
   return (
-    <div className="space-y-4">
+    <div className="detail-list">
       {bucket?.rentalOrders.map((order) => {
         const isOwner = order.owner_id === decoratorId;
         const contact = isOwner ? order.renter : order.owner;
         return (
-          <div key={order.id} className="calendar-detail-card">
-            <div className="flex-row-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-indigo-600">
-                {isOwner ? 'Marketplace · Sua peça alugada' : 'Marketplace · Você alugou'}
-              </span>
-              <Badge variant={statusVariant(order.status)}>{order.status}</Badge>
-            </div>
-            <ul className="text-sm text-slate-700 space-y-1 mb-2">
-              {order.items?.map((item, idx) => (
-                <li key={idx} className="flex items-center gap-2">
-                  <Package className="w-3.5 h-3.5 text-slate-400" />
-                  {item.name} x{item.quantity}
-                </li>
-              ))}
-            </ul>
-            {contact && (
-              <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
-                <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{contact.name}</span>
-                {contact.phone && (
-                  <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{contact.phone}</span>
-                )}
-              </div>
-            )}
-          </div>
+          <DetailCard
+            key={order.id}
+            eyebrow={isOwner ? 'Marketplace · Sua peça alugada' : 'Marketplace · Você alugou'}
+            title={contact?.name}
+            status={order.status}
+            items={order.items}
+            phone={contact?.phone}
+          />
         );
       })}
 
       {bucket?.partyEvents.map((event) => (
-        <div key={event.id} className="calendar-detail-card">
-          <div className="flex-row-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wide text-indigo-600">Formulário de Festa</span>
-            <Badge variant={statusVariant(event.status)}>{event.status}</Badge>
-          </div>
-          <ul className="text-sm text-slate-700 space-y-1 mb-2">
-            {event.items?.map((item, idx) => (
-              <li key={idx} className="flex items-center gap-2">
-                <Package className="w-3.5 h-3.5 text-slate-400" />
-                {item.name} x{item.quantity}
-              </li>
-            ))}
-          </ul>
-          <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mb-3">
-            <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{event.client_name}</span>
-            {event.phone && (
-              <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{event.phone}</span>
-            )}
-          </div>
-          <Button variant="secondary" size="sm" icon={Download} onClick={() => onDownloadPDF(event)}>
-            Gerar PDF Logístico
-          </Button>
-        </div>
+        <DetailCard
+          key={event.id}
+          eyebrow="Formulário de Festa"
+          title={event.client_name}
+          status={event.status}
+          items={event.items}
+          phone={event.phone}
+          action={
+            <Button variant="secondary" size="sm" icon={Download} onClick={() => onDownloadPDF(event)}>
+              Gerar PDF Logístico
+            </Button>
+          }
+        />
       ))}
 
-      {!bucket?.rentalOrders.length && !bucket?.partyEvents.length && (
+      {isEmpty && (
         <p className="text-sm text-slate-500 text-center py-4">Nenhuma locação nesta data.</p>
+      )}
+    </div>
+  );
+}
+
+function DetailCard({ eyebrow, title, status, items, phone, action }: {
+  eyebrow: string;
+  title?: string;
+  status?: string;
+  items?: { name: string; quantity: number }[];
+  phone?: string;
+  action?: React.ReactNode;
+}) {
+  const { key, Icon: StatusIcon, label } = statusMeta(status);
+  const hasFoot = !!phone || !!action;
+
+  return (
+    <div className={`detail-card detail-card--${key}`}>
+      <div className="detail-card-head">
+        <div className="detail-card-headings">
+          <span className="detail-card-eyebrow">{eyebrow}</span>
+          {title && <span className="detail-card-title">{title}</span>}
+        </div>
+        <span className={`detail-status detail-status--${key}`}>
+          <StatusIcon className="w-3.5 h-3.5" />
+          {label}
+        </span>
+      </div>
+
+      {items && items.length > 0 && (
+        <ul className="detail-items">
+          {items.map((item, idx) => {
+            const ItemIcon = iconForItem(item.name);
+            return (
+              <li key={idx} className="detail-item">
+                <span className="detail-item-icon"><ItemIcon className="w-3.5 h-3.5" /></span>
+                <span className="detail-item-name">{item.name}</span>
+                <span className="detail-item-qty">x{item.quantity}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {hasFoot && (
+        <div className="detail-card-foot">
+          {phone && (
+            <span className="detail-contact-line"><Phone className="w-3.5 h-3.5" />{phone}</span>
+          )}
+          {action}
+        </div>
       )}
     </div>
   );

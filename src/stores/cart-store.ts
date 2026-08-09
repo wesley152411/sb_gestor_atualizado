@@ -9,6 +9,11 @@ interface CartState {
   clear: () => void;
   totalItems: () => number;
   totalPrice: () => number;
+  // Pedido de checkout disparado pelo botão de carrinho do topo (Header),
+  // consumido pela página do Marketplace para abrir o modal de finalização.
+  checkoutRequested: boolean;
+  requestCheckout: () => void;
+  clearCheckoutRequest: () => void;
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
@@ -35,4 +40,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   clear: () => set({ items: [] }),
   totalItems: () => get().items.reduce((sum, c) => sum + c.quantity, 0),
   totalPrice: () => get().items.reduce((sum, c) => sum + c.item.rental_price * c.quantity, 0),
+  checkoutRequested: false,
+  requestCheckout: () => set({ checkoutRequested: true }),
+  clearCheckoutRequest: () => set({ checkoutRequested: false }),
 }));

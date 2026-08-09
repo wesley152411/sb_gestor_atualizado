@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, Search, SlidersHorizontal, Package, LayoutGrid,
-  DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, Minus, X, ShoppingCart, Check
+  DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, ShoppingCart, Check
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { usePartyFormStore } from '@/stores/party-form-store';
@@ -33,8 +33,8 @@ export default function InventoryPage() {
   const [addedItemIds, setAddedItemIds] = useState<Set<string>>(new Set());
   const isLoading = isItemsLoading || isKitsLoading;
 
-  // Edit Item Modal (Standard Piece)
-  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  // Peça em edição (usada pelo modal unificado quando editando uma Peça Avulsa),
+  // preserva campos não editáveis no modal (estoque/custo/etc) ao salvar.
   const [editingItem, setEditingItem] = useState<Partial<InventoryItem>>({});
 
   // Create Kit Modal
@@ -47,6 +47,9 @@ export default function InventoryPage() {
   const [kitSearchQuery, setKitSearchQuery] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [editingKitId, setEditingKitId] = useState<string | null>(null);
+  // Quando setado, o modal unificado está editando uma Peça Avulsa (InventoryItem)
+  // em vez de um Kit — o salvar faz UPDATE da peça, não INSERT de kit.
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   // Helper to count total pieces in a kit
   const getKitTotalPieces = (kit: Kit) => {
@@ -70,24 +73,23 @@ export default function InventoryPage() {
     }
   }, [coverImageUrl, linkedItems.length]);
 
-  // Item Modal Handlers
-  const handleOpenItemModal = (item?: InventoryItem) => {
-    setEditingItem(item || { status: 'Privado', stock_quantity: 1, rental_price: 0, internal_cost: 0 });
-    setIsItemModalOpen(true);
-  };
-
-  const handleSaveItem = async () => {
-    if (!decorator || !editingItem.name) return;
-    
-    const itemToSave = {
-      ...editingItem,
-      decorator_id: decorator.id,
-    } as InventoryItem;
-
-    await saveInventoryItem(itemToSave);
-    addNotification('Item Salvo', `A peça "${itemToSave.name}" foi salva com sucesso.`);
-    setIsItemModalOpen(false);
-    mutateItems();
+  // Abre o modal UNIFICADO (mesmo de "Criar Nova Peça/Kit") em modo edição de
+  // Peça Avulsa: pré-preenche os campos compartilhados e guarda a peça original
+  // (editingItem) para preservar os campos numéricos/status ao salvar.
+  const handleOpenEditPieceModal = (item: InventoryItem) => {
+    setKitName(item.name);
+    setKitDescription(item.description || '');
+    setKitValue(item.rental_price ? item.rental_price.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }) : '');
+    setCoverImageUrl(item.image_url || '');
+    setLinkedItems([]);
+    setKitSearchQuery('');
+    setEditingKitId(null);
+    setEditingItem(item);
+    setEditingItemId(item.id);
+    setIsKitModalOpen(true);
   };
 
   const handleDeleteItem = async (id: string, name: string) => {
@@ -115,6 +117,7 @@ export default function InventoryPage() {
     setLinkedItems([]);
     setKitSearchQuery('');
     setEditingKitId(null);
+    setEditingItemId(null);
     setIsKitModalOpen(true);
   };
 
@@ -189,14 +192,6 @@ export default function InventoryPage() {
     }
   };
 
-  const handleItemImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const imageUrl = await processImageUpload(file);
-      setEditingItem(prev => ({ ...prev, image_url: imageUrl }));
-    }
-  };
-
   const handleLinkKitItem = (item: { id: string; name: string; quantity: number; image_url?: string }) => {
     const exists = linkedItems.find(i => i.id === item.id);
     if (exists) {
@@ -243,11 +238,20 @@ export default function InventoryPage() {
       rental_price: 25.0,
       internal_cost: 10.0
     };
-    const saved = await saveInventoryItem(newItem);
-    await mutateItems();
-    handleLinkKitItem({ id: saved.id, name: saved.name, quantity: 1, image_url: saved.image_url });
-    setKitSearchQuery('');
-    addNotification('Item Criado', `A peça "${saved.name}" foi salva e vinculada ao kit.`);
+    try {
+      const saved = await saveInventoryItem(newItem);
+      // Vincula à lista do kit IMEDIATAMENTE, antes de qualquer revalidação:
+      // se o refetch em segundo plano falhar, ele não pode engolir a atualização
+      // do estado local (era esse o await abaixo que quebrava a adição na lista).
+      handleLinkKitItem({ id: saved.id, name: saved.name, quantity: 1, image_url: saved.image_url });
+      setKitSearchQuery('');
+      addNotification('Item Criado', `A peça "${saved.name}" foi salva e vinculada ao kit.`);
+      // Revalida o acervo em segundo plano; um erro aqui não deve bloquear o fluxo.
+      mutateItems().catch(() => {});
+    } catch (err) {
+      console.error('Falha ao criar item avulso para o kit:', err);
+      addNotification('Erro ao Criar Item', 'Não foi possível criar a peça. Tente novamente.', true);
+    }
   };
 
   const handleSaveKit = async () => {
@@ -257,7 +261,35 @@ export default function InventoryPage() {
       return;
     }
 
-    const parsedValue = kitValue.trim() !== '' 
+    // Modo edição de Peça Avulsa: faz UPDATE do InventoryItem existente
+    // (preservando campos não expostos no modal), em vez de criar um Kit.
+    if (editingItemId) {
+      try {
+        // "Valor (opcional)" mapeia para o preço de locação da peça.
+        const parsedPrice = kitValue.trim() !== ''
+          ? Number(kitValue.replace(/\D/g, '')) / 100
+          : (editingItem.rental_price ?? 0);
+        const updatedItem = {
+          ...editingItem,
+          id: editingItemId,
+          decorator_id: decorator.id,
+          name: kitName.trim(),
+          description: kitDescription.trim(),
+          image_url: coverImageUrl || '',
+          rental_price: parsedPrice,
+        } as InventoryItem;
+        await saveInventoryItem(updatedItem);
+        addNotification('Peça Salva', `A peça "${updatedItem.name}" foi atualizada com sucesso.`);
+        setIsKitModalOpen(false);
+        mutateItems();
+      } catch (err) {
+        console.error('Falha ao atualizar peça:', err);
+        addNotification('Erro ao Salvar', 'Não foi possível atualizar a peça.', true);
+      }
+      return;
+    }
+
+    const parsedValue = kitValue.trim() !== ''
       ? Number(kitValue.replace(/\D/g, '')) / 100 
       : null;
 
@@ -520,7 +552,7 @@ export default function InventoryPage() {
                     <div className="acervo-card-actions">
                       <button
                         className="acervo-action-btn"
-                        onClick={() => handleOpenItemModal(item)}
+                        onClick={() => handleOpenEditPieceModal(item)}
                       >
                         <Pencil className="w-4 h-4" />
                         Editar
@@ -681,162 +713,53 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Edit Piece Modal */}
-      <Modal 
-        isOpen={isItemModalOpen} 
-        onClose={() => setIsItemModalOpen(false)} 
-        title={editingItem.id ? 'Editar Peça' : 'Nova Peça'}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setIsItemModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveItem}>Salvar Peça</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <Input 
-            label="Nome da Peça" 
-            value={editingItem.name || ''} 
-            onChange={e => setEditingItem({...editingItem, name: e.target.value})} 
-          />
-          <div className="form-group">
-            <label className="form-label">Descrição</label>
-            <textarea 
-              className="form-input" 
-              rows={3}
-              value={editingItem.description || ''} 
-              onChange={e => setEditingItem({...editingItem, description: e.target.value})} 
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Imagem da Peça</label>
-            <div className="flex gap-4 items-center mb-2">
-              {editingItem.image_url ? (
-                <div className="relative w-20 h-20 border border-slate-100 rounded-lg overflow-hidden flex-shrink-0">
-                  <img src={editingItem.image_url} alt="Visualização" className="w-full h-full object-cover" />
-                  <button 
-                    type="button" 
-                    onClick={() => setEditingItem(prev => ({ ...prev, image_url: '' }))}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
-                    title="Remover imagem"
-                    style={{ padding: '2px', lineHeight: 1 }}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <div className="w-20 h-20 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-slate-400 flex-shrink-0">
-                  <ImageIcon className="w-6 h-6" />
-                </div>
-              )}
-              <div className="flex-1">
-                <Button 
-                  type="button" 
-                  variant="secondary"
-                  onClick={() => document.getElementById('item-image-file-input')?.click()}
-                >
-                  Fazer Upload de Imagem
-                </Button>
-                <input 
-                  id="item-image-file-input"
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={handleItemImageUpload}
-                />
-                <p className="text-[11px] text-slate-400 mt-1">PNG, JPG ou WEBP. Máximo 5MB.</p>
-              </div>
-            </div>
-          </div>
-          
-          <Input 
-            label="Ou use uma URL de Imagem existente" 
-            value={editingItem.image_url || ''} 
-            onChange={e => setEditingItem({...editingItem, image_url: e.target.value})} 
-            placeholder="https://..."
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="form-group">
-              <label className="form-label">Status no Marketplace</label>
-              <select 
-                className="form-input"
-                value={editingItem.status || 'Privado'}
-                onChange={e => setEditingItem({...editingItem, status: e.target.value as 'Público' | 'Privado'})}
-              >
-                <option value="Privado">Privado (Apenas eu)</option>
-                <option value="Público">Público (Visível B2B)</option>
-              </select>
-            </div>
-            <Input 
-              type="number"
-              label="Qtd em Estoque" 
-              value={editingItem.stock_quantity || ''} 
-              onChange={e => setEditingItem({...editingItem, stock_quantity: Number(e.target.value)})} 
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input 
-              type="number"
-              step="0.01"
-              label="Preço Locação B2B (R$)" 
-              value={editingItem.rental_price || ''} 
-              onChange={e => setEditingItem({...editingItem, rental_price: Number(e.target.value)})} 
-            />
-            <Input 
-              type="number"
-              step="0.01"
-              label="Custo Interno (R$)" 
-              value={editingItem.internal_cost || ''} 
-              onChange={e => setEditingItem({...editingItem, internal_cost: Number(e.target.value)})} 
-            />
-          </div>
-        </div>
-      </Modal>
-
-      {/* Create Piece/Kit Modal */}
+      {/* Create/Edit Piece/Kit Modal (unificado) */}
       <Modal
         isOpen={isKitModalOpen}
         onClose={() => setIsKitModalOpen(false)}
-        title={editingKitId ? "Editar Kit" : "Criar Nova Peça/Kit"}
+        title={editingItemId ? "Editar Peça" : editingKitId ? "Editar Kit" : "Criar Nova Peça/Kit"}
         className="max-w-xl"
         footer={
           <>
             <Button variant="secondary" onClick={() => setIsKitModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveKit}>Salvar Kit</Button>
+            <Button onClick={handleSaveKit}>
+              {editingItemId || editingKitId ? "Salvar Alterações" : "Salvar Kit"}
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <Input 
-            label="Nome da Decoração" 
+          <Input
+            label={editingItemId ? "Nome da Peça" : "Nome da Decoração"}
             placeholder="Digite o nome..."
-            value={kitName} 
-            onChange={e => setKitName(e.target.value)} 
-            required 
+            value={kitName}
+            onChange={e => setKitName(e.target.value)}
+            required
           />
-          
+
           <div className="form-group">
             <label className="form-label">Descrição</label>
-            <textarea 
-              className="form-input" 
-              placeholder="Descreva este kit..."
+            <textarea
+              className="form-input"
+              placeholder={editingItemId ? "Descreva esta peça..." : "Descreva este kit..."}
               rows={3}
-              value={kitDescription} 
-              onChange={e => setKitDescription(e.target.value)} 
+              value={kitDescription}
+              onChange={e => setKitDescription(e.target.value)}
             />
           </div>
-          
-          <Input 
-            type="text" 
-            label="Valor (opcional)" 
+
+          {/* Mesma estrutura do modal "Nova Peça" (construtor) — usada também na edição. */}
+          <Input
+            type="text"
+            label="Valor (opcional)"
             placeholder="R$ 0,00"
-            value={kitValue} 
-            onChange={handleKitValueChange} 
+            value={kitValue}
+            onChange={handleKitValueChange}
           />
 
           {/* Cover Photo Drag and Drop area */}
           <div className="form-group">
-            <label className="form-label">Foto de Capa</label>
+            <label className="form-label">{editingItemId ? "Foto da Peça" : "Foto de Capa"}</label>
             {coverImageUrl === '' ? (
               <div 
                 className={`cover-upload-area ${isDragging ? 'dragging' : ''}`}
@@ -882,7 +805,8 @@ export default function InventoryPage() {
             )}
           </div>
 
-          {/* Seção Itens do Kit */}
+          {/* Seção Itens do Kit — apenas no fluxo de Kit (peças avulsas não têm sub-itens) */}
+          {/* Itens do Kit — mesma seção do modal "Nova Peça", exibida também na edição */}
           <div className="border-t border-slate-100 pt-4">
             <label className="form-label font-bold text-slate-800" style={{ fontSize: '15px' }}>Itens do Kit</label>
             
@@ -908,7 +832,7 @@ export default function InventoryPage() {
                   className="btn-create-item"
                 >
                   <Plus style={{ width: '14px', height: '14px', strokeWidth: 3 }} />
-                  <span>Criar novo item: "{kitSearchQuery}"</span>
+                  <span>{`Criar novo item: "${kitSearchQuery}"`}</span>
                 </button>
               </div>
             )}

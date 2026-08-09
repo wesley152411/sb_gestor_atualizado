@@ -511,66 +511,70 @@ export default function MyPage() {
               </div>
             ) : (
               unifiedPublicItems.map(item => (
-                <div key={item.id} className={`inventory-card ${item.isKit ? 'kit-border' : ''}`}>
-                  <div className="card-img-wrapper" style={{ position: 'relative' }}>
+                <div key={item.id} className="mp-card">
+                  {/* Foto */}
+                  <div className="mp-card-photo">
                     {item.image_url ? (
                       <img src={item.image_url} alt={item.name} />
                     ) : (
-                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
-                        {item.isKit ? <List className="w-8 h-8" /> : <Store className="w-8 h-8" />}
-                      </div>
-                    )}
-                    <span className="mypage-card-status confirmed absolute top-2 right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase">Publicado</span>
-                    {item.isKit && (
-                      <span className="absolute top-2 left-2 bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase">Kit</span>
+                      <div className="mp-card-photo-placeholder">foto do item</div>
                     )}
                   </div>
-                  <div className="card-body flex flex-col justify-between h-[180px]">
-                    <div>
-                      <h3 className="card-title text-base font-bold line-clamp-1">{item.name}</h3>
-                      <p className="card-desc text-xs text-slate-500 line-clamp-2 mt-1">{item.description || 'Sem descrição.'}</p>
+
+                  {/* Faixa de status */}
+                  <div className="mp-card-status published">
+                    <div className="mp-card-status-left">
+                      <span className="mp-card-status-dot" />
+                      <span>Publicado no Marketplace</span>
                     </div>
-                    <div>
-                      <div className="card-stats flex justify-between mt-4">
-                        <div>
-                          <span className="stat-label block text-[10px] text-slate-400 font-semibold uppercase">
-                            {item.isKit ? 'Itens do Kit' : 'Estoque'}
-                          </span>
-                          <span className="stat-val font-bold text-sm">
-                            {item.isKit ? `${item.rawKit.items.length} un` : `${item.stock_quantity} un`}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span className="stat-label block text-[10px] text-slate-400 font-semibold uppercase">Locação B2B</span>
-                          <span className="stat-val text-indigo-600 font-bold text-sm">{formatCurrency(item.rental_price)}</span>
-                        </div>
+                    <button
+                      type="button"
+                      className="mp-card-status-toggle"
+                      onClick={() => handleRemoveItem(item)}
+                      title="Despublicar do Marketplace"
+                      aria-label="Despublicar do Marketplace"
+                    >
+                      <EyeOff className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Corpo */}
+                  <div className="mp-card-body">
+                    <div className="mp-card-name">{item.name}</div>
+                    {item.description && <div className="mp-card-sub">{item.description}</div>}
+
+                    <div className="mp-card-rows">
+                      <div className="mp-card-row">
+                        <span className="mp-card-row-label">{item.isKit ? 'Itens do Kit' : 'Estoque'}</span>
+                        <span className="mp-card-row-value">
+                          {item.isKit ? `${item.rawKit.items.length} un` : `${item.stock_quantity} un`}
+                        </span>
                       </div>
-                      <div className="flex gap-2 mt-4">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="flex-1"
-                          icon={Pencil}
-                          onClick={() => handleOpenItemModal(item)}
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          icon={Link2}
-                          onClick={() => handleSendLink(item)}
-                          title="Enviar Link para Cliente"
-                        />
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          icon={EyeOff}
-                          onClick={() => handleRemoveItem(item)}
-                          title="Remover do Marketplace"
-                        />
+                      <div className="mp-card-row">
+                        <span className="mp-card-row-label">Locação B2B</span>
+                        <span className="mp-card-row-value accent">{formatCurrency(item.rental_price)}</span>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Rodapé (ações) */}
+                  <div className="mp-card-footer">
+                    <Button
+                      className="mp-card-edit-btn"
+                      icon={Pencil}
+                      onClick={() => handleOpenItemModal(item)}
+                    >
+                      Editar
+                    </Button>
+                    <button
+                      type="button"
+                      className="mp-card-link-btn"
+                      onClick={() => handleSendLink(item)}
+                      title="Copiar link do item"
+                      aria-label="Copiar link do item"
+                    >
+                      <Link2 className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               ))
