@@ -1,27 +1,37 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ShoppingBag, X, List, Store } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ShoppingBag, X, List, Store, ExternalLink, Search } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
 import { useNotificationStore } from '@/stores/notification-store';
-import { getDecorators, getInventoryItems, getKits, saveRentalOrder } from '@/services/api';
+import { fetchPartnerPublicAcervo, fetchPartnerDecoratorsList, saveRentalOrder } from '@/services/api';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { formatCurrency } from '@/lib/utils';
-import type { Decorator, InventoryItem, Kit } from '@/types';
+import type { InventoryItem, PartnerDecorator, PublicMarketplaceItem } from '@/types';
+
+// Chips de filtro exibidos na barra lateral (visual, alinhado ao layout aprovado).
+const REGION_CHIPS = ['Curitiba', 'Região Metro', 'Favoritas'];
 
 export default function MarketplacePage() {
+  const router = useRouter();
   const { decorator } = useAuthStore();
-  const { items: cartItems, addItem, removeItem, updateQuantity, clear, totalPrice } = useCartStore();
+  const {
+    items: cartItems, addItem, removeItem, updateQuantity, clear, totalPrice,
+    checkoutRequested, clearCheckoutRequest,
+  } = useCartStore();
   const { addNotification } = useNotificationStore();
 
-  const [partners, setPartners] = useState<Decorator[]>([]);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [kits, setKits] = useState<Kit[]>([]);
+  // Regra de negócio: o feed mostra SOMENTE o acervo público de parceiras
+  // (nunca o da decoradora logada). Os nomes abaixo deixam isso explícito.
+  const [publicMarketplaceItems, setPublicMarketplaceItems] = useState<PublicMarketplaceItem[]>([]);
+  const [partnerDecoratorsList, setPartnerDecoratorsList] = useState<PartnerDecorator[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>('all');
+  const [partnerSearch, setPartnerSearch] = useState('');
+  const [activeChip, setActiveChip] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Cart Modal
@@ -30,57 +40,69 @@ export default function MarketplacePage() {
   const [observation, setObservation] = useState('');
 
   useEffect(() => {
-    async function loadData() {
-      const [decs, inv, kts] = await Promise.all([getDecorators(), getInventoryItems(), getKits()]);
-      setPartners(decs);
-      setInventory(inv);
-      setKits(kts);
+    async function loadMarketplace() {
+      setIsLoading(true);
+      // A id da decoradora logada é passada EXPLICITAMENTE para excluir o próprio acervo.
+      const [acervo, partners] = await Promise.all([
+        fetchPartnerPublicAcervo(decorator?.id),
+        fetchPartnerDecoratorsList(decorator?.id),
+      ]);
+      setPublicMarketplaceItems(acervo);
+      setPartnerDecoratorsList(partners);
       setIsLoading(false);
     }
-    loadData();
-  }, []);
+    loadMarketplace();
+  }, [decorator?.id]);
 
-  // Marketplace rules: Only public items, exclude own items
-  const publicItems = inventory.filter(i => i.status === 'Público' && i.decorator_id !== decorator?.id);
-  const publicKits = kits.filter(k => k.status === 'Público' && k.decorator_id !== decorator?.id);
-  
-  const unifiedPublicItems = [
-    ...publicItems.map(i => ({ ...i, isKit: false as const })),
-    ...publicKits.map(k => ({ 
-      id: k.id,
-      decorator_id: k.decorator_id,
-      name: k.name,
-      description: k.description,
-      image_url: k.image_url,
-      status: k.status,
-      stock_quantity: 1,
-      rental_price: k.value ?? 0,
-      isKit: true as const,
-      rawKit: k
-    }))
-  ];
+  // Checkout acionado pelo botão de carrinho do topo (Header).
+  useEffect(() => {
+    if (checkoutRequested && cartItems.length > 0) {
+      setIsCartOpen(true);
+      clearCheckoutRequest();
+    } else if (checkoutRequested) {
+      clearCheckoutRequest();
+    }
+  }, [checkoutRequested, cartItems.length, clearCheckoutRequest]);
 
-  const displayedItems = selectedPartnerId === 'all' 
-    ? unifiedPublicItems 
-    : unifiedPublicItems.filter(i => i.decorator_id === selectedPartnerId);
+  const filteredPartners = partnerDecoratorsList.filter(p =>
+    p.name.toLowerCase().includes(partnerSearch.toLowerCase())
+  );
 
-  // Filter partners that actually have public items
-  const activePartnerIds = Array.from(new Set(unifiedPublicItems.map(i => i.decorator_id)));
-  const activePartners = partners.filter(p => activePartnerIds.includes(p.id));
+  const displayedItems = selectedPartnerId === 'all'
+    ? publicMarketplaceItems
+    : publicMarketplaceItems.filter(i => i.owner.id === selectedPartnerId);
 
-  const handleAddToCart = (item: InventoryItem) => {
-    // Check if cart has items from another decorator
-    if (cartItems.length > 0 && cartItems[0].item.decorator_id !== item.decorator_id) {
-      alert("Você só pode adicionar itens de um mesmo parceiro por pedido. Finalize o carrinho atual ou esvazie-o primeiro.");
+  // Converte um item público do Marketplace para o formato aceito pelo carrinho.
+  const toCartItem = (mi: PublicMarketplaceItem): InventoryItem & { isKit: boolean } => ({
+    id: mi.id,
+    decorator_id: mi.owner.id,
+    name: mi.name,
+    description: mi.description || '',
+    image_url: mi.imageUrl || '',
+    status: 'Público',
+    stock_quantity: mi.availableQuantity,
+    rental_price: mi.rentalPrice,
+    internal_cost: 0,
+    isKit: mi.isKit,
+  });
+
+  const handleAddToCart = (mi: PublicMarketplaceItem) => {
+    if (cartItems.length > 0 && cartItems[0].item.decorator_id !== mi.owner.id) {
+      alert('Você só pode adicionar itens de uma mesma parceira por pedido. Finalize o carrinho atual ou esvazie-o primeiro.');
       return;
     }
-    addItem(item);
-    addNotification('Adicionado ao Carrinho', `"${item.name}" foi adicionado.`);
+    addItem(toCartItem(mi));
+    addNotification('Adicionado ao Carrinho', `"${mi.name}" foi adicionado.`);
+  };
+
+  // "Ver página": redireciona para o perfil público da parceira dona da peça.
+  const handleViewPartnerPage = (owner: PartnerDecorator) => {
+    router.push(`/marketplace/partner/${owner.publicPageId}`);
   };
 
   const handleCheckout = async () => {
     if (!decorator || cartItems.length === 0 || !eventDate) {
-      alert("Preencha a data do evento para solicitar a locação.");
+      alert('Preencha a data do evento para solicitar a locação.');
       return;
     }
 
@@ -102,10 +124,10 @@ export default function MarketplacePage() {
       event_date: eventDate,
       observation,
       total_value: totalPrice(),
-      items: orderItems
+      items: orderItems,
     });
 
-    addNotification('Pedido Enviado!', 'O parceiro receberá sua solicitação em breve.');
+    addNotification('Pedido Enviado!', 'A parceira receberá sua solicitação em breve.');
     clear();
     setEventDate('');
     setObservation('');
@@ -117,47 +139,63 @@ export default function MarketplacePage() {
   return (
     <div className="marketplace-layout">
       <aside className="market-sidebar">
-        <div className="market-filter-box">
-          <h3 className="filter-title">Filtrar por Parceira</h3>
-          <ul className="partner-list">
-            <li 
-              className={`partner-item ${selectedPartnerId === 'all' ? 'active' : ''}`}
+        <div className="mkt-sidebar-box">
+          <h3 className="mkt-sidebar-title">Parceiras</h3>
+          <p className="mkt-sidebar-subtitle">Pesquise e navegue pelas páginas de outras decoradoras.</p>
+
+          <div className="mkt-search">
+            <Search />
+            <input
+              type="search"
+              placeholder="Buscar parceira"
+              value={partnerSearch}
+              onChange={(e) => setPartnerSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="mkt-chips">
+            {REGION_CHIPS.map(chip => (
+              <button
+                key={chip}
+                type="button"
+                className={`mkt-chip ${activeChip === chip ? 'active' : ''}`}
+                onClick={() => setActiveChip(activeChip === chip ? null : chip)}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          <ul className="mkt-partner-list">
+            <li
+              className={`mkt-partner-item ${selectedPartnerId === 'all' ? 'active' : ''}`}
               onClick={() => setSelectedPartnerId('all')}
             >
-              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">ALL</div>
-              Todas as Parceiras
+              <div className="mkt-partner-avatar mkt-partner-avatar-fallback all">ALL</div>
+              <span className="mkt-partner-name">Todas as Parceiras</span>
             </li>
-            {activePartners.map(p => (
-              <li 
-                key={p.id}
-                className={`partner-item ${selectedPartnerId === p.id ? 'active' : ''}`}
-                onClick={() => setSelectedPartnerId(p.id)}
+            {filteredPartners.map(partner => (
+              <li
+                key={partner.id}
+                className={`mkt-partner-item ${selectedPartnerId === partner.id ? 'active' : ''}`}
+                onClick={() => setSelectedPartnerId(partner.id)}
               >
-                <img src={p.avatar_url} alt={p.name} className="partner-avatar" />
-                <span className="truncate">{p.name}</span>
+                {partner.logoUrl ? (
+                  <img src={partner.logoUrl} alt={partner.name} className="mkt-partner-avatar" />
+                ) : (
+                  <div className="mkt-partner-avatar mkt-partner-avatar-fallback">
+                    {partner.name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="mkt-partner-name">{partner.name}</div>
+                  <div className="mkt-partner-meta">
+                    {partner.location ? `${partner.location} · ` : ''}{partner.publicItemCount ?? 0} peças
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
-        </div>
-
-        <div className="cart-summary-box">
-          <h3 className="filter-title flex justify-between items-center">
-            Meu Carrinho B2B
-            <Badge variant="kit">{cartItems.reduce((acc, c) => acc + c.quantity, 0)}</Badge>
-          </h3>
-          {cartItems.length === 0 ? (
-            <p className="text-xs text-slate-500">Adicione peças de parceiros para solicitar locação.</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="text-sm">
-                Fornecedor: <span className="font-bold">{partners.find(p => p.id === cartItems[0].item.decorator_id)?.name}</span>
-              </div>
-              <div className="text-xl font-bold text-indigo-600">
-                {formatCurrency(totalPrice())}
-              </div>
-              <Button className="w-full" onClick={() => setIsCartOpen(true)}>Visualizar Pedido</Button>
-            </div>
-          )}
         </div>
       </aside>
 
@@ -165,62 +203,66 @@ export default function MarketplacePage() {
         <div className="page-header mb-6">
           <div>
             <h1 className="page-title">Catálogo de Locação B2B</h1>
-            <p className="page-subtitle">Alugue peças do acervo de outras decoradoras da sua região.</p>
+            <p className="page-subtitle">Alugue peças do acervo público de outras decoradoras da sua região.</p>
           </div>
         </div>
 
-        <div className="cards-grid">
+        <div className="mkt-grid">
           {displayedItems.length === 0 ? (
             <div className="col-span-full py-12 text-center text-slate-500">Nenhum item público encontrado.</div>
           ) : (
-            displayedItems.map(item => {
-              const partner = partners.find(p => p.id === item.decorator_id);
-              return (
-                <div key={item.id} className={`inventory-card ${item.isKit ? 'kit-border' : ''}`}>
-                  <div className="card-img-wrapper" style={{ position: 'relative' }}>
-                    {item.image_url ? (
-                      <img src={item.image_url} alt={item.name} />
+            displayedItems.map(item => (
+              <div key={item.id} className="mkt-card">
+                <div className="mkt-card-photo">
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt={item.name} />
+                  ) : (
+                    <div className="mkt-card-photo-placeholder">foto da peça</div>
+                  )}
+                  <span className={`mkt-card-badge ${item.isKit ? 'kit' : ''}`}>
+                    {item.isKit ? 'Kit' : 'Peça'}
+                  </span>
+                </div>
+
+                <div className="mkt-card-body">
+                  <div className="mkt-card-partner">
+                    {item.owner.logoUrl ? (
+                      <img src={item.owner.logoUrl} alt={item.owner.name} className="mkt-card-partner-avatar" />
                     ) : (
-                      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
-                        {item.isKit ? <List className="w-8 h-8" /> : <Store className="w-8 h-8" />}
+                      <div className="mkt-card-partner-avatar mkt-card-partner-avatar-fallback">
+                        {item.owner.name.slice(0, 2).toUpperCase()}
                       </div>
                     )}
-                    {item.isKit && (
-                      <span className="absolute top-2 left-2 bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase">Kit</span>
-                    )}
+                    <span className="mkt-card-partner-name">{item.owner.name}</span>
                   </div>
-                  <div className="card-body">
-                    <div className="flex items-center gap-2 mb-2">
-                      <img src={partner?.avatar_url} alt={partner?.name} className="w-5 h-5 rounded-full object-cover" />
-                      <span className="text-xs font-semibold text-slate-600 truncate">{partner?.name}</span>
+
+                  <div className="mkt-card-name">{item.name}</div>
+
+                  <div className="mkt-card-stats">
+                    <div>
+                      <span className="mkt-stat-label">{item.isKit ? 'Itens do Kit' : 'Disponível'}</span>
+                      <span className="mkt-stat-val">{item.isKit ? `${item.kitItemCount ?? 0} un` : `${item.availableQuantity} un`}</span>
                     </div>
-                    <h3 className="card-title">{item.name}</h3>
-                    <div className="card-stats mt-auto">
-                      <div>
-                        <span className="stat-label">
-                          {item.isKit ? 'Itens do Kit' : 'Disponível'}
-                        </span>
-                        <span className="stat-val">
-                          {item.isKit ? `${item.rawKit.items.length} un` : `${item.stock_quantity} un`}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="stat-label">Valor (B2B)</span>
-                        <span className="stat-val text-indigo-600">{formatCurrency(item.rental_price)}</span>
-                      </div>
+                    <div className="text-right">
+                      <span className="mkt-stat-label">Valor (B2B)</span>
+                      <span className="mkt-stat-val accent">{formatCurrency(item.rentalPrice)}</span>
                     </div>
-                    <div className="card-actions mt-4">
-                      <Button className="w-full" icon={ShoppingBag} onClick={() => handleAddToCart(item as any)}>Adicionar</Button>
-                    </div>
+                  </div>
+
+                  <div className="mkt-card-actions">
+                    <Button className="w-full" icon={ShoppingBag} onClick={() => handleAddToCart(item)}>Alugar</Button>
+                    <Button variant="secondary" className="w-full" icon={ExternalLink} onClick={() => handleViewPartnerPage(item.owner)}>
+                      Ver página
+                    </Button>
                   </div>
                 </div>
-              );
-            })
+              </div>
+            ))
           )}
         </div>
       </main>
 
-      {/* Cart Checkout Modal */}
+      {/* Cart Checkout Modal (aberto pelo botão de carrinho do topo) */}
       <Modal
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
@@ -232,7 +274,7 @@ export default function MarketplacePage() {
           </>
         }
       >
-        {cartItems.length > 0 && (
+        {cartItems.length > 0 ? (
           <div className="space-y-6">
             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
               <h4 className="font-bold mb-2">Itens Solicitados</h4>
@@ -243,9 +285,9 @@ export default function MarketplacePage() {
                     <p className="text-xs text-slate-500">{formatCurrency(c.item.rental_price)} / un</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <input 
-                      type="number" 
-                      min="1" 
+                    <input
+                      type="number"
+                      min="1"
                       max={c.item.stock_quantity}
                       value={c.quantity}
                       onChange={(e) => updateQuantity(idx, Number(e.target.value))}
@@ -264,16 +306,16 @@ export default function MarketplacePage() {
             </div>
 
             <div className="space-y-4">
-              <Input 
-                type="date" 
-                label="Data do Evento (Obrigatório)" 
+              <Input
+                type="date"
+                label="Data do Evento (Obrigatório)"
                 value={eventDate}
                 onChange={e => setEventDate(e.target.value)}
               />
               <div className="form-group">
                 <label className="form-label">Observações Logísticas</label>
-                <textarea 
-                  className="form-input" 
+                <textarea
+                  className="form-input"
                   rows={3}
                   placeholder="Ex: Vou buscar o material na véspera, período da tarde."
                   value={observation}
@@ -282,6 +324,8 @@ export default function MarketplacePage() {
               </div>
             </div>
           </div>
+        ) : (
+          <p className="text-center text-slate-500 py-6">Seu carrinho está vazio.</p>
         )}
       </Modal>
     </div>

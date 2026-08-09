@@ -6,6 +6,7 @@ import {
 import type {
   Decorator, InventoryItem, ChatMessage, RentalOrder,
   Client, PartyEvent, Kit, SignupMetadata, AuthResult, CalendarMonthData,
+  PartnerDecorator, PublicMarketplaceItem,
 } from '@/types';
 import { generateId } from '@/lib/utils';
 
@@ -181,6 +182,136 @@ export async function saveDecoratorProfile(profile: Decorator): Promise<Decorato
   else decorators.push(profile);
   setLocal('decorators', decorators);
   return profile;
+}
+
+// ==================== MARKETPLACE B2B (acervo público de parceiras) ====================
+//
+// Regra de negócio central desta aba:
+//   1) somente itens/kits com status "Público";
+//   2) EXCLUINDO o acervo da própria decoradora logada.
+// A exclusão do usuário logado é passada EXPLICITAMENTE via `currentDecoratorId`,
+// para que a futura API real receba esse filtro (ex.: `?excludeDecoratorId=`) e nunca
+// devolva o próprio acervo no feed do Marketplace.
+
+function toPartnerDecorator(d?: Decorator): PartnerDecorator {
+  return {
+    id: d?.id || '',
+    name: d?.name || 'Parceira',
+    logoUrl: d?.logo_url || d?.avatar_url,
+    location: d?.location,
+    publicPageId: d?.id || '', // futura página pública da parceira
+  };
+}
+
+// Busca o acervo PÚBLICO das PARCEIRAS (peças + kits), já com a dona embutida.
+// TODO(backend): substituir os getters locais por GET /api/marketplace?excludeDecoratorId=<id>.
+export async function fetchPartnerPublicAcervo(
+  currentDecoratorId?: string
+): Promise<PublicMarketplaceItem[]> {
+  const [decorators, items, kits] = await Promise.all([
+    getDecorators(),
+    getInventoryItems(),
+    getKits(),
+  ]);
+
+  const ownerById = new Map(decorators.map((d) => [d.id, d]));
+  const isPartnerPublic = (status: string, ownerId?: string) =>
+    status === 'Público' && ownerId !== currentDecoratorId;
+
+  const publicItems: PublicMarketplaceItem[] = items
+    .filter((i) => isPartnerPublic(i.status, i.decorator_id))
+    .map((i) => ({
+      id: i.id,
+      name: i.name,
+      description: i.description,
+      imageUrl: i.image_url,
+      rentalPrice: i.rental_price,
+      availableQuantity: i.stock_quantity,
+      isKit: false,
+      owner: toPartnerDecorator(ownerById.get(i.decorator_id)),
+    }));
+
+  const publicKits: PublicMarketplaceItem[] = kits
+    .filter((k) => isPartnerPublic(k.status, k.decorator_id))
+    .map((k) => ({
+      id: k.id,
+      name: k.name,
+      description: k.description,
+      imageUrl: k.image_url,
+      rentalPrice: k.value ?? 0,
+      availableQuantity: 1,
+      isKit: true,
+      kitItemCount: k.items.length,
+      owner: toPartnerDecorator(ownerById.get(k.decorator_id)),
+    }));
+
+  return [...publicItems, ...publicKits];
+}
+
+// Perfil público + acervo público de UMA parceira específica (para a "Ver página").
+// Reutiliza a mesma regra (somente "Público") e devolve os itens já unificados.
+export async function fetchPartnerPublicPage(
+  partnerId: string
+): Promise<{ partner: PartnerDecorator; items: PublicMarketplaceItem[] } | null> {
+  try {
+    const res = await fetch(`/api/public/decorator/${partnerId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const d = data.decorator as Decorator;
+    const partner: PartnerDecorator = {
+      id: d.id,
+      name: d.name,
+      logoUrl: d.logo_url || d.avatar_url,
+      location: d.location,
+      publicPageId: d.id,
+    };
+
+    const items: PublicMarketplaceItem[] = [
+      ...(data.items as InventoryItem[]).map((i) => ({
+        id: i.id,
+        name: i.name,
+        description: i.description,
+        imageUrl: i.image_url,
+        rentalPrice: Number(i.rental_price) || 0,
+        availableQuantity: i.stock_quantity,
+        isKit: false,
+        owner: partner,
+      })),
+      ...(data.kits as Kit[]).map((k) => ({
+        id: k.id,
+        name: k.name,
+        description: k.description,
+        imageUrl: k.image_url,
+        rentalPrice: Number(k.value) || 0,
+        availableQuantity: 1,
+        isKit: true,
+        kitItemCount: Array.isArray(k.items) ? k.items.length : 0,
+        owner: partner,
+      })),
+    ];
+
+    return { partner, items };
+  } catch {
+    return null;
+  }
+}
+
+// Lista de decoradoras PARCEIRAS (todas menos a logada) que têm acervo público,
+// já com a contagem de itens públicos de cada uma (para a barra lateral).
+export async function fetchPartnerDecoratorsList(
+  currentDecoratorId?: string
+): Promise<PartnerDecorator[]> {
+  const publicAcervo = await fetchPartnerPublicAcervo(currentDecoratorId);
+  const byId = new Map<string, PartnerDecorator>();
+  for (const item of publicAcervo) {
+    const existing = byId.get(item.owner.id);
+    if (existing) {
+      existing.publicItemCount = (existing.publicItemCount || 0) + 1;
+    } else {
+      byId.set(item.owner.id, { ...item.owner, publicItemCount: 1 });
+    }
+  }
+  return Array.from(byId.values());
 }
 
 // ==================== INVENTORY ====================

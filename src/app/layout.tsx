@@ -8,9 +8,12 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // suppressHydrationWarning: extensões do navegador (ex.: ColorZilla) injetam
+  // atributos como cz-shortcut-listen no <body> antes do React hidratar,
+  // causando divergência servidor/cliente. Isso ignora só esse ruído.
   return (
-    <html lang="pt-BR" data-scroll-behavior="smooth">
-      <body>
+    <html lang="pt-BR" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         {children}
         <ToastProvider />
       </body>

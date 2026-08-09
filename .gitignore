@@ -39,6 +39,10 @@ yarn-error.log*
 # scratch
 /scratch/
 
+# ferramentas locais / artefatos (nao vao para o deploy)
+/.claude/
+/graphify-out/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

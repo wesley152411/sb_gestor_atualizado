@@ -182,6 +182,34 @@ export interface Notification {
   time: string;
 }
 
+// ==================== MARKETPLACE B2B TYPES ====================
+// Regra de negócio: o Marketplace exibe EXCLUSIVAMENTE o acervo público de
+// OUTRAS decoradoras (parceiras). O acervo da decoradora logada nunca aparece aqui.
+
+// Dados públicos da decoradora DONA da peça — usados no card e para o "Ver página"
+// saber exatamente para qual perfil público redirecionar.
+export interface PartnerDecorator {
+  id: string;
+  name: string;
+  logoUrl?: string;
+  location?: string;
+  publicPageId: string; // ID/slug da página pública (destino do botão "Ver página")
+  publicItemCount?: number; // qtd de itens públicos que a parceira tem no feed
+}
+
+// Item público (peça avulsa ou kit) de uma parceira, já com a dona embutida.
+export interface PublicMarketplaceItem {
+  id: string;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  rentalPrice: number; // valor de locação B2B
+  availableQuantity: number;
+  isKit: boolean;
+  kitItemCount?: number; // nº de itens quando for kit
+  owner: PartnerDecorator; // decoradora dona (para o card e "Ver página")
+}
+
 // ==================== CART TYPES ====================
 
 export interface CartItem {

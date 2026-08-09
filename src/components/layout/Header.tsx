@@ -29,7 +29,7 @@ function fmtDate(d?: string) {
 export function Header() {
   const router = useRouter();
   const { decorator } = useAuthStore();
-  const { items, removeItem, totalPrice, totalItems, clear } = useCartStore();
+  const { items, removeItem, totalPrice, totalItems, clear, requestCheckout } = useCartStore();
   const { events } = usePartyEvents(decorator?.id);
   const { orders } = useRentalOrders(decorator?.id);
 
@@ -218,9 +218,9 @@ export function Header() {
                     <Button
                       size="sm"
                       className="flex-1"
-                      onClick={() => { setIsCartOpen(false); router.push('/marketplace'); }}
+                      onClick={() => { setIsCartOpen(false); requestCheckout(); router.push('/marketplace'); }}
                     >
-                      Ir para o Marketplace
+                      Finalizar Pedido
                     </Button>
                   </div>
                 </div>
