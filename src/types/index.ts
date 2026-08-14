@@ -139,6 +139,7 @@ export interface PartyEvent {
   source_item_id?: string;
   source_kit_id?: string;
   observation?: string;
+  created_at?: string;
 }
 
 // Dados públicos de um card (peça/kit) de origem, exibidos na página do link de orçamento.
