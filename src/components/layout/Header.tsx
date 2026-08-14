@@ -49,7 +49,7 @@ export function Header() {
         kind: 'party' as const,
         title: 'Festa confirmada',
         message: `${e.theme || 'Evento'}${e.client_name ? ` — ${e.client_name}` : ''}${e.event_date ? ` • ${fmtDate(e.event_date)}` : ''}`,
-        sortKey: e.event_date || '',
+        sortKey: e.created_at || e.event_date || '',
         href: '/calendar',
       })),
     // Cliente preencheu o link de orçamento (ainda pendente de confirmação)
@@ -60,7 +60,7 @@ export function Header() {
         kind: 'quote' as const,
         title: 'Cliente preencheu o orçamento',
         message: `${e.client_name} enviou os dados para "${e.theme || 'orçamento'}".`,
-        sortKey: e.event_date || '',
+        sortKey: e.created_at || e.event_date || '',
         href: '/clients',
       })),
     // Pedidos recebidos no Marketplace (sou o dono da peça alugada)
@@ -74,9 +74,35 @@ export function Header() {
         sortKey: o.created_at || '',
         href: '/marketplace',
       })),
-  ].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  ].sort((a, b) => b.sortKey.localeCompare(a.sortKey)); // mais recente (que chegou por último) primeiro
+
+  // Notificações "lidas": guardamos os ids já vistos no localStorage por decoradora.
+  // Primeiro acesso => nenhum id salvo, mas também não há dados => sino sem badge.
+  // Ao abrir o sino, marcamos tudo como lido; o badge some e continua sumido em
+  // recargas/navegação até chegar uma notificação nova (id inédito).
+  const storageKey = decorator?.id ? `sbg:notif-seen:${decorator.id}` : null;
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      setSeenIds(raw ? new Set(JSON.parse(raw) as string[]) : new Set());
+    } catch {
+      setSeenIds(new Set());
+    }
+  }, [storageKey]);
+
+  const markAllNotifsRead = () => {
+    const ids = notifications.map(n => n.id);
+    setSeenIds(new Set(ids));
+    if (storageKey) {
+      try { localStorage.setItem(storageKey, JSON.stringify(ids)); } catch { /* ignore */ }
+    }
+  };
 
   const notifCount = notifications.length;
+  const unreadCount = notifications.filter(n => !seenIds.has(n.id)).length;
   const cartCount = totalItems();
 
   useEffect(() => {
@@ -112,11 +138,16 @@ export function Header() {
         <div className="relative" ref={notifRef}>
           <button
             className="header-icon-btn"
-            onClick={() => { setIsNotifOpen(v => !v); setIsCartOpen(false); }}
+            onClick={() => {
+              const willOpen = !isNotifOpen;
+              setIsNotifOpen(willOpen);
+              setIsCartOpen(false);
+              if (willOpen) markAllNotifsRead();
+            }}
           >
             <Bell className="w-5 h-5" />
-            {notifCount > 0 && (
-              <span className="header-count-badge">{notifCount > 9 ? '9+' : notifCount}</span>
+            {unreadCount > 0 && (
+              <span className="header-count-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
             )}
           </button>
 

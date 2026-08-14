@@ -21,6 +21,14 @@ const menuItems = [
   { href: '/clients', label: 'Clientes', icon: Users },
 ];
 
+function getInitials(name?: string) {
+  if (!name) return 'SB';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'SB';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { decorator } = useAuthStore();
@@ -31,7 +39,13 @@ export function Sidebar() {
       {/* Logo + toggle */}
       <div className="sidebar-v2-logo">
         <div className="sidebar-v2-brand">
-          <div className="sidebar-v2-logo-icon">SB</div>
+          <div className="sidebar-v2-logo-icon">
+            {decorator?.avatar_url ? (
+              <img src={decorator.avatar_url} alt={decorator.name || 'Avatar'} />
+            ) : (
+              getInitials(decorator?.name)
+            )}
+          </div>
           <span className="sidebar-v2-logo-text">{decorator?.name || 'SB GESTOR'}</span>
         </div>
         <button
