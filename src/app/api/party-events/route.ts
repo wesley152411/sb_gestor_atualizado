@@ -4,11 +4,16 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   try {
+    // ISOLAMENTO MULTI-CONTA: sem decoratorId NÃO retornamos nada (antes, sem
+    // o parâmetro, a rota devolvia os eventos de todas as contas).
     const { searchParams } = new URL(request.url);
     const decoratorId = searchParams.get('decoratorId');
+    if (!decoratorId) {
+      return NextResponse.json({ error: 'decoratorId is required' }, { status: 400 });
+    }
 
     const events = await prisma.partyEvent.findMany({
-      where: decoratorId ? { decorator_id: decoratorId } : undefined,
+      where: { decorator_id: decoratorId },
       orderBy: { event_date: 'asc' },
     });
     return NextResponse.json(events);

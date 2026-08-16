@@ -314,16 +314,16 @@ function DayDetails({ bucket, decoratorId, onDownloadPDF }: {
   return (
     <div className="detail-list">
       {bucket?.rentalOrders.map((order) => {
+        // ISOLAMENTO: numa locação entre parceiras o calendário mostra apenas a
+        // INDISPONIBILIDADE da peça — nunca nome/telefone da contraparte nem valor.
         const isOwner = order.owner_id === decoratorId;
-        const contact = isOwner ? order.renter : order.owner;
         return (
           <DetailCard
             key={order.id}
             eyebrow={isOwner ? 'Marketplace · Sua peça alugada' : 'Marketplace · Você alugou'}
-            title={contact?.name}
+            title={order.items?.[0]?.name || 'Peça comprometida'}
             status={order.status}
             items={order.items}
-            phone={contact?.phone}
           />
         );
       })}

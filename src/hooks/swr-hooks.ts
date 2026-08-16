@@ -64,8 +64,10 @@ export function useDecoratorChats(decoratorId?: string) {
   };
 }
 
-export function useClients() {
-  const { data, error, isLoading, mutate: revalidate } = useSWR<Client[]>('/api/clients', fetcher);
+export function useClients(decoratorId?: string) {
+  // Sem decoratorId não buscamos nada (evita expor clientes de outras contas).
+  const url = decoratorId ? `/api/clients?decoratorId=${decoratorId}` : null;
+  const { data, error, isLoading, mutate: revalidate } = useSWR<Client[]>(url, fetcher);
   return {
     clients: data || [],
     error,
@@ -75,7 +77,8 @@ export function useClients() {
 }
 
 export function usePartyEvents(decoratorId?: string) {
-  const url = decoratorId ? `/api/party-events?decoratorId=${decoratorId}` : '/api/party-events';
+  // Sem decoratorId não buscamos nada (evita expor eventos de outras contas).
+  const url = decoratorId ? `/api/party-events?decoratorId=${decoratorId}` : null;
   const { data, error, isLoading, mutate: revalidate } = useSWR<PartyEvent[]>(url, fetcher);
   return {
     events: data || [],
