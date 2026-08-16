@@ -35,5 +35,9 @@ do `.env.local`.
   e limpas depois.
 - Sem `service_role`, os **usuários de Auth** de teste não podem ser apagados — ficam
   órfãos (sem linha de decoradora, portanto invisíveis no app), mas **acumulam** a cada run.
+  **A limpeza NÃO é 100%:** essas contas de Auth **são resíduo** — invisíveis na aplicação,
+  porém reais no projeto e contam para o **limite de usuários** do Supabase. Não confundir
+  "invisível no app" com "removido". Enquanto não houver projeto de teste separado ou
+  `service_role`, considere purgar os usuários de Auth órfãos periodicamente pelo painel.
 - Recomendado a médio prazo: um projeto Supabase de teste **ou** uma `service_role` (só em
   ambiente de teste/CI, nunca no bundle do cliente) para permitir `admin.deleteUser` na limpeza.
