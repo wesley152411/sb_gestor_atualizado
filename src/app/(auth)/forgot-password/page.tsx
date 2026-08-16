@@ -6,6 +6,7 @@ import { Mail } from 'lucide-react';
 import { resetPassword } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Logo } from '@/components/ui/Logo';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -42,13 +43,9 @@ export default function ForgotPasswordPage() {
         boxShadow: '0 16px 50px rgba(0,0,0,0.2)',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{
-            width: 50, height: 50, margin: '0 auto 16px',
-            background: 'linear-gradient(135deg, #4f46e5, #818cf8)',
-            borderRadius: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 800, fontSize: 20, color: 'white',
-          }}>SB</div>
+          <div style={{ width: 50, height: 50, margin: '0 auto 16px' }}>
+            <Logo size={50} />
+          </div>
           <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Recuperar Senha</h1>
           <p style={{ fontSize: 14, color: '#64748b' }}>
             Informe seu e-mail e enviaremos um link para redefinir sua senha.

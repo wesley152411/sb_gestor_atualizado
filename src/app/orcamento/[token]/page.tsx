@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Logo } from '@/components/ui/Logo';
 import { formatCurrency } from '@/lib/utils';
 import type { QuoteLinkData } from '@/types';
 
@@ -123,9 +124,8 @@ export default function PublicQuotePage() {
       <div style={{ ...cardStyle, maxWidth: 640 }}>
         {/* Cabeçalho: ícone SB + título serifado */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ position: 'relative', width: 64, height: 64, margin: '0 auto 16px' }}>
-            <div style={sbSquareStyle}>SB</div>
-            <span style={sbDotStyle} />
+          <div style={{ width: 64, height: 64, margin: '0 auto 16px' }}>
+            <Logo size={64} />
           </div>
           <h1 style={titleStyle}>Orçamento de {quote.decorator.name}</h1>
           <p style={{ fontSize: 14, color: '#8a8078' }}>Confira os detalhes e preencha seus dados abaixo.</p>
@@ -267,31 +267,6 @@ const cardStyle: React.CSSProperties = {
   boxShadow: '0 10px 40px rgba(90, 70, 60, 0.08)',
   maxHeight: '95vh',
   overflowY: 'auto',
-};
-
-const sbSquareStyle: React.CSSProperties = {
-  width: 64,
-  height: 64,
-  borderRadius: 18,
-  background: TERRACOTA,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontFamily: SERIF,
-  fontWeight: 700,
-  fontSize: 24,
-  color: 'white',
-  boxShadow: '0 8px 20px rgba(184, 84, 80, 0.28)',
-};
-
-const sbDotStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: 6,
-  right: 6,
-  width: 9,
-  height: 9,
-  borderRadius: '50%',
-  background: '#F6D3CB',
 };
 
 const titleStyle: React.CSSProperties = {

@@ -1,37 +1,8 @@
 import type { Decorator, InventoryItem, ChatMessage, RentalOrder, Client, PartyEvent, Kit } from '@/types';
 
-export const initialDecorators: Decorator[] = [
-  {
-    id: 'dec-1',
-    name: 'Elite Decorations',
-    avatar_url: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&q=80',
-    membership_level: 'Pro Member',
-    location: 'São Paulo - Zona Sul, SP',
-    reach: 264,
-    contact_rate: 33.3,
-    positive_reviews: 9,
-  },
-  {
-    id: 'dec-2',
-    name: 'Bella Festa Co.',
-    avatar_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&h=150&fit=crop&q=80',
-    membership_level: 'Membro Premium',
-    location: 'Campinas, SP',
-    reach: 520,
-    contact_rate: 45.5,
-    positive_reviews: 15,
-  },
-  {
-    id: 'dec-3',
-    name: 'Luxo & Brilho Decor',
-    avatar_url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&h=150&fit=crop&q=80',
-    membership_level: 'Membro Standard',
-    location: 'Santo André, SP',
-    reach: 180,
-    contact_rate: 25.0,
-    positive_reviews: 6,
-  },
-];
+// Sem decoradoras fictícias: o Chat B2B e o Marketplace listam apenas contas
+// reais vindas do banco. Vazio => as telas mostram estado vazio (nada de seed).
+export const initialDecorators: Decorator[] = [];
 
 export const initialInventory: InventoryItem[] = [
   {
@@ -90,13 +61,7 @@ export const initialInventory: InventoryItem[] = [
   },
 ];
 
-export const initialChatMessages: ChatMessage[] = [
-  { id: 'msg-1', sender_id: 'dec-2', receiver_id: 'dec-1', message: 'Olá! Vi que vocês têm 240 Cadeiras Dior Douradas. Vocês teriam 80 unidades para o dia 14/06?', created_at: '2026-06-03T14:32:00Z' },
-  { id: 'msg-2', sender_id: 'dec-1', receiver_id: 'dec-2', message: 'Olá, Bella! Sim, temos sim! Essa data está livre. Deseja reservar?', created_at: '2026-06-03T14:40:00Z' },
-  { id: 'msg-3', sender_id: 'dec-2', receiver_id: 'dec-1', message: 'Excelente! Vou confirmar e já gero o pedido. Obrigada!', created_at: '2026-06-03T15:01:00Z' },
-  { id: 'msg-4', sender_id: 'dec-3', receiver_id: 'dec-1', message: 'Olá Elite! Vocês alugam o Painel Redondo Dourado?', created_at: '2026-06-02T10:15:00Z' },
-  { id: 'msg-5', sender_id: 'dec-1', receiver_id: 'dec-3', message: 'Aquele painel é de controle interno, mas dependendo da data, podemos abrir exceção!', created_at: '2026-06-02T10:30:00Z' },
-];
+export const initialChatMessages: ChatMessage[] = [];
 
 export const initialRentalOrders: RentalOrder[] = [
   {

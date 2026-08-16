@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getInitials } from '@/lib/utils';
 import type { InventoryItem, Kit, RentalOrder, ChatMessage } from '@/types';
 import {
   saveDecoratorProfile, saveInventoryItem, saveKit, createQuoteLink
@@ -363,11 +363,17 @@ export default function MyPage() {
 
       <div className="mypage-profile-card">
         <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
-          <img 
-            src={decorator?.avatar_url || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&q=80'} 
-            alt={decorator?.name} 
-            className="mypage-profile-avatar" 
-          />
+          {decorator?.avatar_url ? (
+            <img
+              src={decorator.avatar_url}
+              alt={decorator?.name}
+              className="mypage-profile-avatar"
+            />
+          ) : (
+            <div className="mypage-profile-avatar mypage-profile-avatar-placeholder">
+              {getInitials(decorator?.name)}
+            </div>
+          )}
           <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-4 border-transparent">
             <Camera className="w-6 h-6 text-white" />
           </div>

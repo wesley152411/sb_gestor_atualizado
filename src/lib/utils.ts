@@ -91,6 +91,16 @@ export function getPlaceholderImage(name: string): string {
   return 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=400&q=80';
 }
 
+// Iniciais para o placeholder de avatar (mesmo resultado em todas as telas:
+// sidebar, configurações e Minha Página). Sem foto => mostramos estas iniciais.
+export function getInitials(name?: string): string {
+  if (!name) return 'SB';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'SB';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 // ==================== MISC ====================
 
 export function cn(...classes: (string | boolean | undefined | null)[]): string {

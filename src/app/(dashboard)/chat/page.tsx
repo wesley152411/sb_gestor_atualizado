@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Search, MoreVertical, Smile, Paperclip, MessageSquare } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { sendChatMessage } from '@/services/api';
 import { useDecorators, useChatMessages } from '@/hooks/swr-hooks';
+import { getInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
-import type { Decorator, ChatMessage } from '@/types';
+import type { Decorator } from '@/types';
 
 export default function ChatPage() {
   const { decorator } = useAuthStore();
@@ -45,19 +46,27 @@ export default function ChatPage() {
       <aside className="chat-sidebar">
         <div className="chat-sidebar-header font-bold">Contatos</div>
         <div className="contacts-list">
-          {contacts.map(contact => (
-            <div 
-              key={contact.id} 
-              className={`contact-card ${activeContact?.id === contact.id ? 'active' : ''}`}
-              onClick={() => setActiveContact(contact)}
-            >
-              <img src={contact.avatar_url} alt={contact.name} className="contact-avatar" />
-              <div>
-                <span className="contact-name">{contact.name}</span>
-                <span className="contact-lastmsg">Clique para iniciar a conversa</span>
+          {contacts.length === 0 ? (
+            <div className="contacts-empty">Nenhum parceiro cadastrado ainda</div>
+          ) : (
+            contacts.map(contact => (
+              <div
+                key={contact.id}
+                className={`contact-card ${activeContact?.id === contact.id ? 'active' : ''}`}
+                onClick={() => setActiveContact(contact)}
+              >
+                {contact.avatar_url ? (
+                  <img src={contact.avatar_url} alt={contact.name} className="contact-avatar" />
+                ) : (
+                  <div className="contact-avatar contact-avatar-placeholder">{getInitials(contact.name)}</div>
+                )}
+                <div>
+                  <span className="contact-name">{contact.name}</span>
+                  <span className="contact-lastmsg">Clique para iniciar a conversa</span>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </aside>
 
@@ -65,15 +74,34 @@ export default function ChatPage() {
         {activeContact ? (
           <>
             <div className="chat-window-header">
-              <img src={activeContact.avatar_url} alt={activeContact.name} className="w-10 h-10 rounded-full object-cover" />
-              <div>
-                <h3 className="font-bold">{activeContact.name}</h3>
-                <span className="text-xs text-slate-500">Online</span>
+              {activeContact.avatar_url ? (
+                <img src={activeContact.avatar_url} alt={activeContact.name} className="contact-avatar" />
+              ) : (
+                <div className="contact-avatar contact-avatar-placeholder">{getInitials(activeContact.name)}</div>
+              )}
+              <div className="chat-header-info">
+                <h3 className="chat-header-name">{activeContact.name}</h3>
+                <span className="chat-header-status"><span className="chat-status-dot" />Online</span>
+              </div>
+              <div className="chat-header-actions">
+                <button type="button" className="chat-header-icon" aria-label="Buscar">
+                  <Search className="w-5 h-5" />
+                </button>
+                <button type="button" className="chat-header-icon" aria-label="Mais opções">
+                  <MoreVertical className="w-5 h-5" />
+                </button>
               </div>
             </div>
             <div className="chat-messages">
+              <div className="chat-day-divider"><span>HOJE</span></div>
+              <div className="chat-encryption-note">
+                As mensagens são protegidas por criptografia de ponta a ponta.
+              </div>
               {messages.length === 0 ? (
-                <div className="text-center text-slate-500 mt-10">Inicie a conversa com {activeContact.name}.</div>
+                <div className="chat-empty">
+                  <MessageSquare className="chat-empty-icon" />
+                  <span>Nenhuma mensagem ainda</span>
+                </div>
               ) : (
                 messages.map(msg => {
                   const isSent = msg.sender_id === decorator?.id;
@@ -88,9 +116,15 @@ export default function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
             <div className="chat-input-area">
-              <input 
-                type="text" 
-                placeholder="Digite sua mensagem..." 
+              <button type="button" className="chat-input-icon" aria-label="Emoji">
+                <Smile className="w-5 h-5" />
+              </button>
+              <button type="button" className="chat-input-icon" aria-label="Anexar">
+                <Paperclip className="w-5 h-5" />
+              </button>
+              <input
+                type="text"
+                placeholder="Digite sua mensagem..."
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSendMessage()}

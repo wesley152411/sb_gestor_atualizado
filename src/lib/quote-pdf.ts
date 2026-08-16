@@ -60,8 +60,9 @@ export async function generateQuotePDF(
     }
   };
 
-  // ---------- CABEÇALHO: logo da decoradora ----------
-  const logoSource = decorator?.logo_url || decorator?.avatar_url;
+  // ---------- CABEÇALHO: imagem da decoradora ----------
+  // Imagem única da conta (avatar_url). logo_url mantido só como fallback legado.
+  const logoSource = decorator?.avatar_url || decorator?.logo_url;
   const logoData = await toDataUrl(logoSource);
 
   if (logoData) {

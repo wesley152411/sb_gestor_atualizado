@@ -35,7 +35,7 @@ export async function signUp(email: string, password: string, metadata: SignupMe
     const newDecorator: Decorator = {
       id: generateId('dec'),
       name: metadata.company_name || metadata.name || 'Decoradora',
-      avatar_url: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&q=80',
+      avatar_url: '', // sem foto no cadastro — a decoradora sobe a dela depois
       membership_level: 'Membro',
       location: metadata.location || '',
       instagram: '', whatsapp: '', phone: '', about: '', cover_url: '',
@@ -77,7 +77,7 @@ async function createDecoratorFromAuth(userId: string, metadata: SignupMetadata)
   const profile: Decorator = {
     id: userId,
     name: metadata.company_name || metadata.name || 'Decoradora',
-    avatar_url: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&q=80',
+    avatar_url: '', // sem foto no cadastro — a decoradora sobe a dela depois
     membership_level: 'Membro',
     location: metadata.location || '',
     instagram: '', whatsapp: '', phone: '', about: '', cover_url: '',
@@ -197,7 +197,7 @@ function toPartnerDecorator(d?: Decorator): PartnerDecorator {
   return {
     id: d?.id || '',
     name: d?.name || 'Parceira',
-    logoUrl: d?.logo_url || d?.avatar_url,
+    logoUrl: d?.avatar_url || d?.logo_url, // imagem única da conta (avatar); logo = fallback legado
     location: d?.location,
     publicPageId: d?.id || '', // futura página pública da parceira
   };
@@ -261,7 +261,7 @@ export async function fetchPartnerPublicPage(
     const partner: PartnerDecorator = {
       id: d.id,
       name: d.name,
-      logoUrl: d.logo_url || d.avatar_url,
+      logoUrl: d.avatar_url || d.logo_url, // imagem única da conta (avatar); logo = fallback legado
       location: d.location,
       publicPageId: d.id,
     };

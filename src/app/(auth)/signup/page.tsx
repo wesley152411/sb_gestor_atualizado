@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Building2, MapPin, User } from 'lucide-react';
 import { signUp } from '@/services/api';
+import { detectCity } from '@/lib/geolocation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Logo } from '@/components/ui/Logo';
 import { cnpjMask, checkPasswordStrength } from '@/lib/utils';
 
 export default function SignupPage() {
@@ -16,6 +18,7 @@ export default function SignupPage() {
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
 
   const passwordStrength = checkPasswordStrength(form.password);
   const passwordsMatch = form.password === form.confirmPassword;
@@ -24,17 +27,15 @@ export default function SignupPage() {
     setForm({ ...form, cnpj: cnpjMask(value) });
   };
 
-  const handleGetLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setForm({ ...form, location: `Lat: ${pos.coords.latitude.toFixed(2)}, Lon: ${pos.coords.longitude.toFixed(2)}` });
-          alert('Localização obtida! Edite se necessário (ex: Cidade - Estado).');
-        },
-        () => alert('Não foi possível obter a localização. Permissão negada.')
-      );
-    } else {
-      alert('Geolocalização não suportada no seu navegador.');
+  const handleGetLocation = async () => {
+    setIsLocating(true);
+    try {
+      const { label } = await detectCity();
+      setForm(f => ({ ...f, location: label }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Não foi possível obter a localização.');
+    } finally {
+      setIsLocating(false);
     }
   };
 
@@ -107,13 +108,9 @@ export default function SignupPage() {
         overflowY: 'auto',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{
-            width: 50, height: 50, margin: '0 auto 14px',
-            background: 'linear-gradient(135deg, #4f46e5, #818cf8)',
-            borderRadius: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 800, fontSize: 20, color: 'white',
-          }}>SB</div>
+          <div style={{ width: 50, height: 50, margin: '0 auto 14px' }}>
+            <Logo size={50} />
+          </div>
           <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Criar Conta no SB GESTOR</h1>
           <p style={{ fontSize: 13, color: '#64748b' }}>Preencha os dados da sua empresa de decoração.</p>
         </div>
@@ -138,14 +135,15 @@ export default function SignupPage() {
             <button
               type="button"
               onClick={handleGetLocation}
+              disabled={isLocating}
               style={{
                 position: 'absolute', right: 8, top: 34, fontSize: 11,
-                color: '#4f46e5', fontWeight: 700, cursor: 'pointer',
+                color: '#4f46e5', fontWeight: 700, cursor: isLocating ? 'wait' : 'pointer',
                 background: 'rgba(79,70,229,0.08)', padding: '4px 10px', borderRadius: 6,
-                border: 'none',
+                border: 'none', opacity: isLocating ? 0.6 : 1,
               }}
             >
-              📍 Usar GPS
+              {isLocating ? '⏳ Localizando…' : '📍 Usar GPS'}
             </button>
           </div>
 
