@@ -9,6 +9,9 @@ import { getSessionDecoratorId } from '@/lib/supabase/server';
 export async function GET() {
   try {
     const decorators = await prisma.decorator.findMany({
+      // Contas internas de teste NÃO aparecem na vitrine/contatos. É o ÚNICO
+      // lugar que olha para essa flag — ela nunca vira exceção de isolamento.
+      where: { is_internal: false },
       select: {
         id: true,
         name: true,
@@ -35,6 +38,8 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { id, ...data } = body;
+    // is_internal NUNCA é setável por API — só por UPDATE direto no banco.
+    delete (data as Record<string, unknown>).is_internal;
     if (id && id !== decoratorId) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
     }
