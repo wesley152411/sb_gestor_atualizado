@@ -90,4 +90,40 @@ describe('Isolamento multi-conta', () => {
     expect(ids).not.toContain(privId);
     expect(feed.every((i: any) => i.decorator_id !== B.id)).toBe(true);
   });
+
+  it('is_internal: some da vitrine, mas a flag NÃO é privilégio (segue 401/403)', async () => {
+    // Conta interna criada como qualquer outra; a flag só é ligada DIRETO no banco
+    // (nenhuma rota escreve). Ela dá dados próprios para provar o isolamento.
+    const D = await createTestAccount('D');
+    await post('/api/clients', D.cookie, { id: `cliD_${Date.now()}`, name: 'Cliente de D', phone: '11888880000' });
+    await prisma.decorator.update({ where: { id: D.id }, data: { is_internal: true } });
+
+    // LADO 1 — sumiu da vitrine pública, mas contas normais continuam listadas.
+    const list = await (await api('/api/decorators', A.cookie)).json();
+    const listIds = list.map((d: any) => d.id);
+    expect(listIds).not.toContain(D.id);   // interna não aparece
+    expect(listIds).toContain(A.id);       // controle: conta normal aparece
+
+    // LADO 2 — a flag não virou privilégio: os MESMOS bloqueios das demais contas.
+    // 2a) sem sessão continua 401
+    expect((await api('/api/clients', null)).status).toBe(401);
+    // 2b) D não lê dados de A (isolamento intacto)
+    const dSeesA = await (await api(`/api/clients?decoratorId=${A.id}`, D.cookie)).json();
+    expect(dSeesA.some((c: any) => c.decorator_id === A.id)).toBe(false);
+    // 2c) A não lê dados de D (a conta interna não é "aberta")
+    const aSeesD = await (await api(`/api/clients?decoratorId=${D.id}`, A.cookie)).json();
+    expect(aSeesD.some((c: any) => c.decorator_id === D.id)).toBe(false);
+    // 2d) D não apaga item de A (403), mesmo sendo interna
+    const itmId = `itmAD_${Date.now()}`;
+    await post('/api/inventory', A.cookie, { id: itmId, name: 'Peça de A', status: 'Privado', stock_quantity: 1, rental_price: 10 });
+    expect((await api(`/api/inventory/${itmId}`, D.cookie, { method: 'DELETE' })).status).toBe(403);
+    await api(`/api/inventory/${itmId}`, A.cookie, { method: 'DELETE' }); // limpa
+
+    // LADO 3 — a flag não é setável pela API: A tentar virar interna não persiste.
+    await post('/api/decorators', A.cookie, { id: A.id, is_internal: true });
+    const aRow = await prisma.decorator.findUnique({ where: { id: A.id } });
+    expect(aRow?.is_internal).toBe(false);
+
+    await cleanupAccounts([D.id]);
+  });
 });
