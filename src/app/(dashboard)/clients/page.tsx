@@ -197,12 +197,12 @@ export default function ClientsPage() {
       >
         {previewEvent && (
           <div className="quote-doc">
-            {/* Cabeçalho: logo da decoradora */}
+            {/* Cabeçalho: imagem única da decoradora (avatar), igual ao PDF */}
             <div className="quote-doc-header">
-              {(previewOwner?.logo_url || previewOwner?.avatar_url) ? (
+              {(previewOwner?.avatar_url || previewOwner?.logo_url) ? (
                 <img
                   className="quote-doc-logo"
-                  src={previewOwner?.logo_url || previewOwner?.avatar_url}
+                  src={previewOwner?.avatar_url || previewOwner?.logo_url}
                   alt={previewOwner?.name || 'Logo'}
                 />
               ) : (

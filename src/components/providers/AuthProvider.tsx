@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSession, getDecorators, onAuthStateChange } from '@/services/api';
+import { Logo } from '@/components/ui/Logo';
 import type { Decorator } from '@/types';
 
 // Helper: race a promise against a timeout
@@ -79,14 +80,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         height: '100vh', background: '#f1f5f9',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: 50, height: 50, margin: '0 auto 16px',
-            background: 'linear-gradient(135deg, #4f46e5, #818cf8)',
-            borderRadius: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 800, fontSize: 20, color: 'white',
-          }}>SB</div>
-          <p style={{ color: '#64748b', fontSize: 14 }}>Carregando SB GESTOR...</p>
+          <div style={{ width: 56, height: 56, margin: '0 auto 16px' }} className="sb-logo-pulse">
+            <Logo size={56} />
+          </div>
+          <p style={{ color: '#0088B0', fontSize: 14, fontWeight: 600 }}>Carregando SB GESTOR...</p>
         </div>
       </div>
     );

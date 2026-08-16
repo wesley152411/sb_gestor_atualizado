@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Users,
   Settings, LifeBuoy, ShoppingBag, Store, MessageSquare, CalendarDays, Menu
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getInitials } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 
 const menuItems = [
@@ -20,14 +20,6 @@ const menuItems = [
   { href: '/calendar', label: 'Calendário', icon: CalendarDays },
   { href: '/clients', label: 'Clientes', icon: Users },
 ];
-
-function getInitials(name?: string) {
-  if (!name) return 'SB';
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'SB';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 export function Sidebar() {
   const pathname = usePathname();

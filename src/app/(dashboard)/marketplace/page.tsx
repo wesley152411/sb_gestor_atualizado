@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, X, List, Store, ExternalLink, Search } from 'lucide-react';
+import { ShoppingBag, List, Store, ExternalLink, Search, Trash2, Package, Minus, Plus } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
 import { useNotificationStore } from '@/stores/notification-store';
@@ -38,6 +38,13 @@ export default function MarketplacePage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [eventDate, setEventDate] = useState('');
   const [observation, setObservation] = useState('');
+  const [showDateError, setShowDateError] = useState(false);
+  const todayStr = new Date().toISOString().slice(0, 10); // bloqueia datas passadas
+  const canSubmit = cartItems.length > 0 && !!eventDate && eventDate >= todayStr;
+
+  // Stepper: mínimo 1 (para remover usa-se a lixeira); máximo = estoque disponível.
+  const decQty = (idx: number, qty: number) => updateQuantity(idx, Math.max(1, qty - 1));
+  const incQty = (idx: number, qty: number, max: number) => updateQuantity(idx, Math.min(max || qty + 1, qty + 1));
 
   useEffect(() => {
     async function loadMarketplace() {
@@ -101,10 +108,12 @@ export default function MarketplacePage() {
   };
 
   const handleCheckout = async () => {
-    if (!decorator || cartItems.length === 0 || !eventDate) {
-      alert('Preencha a data do evento para solicitar a locação.');
+    if (cartItems.length === 0) return;
+    if (!eventDate || eventDate < todayStr) {
+      setShowDateError(true);
       return;
     }
+    if (!decorator) return;
 
     const ownerId = cartItems[0].item.decorator_id;
     const orderItems = cartItems.map(c => {
@@ -195,6 +204,9 @@ export default function MarketplacePage() {
                 </div>
               </li>
             ))}
+            {filteredPartners.length === 0 && (
+              <li className="mkt-partner-empty">Nenhum parceiro cadastrado ainda</li>
+            )}
           </ul>
         </div>
       </aside>
@@ -270,48 +282,89 @@ export default function MarketplacePage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setIsCartOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCheckout}>Enviar Solicitação</Button>
+            <Button icon={ShoppingBag} onClick={handleCheckout} disabled={!canSubmit}>Enviar Solicitação</Button>
           </>
         }
       >
         {cartItems.length > 0 ? (
-          <div className="space-y-6">
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <h4 className="font-bold mb-2">Itens Solicitados</h4>
-              {cartItems.map((c, idx) => (
-                <div key={c.item.id} className="flex justify-between items-center py-2 border-b border-slate-200 last:border-0">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">{c.item.name}</p>
-                    <p className="text-xs text-slate-500">{formatCurrency(c.item.rental_price)} / un</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      min="1"
-                      max={c.item.stock_quantity}
-                      value={c.quantity}
-                      onChange={(e) => updateQuantity(idx, Number(e.target.value))}
-                      className="w-16 p-1 text-center border rounded text-sm"
-                    />
-                    <button onClick={() => removeItem(idx)} className="text-red-500 hover:bg-red-50 p-1 rounded">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center">
-                <span className="font-bold">Total Estimado</span>
-                <span className="text-lg font-bold text-indigo-600">{formatCurrency(totalPrice())}</span>
-              </div>
+          <div className="checkout">
+            <div className="checkout-section-title">
+              {cartItems.length === 1 ? 'Item solicitado (1)' : `Itens solicitados (${cartItems.length})`}
             </div>
 
-            <div className="space-y-4">
-              <Input
-                type="date"
-                label="Data do Evento (Obrigatório)"
-                value={eventDate}
-                onChange={e => setEventDate(e.target.value)}
-              />
+            <div className="checkout-list">
+              {cartItems.map((c, idx) => {
+                const max = c.item.stock_quantity || 0;
+                const subtotal = c.item.rental_price * c.quantity;
+                return (
+                  <div key={c.item.id} className="checkout-item">
+                    <div className="checkout-item-thumb">
+                      {c.item.image_url ? (
+                        <img src={c.item.image_url} alt={c.item.name} />
+                      ) : (
+                        <Package className="w-5 h-5" />
+                      )}
+                    </div>
+
+                    <div className="checkout-item-info">
+                      <span className="checkout-item-name">{c.item.name}</span>
+                      <span className="checkout-item-unit">{formatCurrency(c.item.rental_price)} / unidade</span>
+                    </div>
+
+                    <div className="checkout-stepper">
+                      <button
+                        type="button"
+                        onClick={() => decQty(idx, c.quantity)}
+                        disabled={c.quantity <= 1}
+                        aria-label="Diminuir quantidade"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="checkout-stepper-val">{c.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => incQty(idx, c.quantity, max)}
+                        disabled={max > 0 && c.quantity >= max}
+                        aria-label="Aumentar quantidade"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <span className="checkout-item-subtotal">{formatCurrency(subtotal)}</span>
+
+                    <button
+                      type="button"
+                      className="checkout-item-remove"
+                      onClick={() => removeItem(idx)}
+                      aria-label="Remover item"
+                      title="Remover"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="checkout-total">
+              <span className="checkout-total-label">Total Estimado</span>
+              <span className="checkout-total-value">{formatCurrency(totalPrice())}</span>
+            </div>
+
+            <div className="checkout-fields">
+              <div>
+                <Input
+                  type="date"
+                  label="Data do Evento (Obrigatório)"
+                  min={todayStr}
+                  value={eventDate}
+                  onChange={e => { setEventDate(e.target.value); setShowDateError(false); }}
+                />
+                {showDateError && (
+                  <span className="checkout-error">Selecione uma data de evento válida (não pode ser no passado).</span>
+                )}
+              </div>
               <div className="form-group">
                 <label className="form-label">Observações Logísticas</label>
                 <textarea
@@ -325,7 +378,10 @@ export default function MarketplacePage() {
             </div>
           </div>
         ) : (
-          <p className="text-center text-slate-500 py-6">Seu carrinho está vazio.</p>
+          <div className="checkout-empty">
+            <ShoppingBag className="checkout-empty-icon" />
+            <span>Seu carrinho está vazio.</span>
+          </div>
         )}
       </Modal>
     </div>
