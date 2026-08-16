@@ -61,9 +61,36 @@ já ter o schema `auth` **na mesma versão** de migrations registrada no `_META.
 5. Repontar o app (`DATABASE_URL`, chaves) para o novo projeto.
 6. Login de fumaça com uma conta real.
 
+## Backups criptografados (AES-256 via gpg)
+
+Os dumps contêm dados reais de clientes, então ficam **criptografados em repouso**
+(AES-256 simétrico, gpg). A senha é do dono, guardada em gerenciador de senhas —
+**nunca** na mesma pasta, no repo ou em chat. Sem a senha, o backup é irrecuperável
+(não há backdoor) — guarde-a ANTES de apagar o texto claro.
+
+**Criptografar (um arquivo único, pede a senha 2x):**
+```bash
+cd ~/sbgestor-backups
+tar -czf - *.dump *.txt | gpg --symmetric --cipher-algo AES256 -o sbgestor-backup-<ts>.tar.gz.gpg
+# depois de conferir que o .gpg abre, apagar o texto claro:
+rm *.dump *.txt
+```
+
+**Descriptografar / restaurar (dia do desastre):**
+```bash
+cd ~/sbgestor-backups
+gpg -d sbgestor-backup-<ts>.tar.gz.gpg | tar -xzf -
+# volta os arquivos <ts>_public.dump / _auth.dump / _META.txt para uso normal
+```
+
+Alternativa por arquivo (sem tar): `gpg --symmetric --cipher-algo AES256 <arquivo>` gera
+`<arquivo>.gpg`; abrir com `gpg -d <arquivo>.gpg > <arquivo>`.
+
 ## Higiene do backup
 
 - Arquivos ficam **só** na máquina local, em `~\sbgestor-backups\`. Nunca no repo
   (`.gitignore`: `*.dump`), nunca em nuvem compartilhada, nunca por chat.
-- Apagar os dumps após a limpeza das contas estar concluída e validada (prazo a combinar).
+- **Critério de exclusão (não é data fixa):** só apagar os dumps quando houver backup
+  SUBSTITUTO funcionando — plano Pro ativo OU dump agendado. Enquanto isso, apagar
+  deixaria o projeto (free tier) sem rede nenhuma.
 - Backup é fé até ser restaurado uma vez — rodar `restore-test.ps1` sempre.
