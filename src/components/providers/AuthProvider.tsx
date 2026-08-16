@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
-import { getSession, getDecorators, onAuthStateChange } from '@/services/api';
+import { getSession, getMyProfile, ensureMyProfile, onAuthStateChange } from '@/services/api';
 import { Logo } from '@/components/ui/Logo';
-import type { Decorator } from '@/types';
 
 // Helper: race a promise against a timeout
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -25,14 +24,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const session = await withTimeout(getSession(), 15000, null);
         
         if (session?.user) {
-          const decorators = await withTimeout(getDecorators(), 15000, []);
-          const profile = decorators.find((d: Decorator) => d.id === (session.user as { id: string }).id);
-          // SEGURANÇA: NUNCA cair para decorators[0]. Impersonar outra conta era a
-          // causa de uma conta ver os dados de outra. Sem perfil correspondente à
-          // sessão => nenhuma decoradora ativa (o usuário não vê dados de terceiros).
+          // Perfil PRÓPRIO pela sessão (/api/decorators/me). Se ainda não existe
+          // (primeiro login pós-confirmação), cria de forma preguiçosa.
+          let profile = await withTimeout(getMyProfile(), 15000, null);
+          if (!profile) profile = await withTimeout(ensureMyProfile(), 15000, null);
           setDecorator(profile || null);
         } else {
-          // Sem sessão => nenhuma decoradora (nada de dados de demonstração de outra conta).
+          // Sem sessão => nenhuma decoradora.
           setDecorator(null);
         }
       } catch {
@@ -51,13 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setDecorator(null);
       } else if (event === 'SIGNED_IN' && session) {
-        const decorators = await getDecorators();
-        const user = (session as { user?: { id: string } })?.user;
-        if (user) {
-          const profile = decorators.find((d: Decorator) => d.id === user.id);
-          // SEGURANÇA: sem perfil correspondente, não impersonar decorators[0].
-          setDecorator(profile || null);
-        }
+        let profile = await getMyProfile();
+        if (!profile) profile = await ensureMyProfile();
+        setDecorator(profile || null);
       }
     });
 
