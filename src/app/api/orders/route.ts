@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { toDbDate } from '@/lib/utils';
 import { NextResponse } from 'next/server';
+import { getSessionDecoratorId } from '@/lib/supabase/server';
 
 const ORDER_INCLUDE = {
   rental_order_items: true,
@@ -33,20 +34,19 @@ function serializeOrder(order: any) {
   };
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const decoratorId = searchParams.get('decoratorId');
-
-    if (!decoratorId) {
-      return NextResponse.json({ error: 'Decorator ID is required' }, { status: 400 });
+    // Identidade SEMPRE da sessão — devolve só os pedidos em que você é dono OU locatário.
+    const sessionId = await getSessionDecoratorId();
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
     const orders = await prisma.rentalOrder.findMany({
       where: {
         OR: [
-          { renter_id: decoratorId },
-          { owner_id: decoratorId },
+          { renter_id: sessionId },
+          { owner_id: sessionId },
         ],
       },
       orderBy: { created_at: 'desc' },
@@ -60,6 +60,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const sessionId = await getSessionDecoratorId();
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { id, ...data } = body;
 
@@ -68,6 +73,17 @@ export async function POST(request: Request) {
     }
 
     const { items, ...orderData } = data as any;
+
+    // Autorização: em pedido NOVO, o locatário é a sessão. Em pedido existente,
+    // só um participante (dono ou locatário) pode alterar.
+    const existing = await prisma.rentalOrder.findUnique({ where: { id } });
+    if (existing) {
+      if (existing.owner_id !== sessionId && existing.renter_id !== sessionId) {
+        return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+      }
+    } else {
+      orderData.renter_id = sessionId;
+    }
     const orderItems = items as
       | { name: string; quantity: number; price: number; item_id?: string; kit_id?: string }[]
       | undefined;
