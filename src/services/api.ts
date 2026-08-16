@@ -434,12 +434,14 @@ export async function saveRentalOrder(order: Partial<RentalOrder>): Promise<Rent
 
 // ==================== CLIENTS ====================
 
-export async function getClients(): Promise<Client[]> {
+export async function getClients(decoratorId?: string): Promise<Client[]> {
+  // Sem decoratorId não buscamos no servidor (a rota exige o filtro por dono).
+  if (!decoratorId) return getLocal('clients', initialClients).filter((c) => c.decorator_id === undefined);
   try {
-    const res = await fetch('/api/clients');
+    const res = await fetch(`/api/clients?decoratorId=${decoratorId}`);
     if (res.ok) return await res.json();
   } catch { /* fallback */ }
-  return getLocal('clients', initialClients);
+  return getLocal('clients', initialClients).filter((c) => c.decorator_id === decoratorId);
 }
 
 export async function saveClient(client: Partial<Client>): Promise<Client> {

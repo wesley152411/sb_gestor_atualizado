@@ -1,9 +1,17 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // ISOLAMENTO MULTI-CONTA: sem decoratorId NÃO retornamos nada (antes vazava
+    // a lista completa de clientes de todas as contas).
+    const { searchParams } = new URL(request.url);
+    const decoratorId = searchParams.get('decoratorId');
+    if (!decoratorId) {
+      return NextResponse.json({ error: 'decoratorId is required' }, { status: 400 });
+    }
     const clients = await prisma.client.findMany({
+      where: { decorator_id: decoratorId },
       orderBy: { name: 'asc' },
     });
     return NextResponse.json(clients);

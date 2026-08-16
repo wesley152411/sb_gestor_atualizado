@@ -37,26 +37,18 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    const rentalOrders = rentalOrdersRaw.map((order) => {
-      const {
-        rental_order_items,
-        decorators_rental_orders_owner_idTodecorators,
-        decorators_rental_orders_renter_idTodecorators,
-        ...rest
-      } = order;
-      return {
-        ...rest,
-        items: rental_order_items.map((i) => ({
-          name: i.name,
-          quantity: i.quantity,
-          price: i.price ? Number(i.price) : 0,
-          item_id: i.item_id ?? undefined,
-          kit_id: i.kit_id ?? undefined,
-        })),
-        owner: decorators_rental_orders_owner_idTodecorators ?? undefined,
-        renter: decorators_rental_orders_renter_idTodecorators ?? undefined,
-      };
-    });
+    // ISOLAMENTO: o calendário só precisa da INDISPONIBILIDADE da peça.
+    // Não devolvemos valor (total/preços) nem nome/telefone da contraparte —
+    // apenas data, status, os IDs (para o app saber se você é dono ou locatário)
+    // e o nome das peças comprometidas.
+    const rentalOrders = rentalOrdersRaw.map((order) => ({
+      id: order.id,
+      event_date: order.event_date,
+      status: order.status,
+      owner_id: order.owner_id,
+      renter_id: order.renter_id,
+      items: order.rental_order_items.map((i) => ({ name: i.name, quantity: i.quantity })),
+    }));
 
     return NextResponse.json({ rentalOrders, partyEvents });
   } catch (error: any) {

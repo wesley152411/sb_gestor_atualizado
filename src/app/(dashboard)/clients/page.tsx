@@ -11,14 +11,18 @@ import { Table } from '@/components/ui/TableAndTabs';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useNotificationStore } from '@/stores/notification-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { PartyEvent } from '@/types';
 
 const STATUS_OPTIONS: PartyEvent['status'][] = ['Pendente', 'Confirmado', 'Finalizado'];
 
 export default function ClientsPage() {
-  const { events, isLoading, mutate } = usePartyEvents();
-  const { clients } = useClients();
+  // ISOLAMENTO MULTI-CONTA: só os dados da decoradora logada. Nunca chamar
+  // esses hooks sem o id — sem filtro, a API devolve dados de TODAS as contas.
+  const { decorator } = useAuthStore();
+  const { events, isLoading, mutate } = usePartyEvents(decorator?.id);
+  const { clients } = useClients(decorator?.id);
   const { decorators } = useDecorators();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<Set<PartyEvent['status']>>(new Set());

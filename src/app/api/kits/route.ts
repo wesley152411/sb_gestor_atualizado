@@ -3,11 +3,13 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   try {
+    // ISOLAMENTO MULTI-CONTA: com decoratorId => kits daquela conta.
+    // Sem decoratorId (feed do Marketplace) => SOMENTE kits públicos.
     const { searchParams } = new URL(request.url);
     const decoratorId = searchParams.get('decoratorId');
 
     const kits = await prisma.kit.findMany({
-      where: decoratorId ? { decorator_id: decoratorId } : {},
+      where: decoratorId ? { decorator_id: decoratorId } : { status: 'Público' },
       orderBy: { created_at: 'desc' },
     });
     return NextResponse.json(kits);

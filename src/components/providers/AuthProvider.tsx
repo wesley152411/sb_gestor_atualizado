@@ -27,25 +27,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           const decorators = await withTimeout(getDecorators(), 15000, []);
           const profile = decorators.find((d: Decorator) => d.id === (session.user as { id: string }).id);
-          
-          if (profile) {
-            setDecorator(profile);
-          } else {
-            setDecorator(decorators[0] || null);
-          }
+          // SEGURANÇA: NUNCA cair para decorators[0]. Impersonar outra conta era a
+          // causa de uma conta ver os dados de outra. Sem perfil correspondente à
+          // sessão => nenhuma decoradora ativa (o usuário não vê dados de terceiros).
+          setDecorator(profile || null);
         } else {
-          // No session — use mock decorator for demo/development
-          const decorators = await withTimeout(getDecorators(), 15000, []);
-          setDecorator(decorators[0] || null);
-        }
-      } catch {
-        // Fallback: try local data
-        try {
-          const decorators = await withTimeout(getDecorators(), 10000, []);
-          setDecorator(decorators[0] || null);
-        } catch {
+          // Sem sessão => nenhuma decoradora (nada de dados de demonstração de outra conta).
           setDecorator(null);
         }
+      } catch {
+        // Em erro, também não impersonamos ninguém.
+        setDecorator(null);
       } finally {
         setLoading(false);
         setInitialized(true);
@@ -63,7 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const user = (session as { user?: { id: string } })?.user;
         if (user) {
           const profile = decorators.find((d: Decorator) => d.id === user.id);
-          setDecorator(profile || decorators[0] || null);
+          // SEGURANÇA: sem perfil correspondente, não impersonar decorators[0].
+          setDecorator(profile || null);
         }
       }
     });
