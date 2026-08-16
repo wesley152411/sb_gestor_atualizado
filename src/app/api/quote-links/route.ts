@@ -1,14 +1,21 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
+import { getSessionDecoratorId } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { decoratorId, itemId, kitId } = body;
+    // Dono do link SEMPRE da sessão — não aceitamos decoratorId do corpo.
+    const decoratorId = await getSessionDecoratorId();
+    if (!decoratorId) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
 
-    if (!decoratorId || (!itemId && !kitId)) {
-      return NextResponse.json({ error: 'decoratorId and itemId or kitId are required' }, { status: 400 });
+    const body = await request.json();
+    const { itemId, kitId } = body;
+
+    if (!itemId && !kitId) {
+      return NextResponse.json({ error: 'itemId or kitId is required' }, { status: 400 });
     }
 
     let name = '';
@@ -20,6 +27,10 @@ export async function POST(request: Request) {
     if (kitId) {
       const kit = await prisma.kit.findUnique({ where: { id: kitId } });
       if (!kit) return NextResponse.json({ error: 'Kit not found' }, { status: 404 });
+      // Autorização: só dá pra gerar link do PRÓPRIO kit.
+      if (kit.decorator_id !== decoratorId) {
+        return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+      }
       name = kit.name;
       price = kit.value ? Number(kit.value) : 0;
       sourceKitId = kit.id;
@@ -28,6 +39,10 @@ export async function POST(request: Request) {
     } else {
       const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
       if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+      // Autorização: só dá pra gerar link da PRÓPRIA peça.
+      if (item.decorator_id !== decoratorId) {
+        return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+      }
       name = item.name;
       price = item.rental_price ? Number(item.rental_price) : 0;
       sourceItemId = item.id;

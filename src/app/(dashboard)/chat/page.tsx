@@ -26,19 +26,12 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     if (!decorator || !activeContact || !inputValue.trim()) return;
 
+    // O remetente é sempre a sessão (o servidor ignora sender_id do corpo).
+    // Removido o "auto-reply" fake: postar em nome do contato agora é bloqueado
+    // pelo servidor (ninguém envia mensagem em nome de outra conta).
     await sendChatMessage(decorator.id, activeContact.id, inputValue.trim());
     await mutateMessages();
     setInputValue('');
-
-    // Simulate auto-reply (Legacy behavior kept for now as per instructions)
-    setTimeout(async () => {
-      await sendChatMessage(
-        activeContact.id,
-        decorator.id,
-        'Olá! Esta é uma resposta automática do SB GESTOR. O parceiro foi notificado e responderá em breve.'
-      );
-      mutateMessages();
-    }, 2000);
   };
 
   return (

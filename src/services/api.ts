@@ -31,24 +31,10 @@ function setLocal<T>(key: string, data: T): void {
 
 export async function signUp(email: string, password: string, metadata: SignupMetadata): Promise<AuthResult> {
   const sb = getSupabaseClient();
+  // SEGURANÇA: exigimos Supabase real. Sem sessão de verdade não há como isolar
+  // as contas no servidor — não criamos mais "conta" mock em localStorage.
   if (!sb) {
-    const newDecorator: Decorator = {
-      id: generateId('dec'),
-      name: metadata.company_name || metadata.name || 'Decoradora',
-      avatar_url: '', // sem foto no cadastro — a decoradora sobe a dela depois
-      membership_level: 'Membro',
-      location: metadata.location || '',
-      instagram: '', whatsapp: '', phone: '', about: '', cover_url: '',
-      created_at: new Date().toISOString(),
-    };
-    const decorators = getLocal('decorators', initialDecorators);
-    decorators.push(newDecorator);
-    setLocal('decorators', decorators);
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sbgestor_mock_session', JSON.stringify({ user: { id: newDecorator.id, email } }));
-    }
-    return { success: true, needsEmailConfirmation: false, user: { id: newDecorator.id, email }, session: { user: { id: newDecorator.id, email } } };
+    return { success: false, message: 'Serviço de autenticação indisponível. Tente novamente em instantes.' };
   }
   try {
     const { data, error } = await sb.auth.signUp({
@@ -88,35 +74,24 @@ async function createDecoratorFromAuth(userId: string, metadata: SignupMetadata)
 
 export async function signIn(email: string, password: string): Promise<AuthResult> {
   const sb = getSupabaseClient();
-  if (sb) {
-    try {
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (!error && data?.session) {
-        return { success: true, user: data.user, session: data.session };
-      }
-    } catch {
-      // Fallback below
+  // SEGURANÇA: só login real do Supabase. Removido o "mock login" que logava
+  // qualquer um como decorators[0] (impersonação) e não gerava sessão no servidor.
+  if (!sb) {
+    return { success: false, message: 'Serviço de autenticação indisponível. Tente novamente em instantes.' };
+  }
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error || !data?.session) {
+      return { success: false, message: error?.message || 'E-mail ou senha inválidos.' };
     }
+    return { success: true, user: data.user, session: data.session };
+  } catch {
+    return { success: false, message: 'Não foi possível conectar. Verifique sua conexão e tente novamente.' };
   }
-
-  // Fallback / Mock Login
-  const decorators = getLocal('decorators', initialDecorators);
-  const decorator = decorators[0] || {
-    id: 'dec-1',
-    name: 'Elite Decorations',
-    avatar_url: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&h=150&fit=crop&q=80',
-    membership_level: 'Pro Member',
-    location: 'São Paulo - Zona Sul, SP',
-  };
-
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('sbgestor_mock_session', JSON.stringify({ user: { id: decorator.id, email } }));
-  }
-
-  return { success: true, user: { id: decorator.id, email }, session: { user: { id: decorator.id, email } } };
 }
 
 export async function signOut(): Promise<void> {
+  // Limpeza de eventuais sessões mock antigas ainda no navegador (legado).
   if (typeof window !== 'undefined') {
     localStorage.removeItem('sbgestor_mock_session');
   }
@@ -125,12 +100,7 @@ export async function signOut(): Promise<void> {
 }
 
 export async function getSession() {
-  if (typeof window !== 'undefined') {
-    const mockSession = localStorage.getItem('sbgestor_mock_session');
-    if (mockSession) {
-      return JSON.parse(mockSession);
-    }
-  }
+  // SEGURANÇA: só a sessão real do Supabase (nada de mock em localStorage).
   const sb = getSupabaseClient();
   if (!sb) return null;
   try {

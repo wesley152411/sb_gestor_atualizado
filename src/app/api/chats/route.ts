@@ -1,19 +1,31 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { getSessionDecoratorId } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
   try {
+    // Identidade SEMPRE da sessão do servidor.
+    const sessionId = await getSessionDecoratorId();
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const decoratorId = searchParams.get('decoratorId');
     const decoratorA = searchParams.get('decoratorA');
     const decoratorB = searchParams.get('decoratorB');
 
+    // Modo CONVERSA: só quem participa pode ler. Uma terceira conta forjando os
+    // dois ids não acessa a conversa alheia (403).
     if (decoratorA && decoratorB) {
+      if (sessionId !== decoratorA && sessionId !== decoratorB) {
+        return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+      }
+      const other = sessionId === decoratorA ? decoratorB : decoratorA;
       const messages = await prisma.chatMessage.findMany({
         where: {
           OR: [
-            { sender_id: decoratorA, receiver_id: decoratorB },
-            { sender_id: decoratorB, receiver_id: decoratorA },
+            { sender_id: sessionId, receiver_id: other },
+            { sender_id: other, receiver_id: sessionId },
           ],
         },
         orderBy: { created_at: 'asc' },
@@ -21,20 +33,14 @@ export async function GET(request: Request) {
       return NextResponse.json(messages);
     }
 
-    if (decoratorId) {
-      const messages = await prisma.chatMessage.findMany({
-        where: {
-          OR: [
-            { sender_id: decoratorId },
-            { receiver_id: decoratorId },
-          ],
-        },
-        orderBy: { created_at: 'asc' },
-      });
-      return NextResponse.json(messages);
-    }
-
-    return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+    // Modo LISTA: sempre as conversas da PRÓPRIA sessão (ignora ?decoratorId=).
+    const messages = await prisma.chatMessage.findMany({
+      where: {
+        OR: [{ sender_id: sessionId }, { receiver_id: sessionId }],
+      },
+      orderBy: { created_at: 'asc' },
+    });
+    return NextResponse.json(messages);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -42,20 +48,23 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { id, ...data } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: 'Message ID is required' }, { status: 400 });
+    const sessionId = await getSessionDecoratorId();
+    if (!sessionId) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const updated = await prisma.chatMessage.upsert({
-      where: { id },
-      update: data,
-      create: { id, ...data },
+    const body = await request.json();
+    const { id, receiver_id, message } = body;
+    if (!id || !receiver_id || !message) {
+      return NextResponse.json({ error: 'id, receiver_id e message são obrigatórios' }, { status: 400 });
+    }
+
+    // O remetente é SEMPRE a sessão — ninguém posta em nome de outra conta.
+    const created = await prisma.chatMessage.create({
+      data: { id, sender_id: sessionId, receiver_id, message },
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(created);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

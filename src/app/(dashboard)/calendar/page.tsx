@@ -12,6 +12,7 @@ import { useCalendarEvents } from '@/hooks/swr-hooks';
 import { useNotificationStore } from '@/stores/notification-store';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { formatCurrency } from '@/lib/utils';
 import { generateLogisticsPDF } from '@/lib/pdf-generator';
 import type { RentalOrder, PartyEvent } from '@/types';
 
@@ -324,6 +325,7 @@ function DayDetails({ bucket, decoratorId, onDownloadPDF }: {
             title={order.items?.[0]?.name || 'Peça comprometida'}
             status={order.status}
             items={order.items}
+            amount={order.total_value}
           />
         );
       })}
@@ -351,16 +353,17 @@ function DayDetails({ bucket, decoratorId, onDownloadPDF }: {
   );
 }
 
-function DetailCard({ eyebrow, title, status, items, phone, action }: {
+function DetailCard({ eyebrow, title, status, items, phone, amount, action }: {
   eyebrow: string;
   title?: string;
   status?: string;
   items?: { name: string; quantity: number }[];
   phone?: string;
+  amount?: number; // valor B2B da locação (Marketplace) — permitido aos dois lados
   action?: React.ReactNode;
 }) {
   const { key, Icon: StatusIcon, label } = statusMeta(status);
-  const hasFoot = !!phone || !!action;
+  const hasFoot = !!phone || !!action || amount != null;
 
   return (
     <div className={`detail-card detail-card--${key}`}>
@@ -392,6 +395,9 @@ function DetailCard({ eyebrow, title, status, items, phone, action }: {
 
       {hasFoot && (
         <div className="detail-card-foot">
+          {amount != null && (
+            <span className="detail-amount-line">Locação B2B: <strong>{formatCurrency(amount)}</strong></span>
+          )}
           {phone && (
             <span className="detail-contact-line"><Phone className="w-3.5 h-3.5" />{phone}</span>
           )}
