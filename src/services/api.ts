@@ -45,31 +45,19 @@ export async function signUp(email: string, password: string, metadata: SignupMe
       if (error.message.includes('already registered')) return { success: false, message: 'Este e-mail já está cadastrado.' };
       return { success: false, message: error.message };
     }
+    // O perfil da decoradora é criado de forma PREGUIÇOSA no primeiro login
+    // (POST /api/decorators/me, semeado pelo metadata acima). Assim funciona
+    // mesmo com confirmação por e-mail, onde ainda não há sessão no cadastro.
     if (data.user && !data.session) {
-      await createDecoratorFromAuth(data.user.id, metadata);
       return { success: true, needsEmailConfirmation: true, message: 'Conta criada! Verifique seu e-mail para confirmar.', user: data.user };
     }
     if (data.user && data.session) {
-      await createDecoratorFromAuth(data.user.id, metadata);
       return { success: true, needsEmailConfirmation: false, user: data.user, session: data.session };
     }
     return { success: false, message: 'Erro desconhecido ao criar conta.' };
   } catch {
     return { success: false, message: 'Erro interno ao criar conta.' };
   }
-}
-
-async function createDecoratorFromAuth(userId: string, metadata: SignupMetadata) {
-  const profile: Decorator = {
-    id: userId,
-    name: metadata.company_name || metadata.name || 'Decoradora',
-    avatar_url: '', // sem foto no cadastro — a decoradora sobe a dela depois
-    membership_level: 'Membro',
-    location: metadata.location || '',
-    instagram: '', whatsapp: '', phone: '', about: '', cover_url: '',
-    created_at: new Date().toISOString(),
-  };
-  return await saveDecoratorProfile(profile);
 }
 
 export async function signIn(email: string, password: string): Promise<AuthResult> {
@@ -137,21 +125,37 @@ export async function getDecorators(): Promise<Decorator[]> {
   return getLocal('decorators', initialDecorators);
 }
 
-export async function saveDecoratorProfile(profile: Decorator): Promise<Decorator> {
+// Perfil próprio da sessão. Grava SEMPRE em /api/decorators/me (o servidor usa a
+// sessão, ignora id do corpo). Sem sessão => falha (não há mais fallback local).
+export async function getMyProfile(): Promise<Decorator | null> {
   try {
-    const res = await fetch('/api/decorators', {
+    const res = await fetch('/api/decorators/me');
+    if (res.ok) return await res.json();
+  } catch { /* sem sessão */ }
+  return null;
+}
+
+// Garante que o perfil exista (criação preguiçosa no primeiro login).
+export async function ensureMyProfile(): Promise<Decorator | null> {
+  try {
+    const res = await fetch('/api/decorators/me', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profile),
+      body: JSON.stringify({}),
     });
     if (res.ok) return await res.json();
-  } catch { /* fallback */ }
-  const decorators = getLocal('decorators', initialDecorators);
-  const idx = decorators.findIndex((d) => d.id === profile.id);
-  if (idx !== -1) decorators[idx] = { ...decorators[idx], ...profile };
-  else decorators.push(profile);
-  setLocal('decorators', decorators);
-  return profile;
+  } catch { /* sem sessão */ }
+  return null;
+}
+
+export async function saveDecoratorProfile(profile: Partial<Decorator>): Promise<Decorator> {
+  const res = await fetch('/api/decorators/me', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile),
+  });
+  if (res.ok) return await res.json();
+  throw new Error('Não foi possível salvar o perfil.');
 }
 
 // ==================== MARKETPLACE B2B (acervo público de parceiras) ====================

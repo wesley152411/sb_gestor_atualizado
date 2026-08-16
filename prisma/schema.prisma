@@ -26,6 +26,10 @@ model Decorator {
   reach                                               Int?            @default(0)
   contact_rate                                        Decimal?        @default(0.0) @db.Decimal
   positive_reviews                                    Int?            @default(0)
+  // Conta interna de teste: apenas OCULTA das listagens públicas (vitrine do
+  // Marketplace e contatos do Chat). NUNCA é exceção de isolamento — a conta
+  // continua sujeita a 401/403 como qualquer outra. Definível SÓ no banco.
+  is_internal                                         Boolean         @default(false)
   chat_messages_chat_messages_receiver_idTodecorators ChatMessage[]   @relation("chat_messages_receiver_idTodecorators")
   chat_messages_chat_messages_sender_idTodecorators   ChatMessage[]   @relation("chat_messages_sender_idTodecorators")
   clients                                             Client[]
