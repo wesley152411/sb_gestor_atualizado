@@ -39,6 +39,12 @@ yarn-error.log*
 # scratch
 /scratch/
 
+# backups de banco — NUNCA versionar (contêm dados reais de clientes)
+*.dump
+*.dump.gz
+/backups/
+sbgestor-backups/
+
 # ferramentas locais / artefatos (nao vao para o deploy)
 /.claude/
 /graphify-out/
