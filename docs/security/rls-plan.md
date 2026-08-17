@@ -1,9 +1,12 @@
 # RLS — plano de aplicação, validação e rollback (Item 6)
 
-**Status (2026-08-16): FASE 1 (canário `clients`) + LOTE 1 aplicados e validados.**
-Lote 1 = `party_events, rental_orders, rental_order_items, chat_messages` (dados de cliente).
-Falta o Lote 2: `decorators, inventory_items, kits, consumables, forum_posts` (aguarda OK).
-Arquivos: `rls-enable.sql`, `rls-rollback.sql`, `rls-auth-test.mjs`.
+**Status (2026-08-16): RLS APLICADO E VALIDADO NAS 10 TABELAS.**
+Canário `clients` + Lote 1 (`party_events, rental_orders, rental_order_items, chat_messages`)
++ Lote 2 (`decorators, inventory_items, kits, consumables, forum_posts`). Todas: RLS on,
+force off, 1 policy cada. Arquivos: `rls-enable.sql`, `rls-rollback.sql`, `rls-auth-test.mjs`.
+
+Provas finais: teste autenticado 32/32 (as 10 tabelas, cada token vê só a própria linha),
+harness 8/8, PostgREST anônimo 401 em todas, vitrine/Prisma intacta.
 
 **Validação por lote (4 provas):** (1) Prisma/app lê e grava normal; (2) PostgREST anônimo
 401; (3) **teste autenticado** `node docs/security/rls-auth-test.mjs` — token real vê SÓ as
