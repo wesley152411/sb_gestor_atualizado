@@ -1,6 +1,12 @@
 # RLS — plano de aplicação, validação e rollback (Item 6)
 
-**Status: PROPOSTA. Nada aplicado em produção.** Arquivos: `rls-enable.sql`, `rls-rollback.sql`.
+**Status: FASE 1 (canário `clients`) APLICADA em 2026-08-16 e validada.** Demais tabelas
+ainda NÃO aplicadas (aguardam OK por fase). Arquivos: `rls-enable.sql`, `rls-rollback.sql`.
+
+> **Achado ao aplicar:** as colunas de id são `text` e `auth.uid()` é `uuid`. Todas as
+> policies usam `auth.uid()::text` (senão erro `42883: operator does not exist: text = uuid`).
+> Validação do canário: RLS on/force off, policy `clients_own` criada, Prisma continua lendo
+> as 6 linhas (dono ignora RLS), e PostgREST anônimo segue 401 (permission denied, sem grant).
 
 ## Por que isto é seguro (e por que o Marketplace não quebra)
 
