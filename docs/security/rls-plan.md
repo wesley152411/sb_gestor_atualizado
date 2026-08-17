@@ -1,7 +1,14 @@
 # RLS — plano de aplicação, validação e rollback (Item 6)
 
-**Status: FASE 1 (canário `clients`) APLICADA em 2026-08-16 e validada.** Demais tabelas
-ainda NÃO aplicadas (aguardam OK por fase). Arquivos: `rls-enable.sql`, `rls-rollback.sql`.
+**Status (2026-08-16): FASE 1 (canário `clients`) + LOTE 1 aplicados e validados.**
+Lote 1 = `party_events, rental_orders, rental_order_items, chat_messages` (dados de cliente).
+Falta o Lote 2: `decorators, inventory_items, kits, consumables, forum_posts` (aguarda OK).
+Arquivos: `rls-enable.sql`, `rls-rollback.sql`, `rls-auth-test.mjs`.
+
+**Validação por lote (4 provas):** (1) Prisma/app lê e grava normal; (2) PostgREST anônimo
+401; (3) **teste autenticado** `node docs/security/rls-auth-test.mjs` — token real vê SÓ as
+próprias linhas (concede SELECT temporário a `authenticated`, testa, revoga); (4) harness 8/8.
+O teste (3) é o que prova a policy CORRETA, não só ligada — o 401 anônimo sozinho não prova.
 
 > **Achado ao aplicar:** as colunas de id são `text` e `auth.uid()` é `uuid`. Todas as
 > policies usam `auth.uid()::text` (senão erro `42883: operator does not exist: text = uuid`).
