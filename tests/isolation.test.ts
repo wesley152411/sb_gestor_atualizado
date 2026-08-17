@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createTestAccount, api, post, cleanupAccounts, prisma, type TestAccount } from './helpers';
+import { createTestAccount, setEmailConfirmed, api, post, cleanupAccounts, prisma, type TestAccount } from './helpers';
 
 let A: TestAccount;
 let B: TestAccount;
@@ -125,5 +125,28 @@ describe('Isolamento multi-conta', () => {
     expect(aRow?.is_internal).toBe(false);
 
     await cleanupAccounts([D.id]);
+  });
+
+  it('conta com e-mail NÃO confirmado é recusada pelas rotas de dados (servidor)', async () => {
+    // createTestAccount confirma + loga; aqui desconfirmamos para simular quem
+    // tem sessão mas ainda não clicou no link.
+    const U = await createTestAccount('U');
+    await setEmailConfirmed(U.id, false);
+
+    // Rotas de dados recusam a sessão não confirmada, igual a sem sessão (401).
+    for (const p of ['/api/clients', '/api/party-events', '/api/inventory', '/api/kits']) {
+      const r = await api(p, U.cookie);
+      expect(r.status, `não confirmado: ${p}`).toBe(401);
+    }
+    // Criação preguiçosa do perfil NÃO roda para conta não confirmada (403).
+    const me = await post('/api/decorators/me', U.cookie, {});
+    expect(me.status).toBe(403);
+
+    // Depois de confirmar (equivale ao clique no link), passa a funcionar.
+    await setEmailConfirmed(U.id, true);
+    const okClients = await api('/api/clients', U.cookie);
+    expect(okClients.status).toBe(200);
+
+    await cleanupAccounts([U.id]);
   });
 });

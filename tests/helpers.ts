@@ -57,9 +57,14 @@ export async function createTestAccount(label: string): Promise<TestAccount> {
     options: { data: { company_name: `Harness ${label}`, name: `Harness ${label}`, location: 'Cidade Teste - TS' } },
   });
   if (error || !data.user) throw new Error(`signUp falhou (${label}): ${error?.message}`);
+  const id = data.user.id;
 
-  // força a persistência da sessão no jar
-  await supabase.auth.getUser();
+  // Confirmação de e-mail está LIGADA em produção, então o signUp não devolve
+  // sessão. Simulamos o clique no link confirmando direto no banco e então
+  // fazemos login para obter a sessão real (mesmo caminho de cookie de produção).
+  await setEmailConfirmed(id, true);
+  const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+  if (signInErr) throw new Error(`login falhou (${label}): ${signInErr.message}`);
   const cookie = jarToHeader(jar);
   if (!cookie) throw new Error(`sem cookie de sessão (${label})`);
 
@@ -71,7 +76,18 @@ export async function createTestAccount(label: string): Promise<TestAccount> {
   });
   if (!res.ok) throw new Error(`criar perfil falhou (${label}): HTTP ${res.status}`);
 
-  return { id: data.user.id, email, cookie };
+  return { id, email, cookie };
+}
+
+// Marca/desmarca o e-mail confirmado direto no banco (equivale a clicar/‘descli-
+// car’ o link). Usado para preparar contas confirmadas e para testar o cenário
+// de conta NÃO confirmada com sessão.
+export async function setEmailConfirmed(userId: string, confirmed: boolean) {
+  // confirmed_at é coluna GERADA (a partir de email_confirmed_at) — não se seta.
+  const val = confirmed ? 'now()' : 'NULL';
+  await prisma.$executeRawUnsafe(
+    `UPDATE auth.users SET email_confirmed_at = ${val} WHERE id = '${userId}'`
+  );
 }
 
 // Fetch numa rota do app, opcionalmente com o cookie de sessão.
