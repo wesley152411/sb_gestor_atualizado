@@ -90,6 +90,23 @@ export async function setEmailConfirmed(userId: string, confirmed: boolean) {
   );
 }
 
+// Cadastro CRU, sem confirmar — para inspecionar o estado que o Supabase devolve
+// no signUp (sentinela do mailer_autoconfirm).
+export async function rawSignUp(label: string) {
+  const supabase = clientWithJar(new Map());
+  const email = `sentinel_${label}_${Date.now()}@sbgestor-test.local`;
+  const { data, error } = await supabase.auth.signUp({ email, password: 'Sentinel12345!' });
+  if (error || !data.user) throw new Error(`signUp falhou (${label}): ${error?.message}`);
+  return { id: data.user.id, email, session: data.session, emailConfirmedAt: data.user.email_confirmed_at ?? null };
+}
+
+// Remove um usuário de Auth (e a decoradora, se houver). Usado na limpeza dos
+// testes que criam conta sem passar pelo fluxo confirmado.
+export async function deleteAuthUser(id: string) {
+  await prisma.decorator.deleteMany({ where: { id } });
+  await prisma.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = '${id}'`);
+}
+
 // Fetch numa rota do app, opcionalmente com o cookie de sessão.
 export function api(path: string, cookie: string | null, init: RequestInit = {}) {
   const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };

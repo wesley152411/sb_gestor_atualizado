@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createTestAccount, setEmailConfirmed, api, post, cleanupAccounts, prisma, type TestAccount } from './helpers';
+import { createTestAccount, setEmailConfirmed, rawSignUp, deleteAuthUser, api, post, cleanupAccounts, prisma, type TestAccount } from './helpers';
 
 let A: TestAccount;
 let B: TestAccount;
@@ -148,5 +148,16 @@ describe('Isolamento multi-conta', () => {
     expect(okClients.status).toBe(200);
 
     await cleanupAccounts([U.id]);
+  });
+
+  it('SENTINELA: mailer_autoconfirm está DESLIGADO (conta nova nasce não confirmada)', async () => {
+    // Cobre por teste o risco de religarem o autoconfirm no painel: se isso
+    // acontecer, o signUp passa a devolver sessão e e-mail já confirmado, e este
+    // teste falha na hora — sem custo em produção. mailer_autoconfirm=false é
+    // configuração crítica de lançamento.
+    const s = await rawSignUp('conf');
+    expect(s.session, 'signUp devolveu sessão => autoconfirm LIGADO (barreira desfeita no painel)').toBeNull();
+    expect(s.emailConfirmedAt, 'conta nasceu confirmada => autoconfirm LIGADO no painel').toBeFalsy();
+    await deleteAuthUser(s.id);
   });
 });
