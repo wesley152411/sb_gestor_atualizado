@@ -17,7 +17,10 @@ export function getSupabaseClient() {
     return null;
   }
 
-  // Initialize client with credentials from environment and set a 2.5s network timeout
+  // Guarda contra travamento de rede. 20s (não 2.5s): quando a confirmação de
+  // e-mail está ligada, o signUp envia o e-mail pelo SMTP DURANTE a requisição,
+  // o que passa de 2.5s e disparava um erro falso ("timed out") mesmo com a conta
+  // criada e o e-mail enviado. 20s tolera o envio e ainda barra travamento real.
   try {
     supabaseInstance = createBrowserClient(url, key, {
       global: {
@@ -25,7 +28,7 @@ export function getSupabaseClient() {
           return Promise.race([
             fetch(input, init),
             new Promise<Response>((_, reject) =>
-              setTimeout(() => reject(new TypeError('Supabase fetch query timed out')), 2500)
+              setTimeout(() => reject(new TypeError('Supabase fetch query timed out')), 20000)
             )
           ]);
         }
