@@ -27,17 +27,28 @@ export async function createSupabaseServerClient() {
   });
 }
 
-// Id da decoradora derivado da SESSÃO validada no servidor.
+// Usuário da SESSÃO validada no servidor, com o estado de confirmação de e-mail.
 // auth.getUser() valida o JWT junto ao Supabase (não é só decodificar o cookie).
-// decorator.id === auth user.id (ver createDecoratorFromAuth). Sem sessão => null.
-export async function getSessionDecoratorId(): Promise<string | null> {
+export async function getSessionUser(): Promise<{ id: string; emailConfirmed: boolean } | null> {
   const supabase = await createSupabaseServerClient();
   if (!supabase) return null;
   try {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) return null;
-    return data.user.id;
+    const u = data.user;
+    // Confirmação NÃO pode depender só do painel: o servidor checa o flag.
+    const emailConfirmed = Boolean(u.email_confirmed_at || u.confirmed_at);
+    return { id: u.id, emailConfirmed };
   } catch {
     return null;
   }
+}
+
+// Id da decoradora derivado da SESSÃO validada. decorator.id === auth user.id.
+// SEM sessão OU e-mail NÃO confirmado => null (as rotas de dados recusam igual
+// a uma requisição sem sessão). É a barreira de servidor da confirmação.
+export async function getSessionDecoratorId(): Promise<string | null> {
+  const user = await getSessionUser();
+  if (!user || !user.emailConfirmed) return null;
+  return user.id;
 }

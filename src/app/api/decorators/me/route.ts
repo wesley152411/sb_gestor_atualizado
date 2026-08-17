@@ -11,6 +11,10 @@ export async function GET() {
   if (!supabase) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  // E-mail NÃO confirmado: não lê e, no POST, NÃO cria o perfil preguiçoso.
+  if (!user.email_confirmed_at && !user.confirmed_at) {
+    return NextResponse.json({ error: 'E-mail não confirmado' }, { status: 403 });
+  }
 
   const decorator = await prisma.decorator.findUnique({ where: { id: user.id } });
   if (!decorator) return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 404 });
@@ -25,6 +29,10 @@ export async function POST(request: Request) {
   if (!supabase) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  // E-mail NÃO confirmado: não lê e, no POST, NÃO cria o perfil preguiçoso.
+  if (!user.email_confirmed_at && !user.confirmed_at) {
+    return NextResponse.json({ error: 'E-mail não confirmado' }, { status: 403 });
+  }
 
   const id = user.id;
   const meta = (user.user_metadata || {}) as Record<string, string>;

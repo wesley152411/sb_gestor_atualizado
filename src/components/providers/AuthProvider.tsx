@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { getSession, getMyProfile, ensureMyProfile, onAuthStateChange } from '@/services/api';
 import { Logo } from '@/components/ui/Logo';
+import { EmailConfirmationGate } from '@/components/providers/EmailConfirmationGate';
 
 // Helper: race a promise against a timeout
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -13,28 +14,46 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
   ]);
 }
 
+type SessionUser = { id: string; email?: string; email_confirmed_at?: string | null; confirmed_at?: string | null };
+type SessionLike = { user?: SessionUser } | null;
+
+function isConfirmed(u?: SessionUser): boolean {
+  return Boolean(u?.email_confirmed_at || u?.confirmed_at);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setDecorator, setLoading } = useAuthStore();
   const [initialized, setInitialized] = useState(false);
+  // E-mail da sessão não confirmada => trava o app na tela de confirmação.
+  const [gateEmail, setGateEmail] = useState<string | null>(null);
 
   useEffect(() => {
+    // Resolve o estado a partir da sessão: confirmado => carrega perfil;
+    // não confirmado => mostra o gate; sem sessão => nada.
+    async function resolveSession(session: SessionLike) {
+      const user = session?.user;
+      if (user) {
+        if (!isConfirmed(user)) {
+          setGateEmail(user.email || '');
+          setDecorator(null);
+          return;
+        }
+        setGateEmail(null);
+        let profile = await withTimeout(getMyProfile(), 15000, null);
+        if (!profile) profile = await withTimeout(ensureMyProfile(), 15000, null);
+        setDecorator(profile || null);
+      } else {
+        setGateEmail(null);
+        setDecorator(null);
+      }
+    }
+
     async function initAuth() {
       try {
-        // Give Supabase 15s max to respond, then fallback
         const session = await withTimeout(getSession(), 15000, null);
-        
-        if (session?.user) {
-          // Perfil PRÓPRIO pela sessão (/api/decorators/me). Se ainda não existe
-          // (primeiro login pós-confirmação), cria de forma preguiçosa.
-          let profile = await withTimeout(getMyProfile(), 15000, null);
-          if (!profile) profile = await withTimeout(ensureMyProfile(), 15000, null);
-          setDecorator(profile || null);
-        } else {
-          // Sem sessão => nenhuma decoradora.
-          setDecorator(null);
-        }
+        await resolveSession(session as SessionLike);
       } catch {
-        // Em erro, também não impersonamos ninguém.
+        setGateEmail(null);
         setDecorator(null);
       } finally {
         setLoading(false);
@@ -44,14 +63,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initAuth();
 
-    // Listen for auth state changes
     const subscription = onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
+        setGateEmail(null);
         setDecorator(null);
-      } else if (event === 'SIGNED_IN' && session) {
-        let profile = await getMyProfile();
-        if (!profile) profile = await ensureMyProfile();
-        setDecorator(profile || null);
+      } else {
+        await resolveSession(session as SessionLike);
       }
     });
 
@@ -74,6 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  if (gateEmail !== null) {
+    return <EmailConfirmationGate email={gateEmail} />;
   }
 
   return <>{children}</>;

@@ -37,6 +37,10 @@ export async function signUp(email: string, password: string, metadata: SignupMe
     return { success: false, message: 'Serviço de autenticação indisponível. Tente novamente em instantes.' };
   }
   try {
+    // Um cadastro sempre começa limpo: derruba qualquer sessão antiga no
+    // navegador (ex.: de quando o autoconfirm estava ligado), senão o app
+    // poderia abrir com a sessão anterior logo após o "cadastre-se".
+    await sb.auth.signOut().catch(() => {});
     const { data, error } = await sb.auth.signUp({
       email, password,
       options: { data: { name: metadata.name, company_name: metadata.company_name, location: metadata.location, cnpj: metadata.cnpj } },
@@ -106,6 +110,19 @@ export async function resetPassword(email: string): Promise<AuthResult> {
     if (error) return { success: false, message: error.message };
     return { success: true, message: 'E-mail de recuperação enviado!' };
   } catch { return { success: false, message: 'Erro ao enviar e-mail de recuperação.' }; }
+}
+
+// Reenvia o e-mail de confirmação de cadastro para quem ficou sem receber.
+export async function resendConfirmation(email: string): Promise<AuthResult> {
+  const sb = getSupabaseClient();
+  if (!sb) return { success: false, message: 'Serviço de autenticação indisponível.' };
+  try {
+    const { error } = await sb.auth.resend({ type: 'signup', email });
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: 'E-mail de confirmação reenviado. Confira sua caixa de entrada e o spam.' };
+  } catch {
+    return { success: false, message: 'Não foi possível reenviar agora. Tente novamente em instantes.' };
+  }
 }
 
 export function onAuthStateChange(callback: (event: string, session: unknown) => void) {
