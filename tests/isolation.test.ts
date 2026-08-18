@@ -174,4 +174,16 @@ describe('Isolamento multi-conta', () => {
     expect(loc).toContain('erro=confirmacao');
     await cleanupAccounts([M.id]);
   });
+
+  it('confirm (token_hash): token inválido não loga e vai a /login', async () => {
+    // Caminho de erro do /auth/confirm. O sucesso (verifyOtp com token_hash real)
+    // é confirmação de e-mail e só roda com o token do e-mail — teste manual.
+    const M = await createTestAccount('N');
+    const r = await api('/auth/confirm?token_hash=invalido&type=signup', M.cookie, { redirect: 'manual' });
+    expect([302, 303, 307, 308]).toContain(r.status);
+    const loc = r.headers.get('location') || '';
+    expect(loc).toContain('/login');
+    expect(loc).toContain('erro=confirmacao');
+    await cleanupAccounts([M.id]);
+  });
 });
