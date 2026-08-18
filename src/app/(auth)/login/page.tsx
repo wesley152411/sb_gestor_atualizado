@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock } from 'lucide-react';
@@ -15,6 +15,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Mensagem clara quando o link de confirmação falhou (expirado / já usado /
+  // aberto em outro navegador) — /auth/callback redireciona para cá com ?erro.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('erro') === 'confirmacao') {
+      setError('Não foi possível confirmar seu e-mail por este link — ele pode ter expirado, já ter sido usado, ou ter sido aberto em outro navegador. Faça login abaixo ou peça um novo e-mail de confirmação ao entrar.');
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

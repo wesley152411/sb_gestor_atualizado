@@ -41,9 +41,15 @@ export async function signUp(email: string, password: string, metadata: SignupMe
     // navegador (ex.: de quando o autoconfirm estava ligado), senão o app
     // poderia abrir com a sessão anterior logo após o "cadastre-se".
     await sb.auth.signOut().catch(() => {});
+    // O link de confirmação DEVE voltar por /auth/callback, que troca o code por
+    // sessão. Sem isso, o link cai na raiz e a sessão anterior prevalece.
+    const emailRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
     const { data, error } = await sb.auth.signUp({
       email, password,
-      options: { data: { name: metadata.name, company_name: metadata.company_name, location: metadata.location, cnpj: metadata.cnpj } },
+      options: {
+        emailRedirectTo,
+        data: { name: metadata.name, company_name: metadata.company_name, location: metadata.location, cnpj: metadata.cnpj },
+      },
     });
     if (error) {
       if (error.message.includes('already registered')) return { success: false, message: 'Este e-mail já está cadastrado.' };
@@ -117,7 +123,8 @@ export async function resendConfirmation(email: string): Promise<AuthResult> {
   const sb = getSupabaseClient();
   if (!sb) return { success: false, message: 'Serviço de autenticação indisponível.' };
   try {
-    const { error } = await sb.auth.resend({ type: 'signup', email });
+    const emailRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+    const { error } = await sb.auth.resend({ type: 'signup', email, options: { emailRedirectTo } });
     if (error) return { success: false, message: error.message };
     return { success: true, message: 'E-mail de confirmação reenviado. Confira sua caixa de entrada e o spam.' };
   } catch {
