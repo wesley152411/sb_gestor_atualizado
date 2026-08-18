@@ -76,7 +76,24 @@ export async function createTestAccount(label: string): Promise<TestAccount> {
   });
   if (!res.ok) throw new Error(`criar perfil falhou (${label}): HTTP ${res.status}`);
 
+  // Conta de teste NUNCA aparece na vitrine/contatos, nem durante a execução:
+  // marca is_internal=true. Se um run vazar a linha, ela fica invisível.
+  await prisma.decorator.update({ where: { id }, data: { is_internal: true } });
+
   return { id, email, cookie };
+}
+
+// Varre TODAS as contas de teste (decoradora + Auth) pelo padrão de e-mail.
+// Robusto contra execuções interrompidas que deixaram resíduo em produção.
+export async function sweepTestAccounts() {
+  const users = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM auth.users WHERE email LIKE '%@sbgestor-test.local' OR email LIKE '%@example.com'`
+  );
+  const ids = users.map((u) => u.id);
+  if (ids.length) await prisma.decorator.deleteMany({ where: { id: { in: ids } } });
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM auth.users WHERE email LIKE '%@sbgestor-test.local' OR email LIKE '%@example.com'`
+  );
 }
 
 // Marca/desmarca o e-mail confirmado direto no banco (equivale a clicar/‘descli-

@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createTestAccount, setEmailConfirmed, rawSignUp, deleteAuthUser, api, post, cleanupAccounts, prisma, type TestAccount } from './helpers';
+import { createTestAccount, setEmailConfirmed, rawSignUp, deleteAuthUser, sweepTestAccounts, api, post, cleanupAccounts, prisma, type TestAccount } from './helpers';
 
 let A: TestAccount;
 let B: TestAccount;
 let C: TestAccount;
 
 beforeAll(async () => {
+  await sweepTestAccounts(); // limpa resíduo de execuções anteriores
   [A, B, C] = await Promise.all([
     createTestAccount('A'),
     createTestAccount('B'),
@@ -18,6 +19,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await cleanupAccounts([A?.id, B?.id, C?.id].filter(Boolean) as string[]);
+  await sweepTestAccounts(); // rede final: apaga qualquer conta de teste que sobrou
   await prisma.$disconnect();
 });
 
@@ -98,11 +100,14 @@ describe('Isolamento multi-conta', () => {
     await post('/api/clients', D.cookie, { id: `cliD_${Date.now()}`, name: 'Cliente de D', phone: '11888880000' });
     await prisma.decorator.update({ where: { id: D.id }, data: { is_internal: true } });
 
-    // LADO 1 — sumiu da vitrine pública, mas contas normais continuam listadas.
-    const list = await (await api('/api/decorators', A.cookie)).json();
-    const listIds = list.map((d: any) => d.id);
-    expect(listIds).not.toContain(D.id);   // interna não aparece
-    expect(listIds).toContain(A.id);       // controle: conta normal aparece
+    // LADO 1 — a flag controla a vitrine nos DOIS sentidos (contas de teste
+    // nascem internas, então provamos ligando/desligando na própria D).
+    let listIds = (await (await api('/api/decorators', A.cookie)).json()).map((d: any) => d.id);
+    expect(listIds).not.toContain(D.id);   // interna: não aparece
+    await prisma.decorator.update({ where: { id: D.id }, data: { is_internal: false } });
+    listIds = (await (await api('/api/decorators', A.cookie)).json()).map((d: any) => d.id);
+    expect(listIds).toContain(D.id);       // visível: aparece
+    await prisma.decorator.update({ where: { id: D.id }, data: { is_internal: true } }); // restaura
 
     // LADO 2 — a flag não virou privilégio: os MESMOS bloqueios das demais contas.
     // 2a) sem sessão continua 401
@@ -119,10 +124,11 @@ describe('Isolamento multi-conta', () => {
     expect((await api(`/api/inventory/${itmId}`, D.cookie, { method: 'DELETE' })).status).toBe(403);
     await api(`/api/inventory/${itmId}`, A.cookie, { method: 'DELETE' }); // limpa
 
-    // LADO 3 — a flag não é setável pela API: A tentar virar interna não persiste.
-    await post('/api/decorators', A.cookie, { id: A.id, is_internal: true });
+    // LADO 3 — a flag não é setável pela API: A tentar DESLIGAR a própria não
+    // persiste (a rota descarta is_internal). A nasce interna (conta de teste).
+    await post('/api/decorators', A.cookie, { id: A.id, is_internal: false });
     const aRow = await prisma.decorator.findUnique({ where: { id: A.id } });
-    expect(aRow?.is_internal).toBe(false);
+    expect(aRow?.is_internal).toBe(true);
 
     await cleanupAccounts([D.id]);
   });
