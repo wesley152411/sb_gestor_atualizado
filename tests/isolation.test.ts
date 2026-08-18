@@ -160,4 +160,18 @@ describe('Isolamento multi-conta', () => {
     expect(s.emailConfirmedAt, 'conta nasceu confirmada => autoconfirm LIGADO no painel').toBeFalsy();
     await deleteAuthUser(s.id);
   });
+
+  it('callback: token inválido não loga e não cai na sessão anterior', async () => {
+    // Conta M com sessão válida no navegador; o link (code) chega inválido.
+    // O callback tem que mandar para /login com erro, NUNCA renderizar o app na
+    // sessão preexistente. (O caminho de code VÁLIDO é PKCE e só roda no
+    // navegador — fica para o teste manual.)
+    const M = await createTestAccount('M');
+    const r = await api('/auth/callback?code=invalido_xyz', M.cookie, { redirect: 'manual' });
+    expect([302, 303, 307, 308]).toContain(r.status);
+    const loc = r.headers.get('location') || '';
+    expect(loc).toContain('/login');
+    expect(loc).toContain('erro=confirmacao');
+    await cleanupAccounts([M.id]);
+  });
 });
