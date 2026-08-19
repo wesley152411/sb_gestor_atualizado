@@ -35,5 +35,7 @@ export async function GET(request: Request) {
   if (supabase) {
     try { await supabase.auth.signOut(); } catch { /* ignora */ }
   }
-  return NextResponse.redirect(`${base}/login?erro=confirmacao`);
+  // Recuperação de senha: volta para pedir OUTRO link. Demais casos: login.
+  const dest = type === 'recovery' ? '/forgot-password?erro=link' : '/login?erro=confirmacao';
+  return NextResponse.redirect(`${base}${dest}`);
 }

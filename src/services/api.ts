@@ -112,10 +112,24 @@ export async function resetPassword(email: string): Promise<AuthResult> {
   const sb = getSupabaseClient();
   if (!sb) return { success: false, message: 'Erro ao conectar com o servidor.' };
   try {
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    // O link de recuperação é controlado pelo TEMPLATE (token_hash -> /auth/confirm
+    // ?type=recovery&next=/reset-password). O redirectTo abaixo só cobre o fallback.
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) return { success: false, message: error.message };
-    return { success: true, message: 'E-mail de recuperação enviado!' };
+    return { success: true, message: 'E-mail de recuperação enviado! Confira sua caixa de entrada e o spam.' };
   } catch { return { success: false, message: 'Erro ao enviar e-mail de recuperação.' }; }
+}
+
+// Define a nova senha (usuário já autenticado pela sessão de recuperação).
+export async function updatePassword(newPassword: string): Promise<AuthResult> {
+  const sb = getSupabaseClient();
+  if (!sb) return { success: false, message: 'Serviço de autenticação indisponível.' };
+  try {
+    const { error } = await sb.auth.updateUser({ password: newPassword });
+    if (error) return { success: false, message: error.message };
+    return { success: true };
+  } catch { return { success: false, message: 'Não foi possível salvar a nova senha. Tente novamente.' }; }
 }
 
 // Reenvia o e-mail de confirmação de cadastro para quem ficou sem receber.

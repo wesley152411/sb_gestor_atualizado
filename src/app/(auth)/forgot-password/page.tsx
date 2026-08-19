@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Mail } from 'lucide-react';
 import { resetPassword } from '@/services/api';
@@ -13,6 +13,16 @@ export default function ForgotPasswordPage() {
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Quando /auth/confirm rejeita um link de recuperação (expirado/já usado), ele
+  // manda para cá com ?erro=link — mostramos o motivo e o formulário pede outro.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('erro') === 'link') {
+      setIsError(true);
+      setMessage('Seu link de recuperação expirou ou já foi usado. Informe seu e-mail para receber um novo.');
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
