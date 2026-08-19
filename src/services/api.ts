@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { getSupabaseClient, getSupabaseMailerClient } from '@/lib/supabase/client';
 import {
   initialDecorators, initialInventory, initialChatMessages,
   initialRentalOrders, initialClients, initialPartyEvents, initialKits,
@@ -31,9 +31,12 @@ function setLocal<T>(key: string, data: T): void {
 
 export async function signUp(email: string, password: string, metadata: SignupMetadata): Promise<AuthResult> {
   const sb = getSupabaseClient();
+  // Cliente IMPLICIT só para o cadastro: garante que o e-mail saia com token_hash
+  // comum (não "pkce_..."), que o /auth/confirm valida em qualquer dispositivo.
+  const mailer = getSupabaseMailerClient();
   // SEGURANÇA: exigimos Supabase real. Sem sessão de verdade não há como isolar
   // as contas no servidor — não criamos mais "conta" mock em localStorage.
-  if (!sb) {
+  if (!sb || !mailer) {
     return { success: false, message: 'Serviço de autenticação indisponível. Tente novamente em instantes.' };
   }
   try {
@@ -41,10 +44,9 @@ export async function signUp(email: string, password: string, metadata: SignupMe
     // navegador (ex.: de quando o autoconfirm estava ligado), senão o app
     // poderia abrir com a sessão anterior logo após o "cadastre-se".
     await sb.auth.signOut().catch(() => {});
-    // O link de confirmação DEVE voltar por /auth/callback, que troca o code por
-    // sessão. Sem isso, o link cai na raiz e a sessão anterior prevalece.
-    const emailRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
-    const { data, error } = await sb.auth.signUp({
+    // Fallback do redirect (o TEMPLATE do e-mail é quem manda para /auth/confirm).
+    const emailRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm?next=/` : undefined;
+    const { data, error } = await mailer.auth.signUp({
       email, password,
       options: {
         emailRedirectTo,
@@ -109,13 +111,14 @@ export async function getSession() {
 }
 
 export async function resetPassword(email: string): Promise<AuthResult> {
-  const sb = getSupabaseClient();
-  if (!sb) return { success: false, message: 'Erro ao conectar com o servidor.' };
+  // Mailer IMPLICIT: garante token_hash comum (não "pkce_...") no e-mail de recuperação.
+  const mailer = getSupabaseMailerClient();
+  if (!mailer) return { success: false, message: 'Erro ao conectar com o servidor.' };
   try {
     // O link de recuperação é controlado pelo TEMPLATE (token_hash -> /auth/confirm
     // ?type=recovery&next=/reset-password). O redirectTo abaixo só cobre o fallback.
     const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+    const { error } = await mailer.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) return { success: false, message: error.message };
     return { success: true, message: 'E-mail de recuperação enviado! Confira sua caixa de entrada e o spam.' };
   } catch { return { success: false, message: 'Erro ao enviar e-mail de recuperação.' }; }
@@ -134,11 +137,12 @@ export async function updatePassword(newPassword: string): Promise<AuthResult> {
 
 // Reenvia o e-mail de confirmação de cadastro para quem ficou sem receber.
 export async function resendConfirmation(email: string): Promise<AuthResult> {
-  const sb = getSupabaseClient();
-  if (!sb) return { success: false, message: 'Serviço de autenticação indisponível.' };
+  // Mailer IMPLICIT: mesmo motivo do signUp — token_hash comum no e-mail reenviado.
+  const mailer = getSupabaseMailerClient();
+  if (!mailer) return { success: false, message: 'Serviço de autenticação indisponível.' };
   try {
-    const emailRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
-    const { error } = await sb.auth.resend({ type: 'signup', email, options: { emailRedirectTo } });
+    const emailRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm?next=/` : undefined;
+    const { error } = await mailer.auth.resend({ type: 'signup', email, options: { emailRedirectTo } });
     if (error) return { success: false, message: error.message };
     return { success: true, message: 'E-mail de confirmação reenviado. Confira sua caixa de entrada e o spam.' };
   } catch {
