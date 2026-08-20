@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { formatCurrency, getInitials } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel, getInitials } from '@/lib/utils';
 import type { InventoryItem, Kit, RentalOrder, ChatMessage } from '@/types';
 import {
   saveDecoratorProfile, saveInventoryItem, saveKit, createQuoteLink
@@ -161,17 +161,11 @@ export default function MyPage() {
     const nextStatus = isPublic ? 'Privado' : 'Público';
     
     if (item.isKit) {
-      let rentalPrice = item.rental_price;
-      if (nextStatus === 'Público' && (!rentalPrice || rentalPrice === 0)) {
-        const priceStr = window.prompt(`Defina o preço de locação B2B para o kit "${item.name}" (R$):`, '150.00');
-        if (priceStr === null) return;
-        rentalPrice = parseFloat(priceStr) || 150.00;
-      }
-
+      // Kit: o valor é opcional. Publica com o valor que já tiver (0/vazio
+      // aparece como "A definir" na vitrine). Nada de valor inventado.
       const updatedKit = {
         ...item.rawKit,
         status: nextStatus,
-        value: rentalPrice
       };
 
       try {
@@ -185,11 +179,15 @@ export default function MyPage() {
         addNotification('Erro', 'Falha ao alterar status do kit.');
       }
     } else {
-      let rentalPrice = item.rental_price;
-      if (nextStatus === 'Público' && (!rentalPrice || rentalPrice === 0)) {
-        const priceStr = window.prompt(`Defina o preço de locação B2B para "${item.name}" (R$):`, '50.00');
-        if (priceStr === null) return;
-        rentalPrice = parseFloat(priceStr) || 50.00;
+      // Peça: BLOQUEIA publicar sem preço. Sem valor inventado nem prompt — a
+      // decoradora define o preço no Editar antes de tornar a peça pública.
+      if (nextStatus === 'Público' && (!item.rental_price || item.rental_price === 0)) {
+        addNotification(
+          'Defina o preço antes de publicar',
+          `Informe o preço de locação de "${item.name}" no Editar para publicá-la no Marketplace.`,
+          true
+        );
+        return;
       }
 
       const updatedItem = {
@@ -200,7 +198,7 @@ export default function MyPage() {
         image_url: item.image_url,
         status: nextStatus as 'Público' | 'Privado',
         stock_quantity: item.stock_quantity,
-        rental_price: rentalPrice,
+        rental_price: item.rental_price,
         internal_cost: item.internal_cost
       } as InventoryItem;
 
@@ -281,7 +279,17 @@ export default function MyPage() {
 
   const handleSaveItem = async () => {
     if (!decorator || !editingItem.name) return;
-    
+
+    // Peça pública EXIGE preço definido (mesma regra do botão publicar).
+    if (editingItem.status === 'Público' && (!editingItem.rental_price || editingItem.rental_price === 0)) {
+      addNotification(
+        'Defina o preço antes de publicar',
+        `Informe o preço de locação de "${editingItem.name}" para deixá-la pública no Marketplace.`,
+        true
+      );
+      return;
+    }
+
     const itemToSave = {
       ...editingItem,
       decorator_id: decorator.id,
@@ -558,7 +566,7 @@ export default function MyPage() {
                       </div>
                       <div className="mp-card-row">
                         <span className="mp-card-row-label">Locação B2B</span>
-                        <span className="mp-card-row-value accent">{formatCurrency(item.rental_price)}</span>
+                        <span className="mp-card-row-value accent">{formatPriceLabel(item.rental_price)}</span>
                       </div>
                     </div>
                   </div>
@@ -707,7 +715,7 @@ export default function MyPage() {
                         </span>
                       </div>
                       <span className="import-inv-meta block mt-0.5">
-                        {item.isKit ? 'Itens do kit' : `Estoque: ${item.stock_quantity} un`} • {formatCurrency(item.rental_price)}/locação
+                        {item.isKit ? 'Itens do kit' : `Estoque: ${item.stock_quantity} un`} • {formatPriceLabel(item.rental_price)}/locação
                       </span>
                       <div className="mt-1">
                         <span className={`import-inv-status ${isPublic ? 'public' : 'private'}`}>

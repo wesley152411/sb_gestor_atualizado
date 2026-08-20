@@ -6,6 +6,17 @@ export function formatCurrency(value: number | string): string {
   return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Preço de item para EXIBIÇÃO: mostra "A definir" quando o preço ainda não foi
+// informado (zero/vazio), para não exibir "R$ 0,00" como se fosse o valor real
+// da locação. Use em cards e vitrines; NÃO em cálculos/subtotais.
+export function formatPriceLabel(value: number | string | null | undefined): string {
+  const n = Number(value);
+  if (value === null || value === undefined || value === '' || Number.isNaN(n) || n === 0) {
+    return 'A definir';
+  }
+  return formatCurrency(n);
+}
+
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
   const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;

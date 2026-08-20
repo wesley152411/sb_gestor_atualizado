@@ -10,7 +10,7 @@ import { fetchPartnerPublicAcervo, fetchPartnerDecoratorsList, saveRentalOrder }
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel } from '@/lib/utils';
 import type { InventoryItem, PartnerDecorator, PublicMarketplaceItem } from '@/types';
 
 // Chips de filtro exibidos na barra lateral (visual, alinhado ao layout aprovado).
@@ -257,7 +257,7 @@ export default function MarketplacePage() {
                     </div>
                     <div className="text-right">
                       <span className="mkt-stat-label">Valor (B2B)</span>
-                      <span className="mkt-stat-val accent">{formatCurrency(item.rentalPrice)}</span>
+                      <span className="mkt-stat-val accent">{formatPriceLabel(item.rentalPrice)}</span>
                     </div>
                   </div>
 

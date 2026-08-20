@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useNotificationStore } from '@/stores/notification-store';
-import { formatCurrency, getPlaceholderImage } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel, getPlaceholderImage } from '@/lib/utils';
 import type { InventoryItem, Kit } from '@/types';
 
 export default function InventoryPage() {
@@ -226,9 +226,13 @@ export default function InventoryPage() {
       // (placeholder no card); a decoradora sobe a foto dela depois pelo Editar.
       image_url: '',
       status: 'Privado',
-      stock_quantity: 10,
-      rental_price: 25.0,
-      internal_cost: 10.0
+      // Nada de valor inventado: estoque/preço/custo nascem ZERADOS. A quantidade
+      // do seletor no modal é a COMPOSIÇÃO do kit (quantas unidades o kit usa),
+      // NÃO o estoque da peça — são dados distintos. A decoradora preenche
+      // estoque e preço depois pelo Editar.
+      stock_quantity: 0,
+      rental_price: 0,
+      internal_cost: 0
     };
     try {
       const saved = await saveInventoryItem(newItem);
@@ -498,7 +502,7 @@ export default function InventoryPage() {
                       </div>
                       <div className="acervo-metric-right">
                         <span className="acervo-metric-label">LOCAÇÃO B2B</span>
-                        <span className="acervo-metric-value acervo-price">{formatCurrency(item.rental_price)}</span>
+                        <span className="acervo-metric-value acervo-price">{formatPriceLabel(item.rental_price)}</span>
                       </div>
                     </div>
 
@@ -824,7 +828,15 @@ export default function InventoryPage() {
                 {kitSearchResults.map(item => (
                   <div key={item.id} className="linked-item-row hover:bg-slate-50 transition-colors">
                     <div className="flex-row-center">
-                      <img src={item.image_url} alt={item.name} className="search-result-thumbnail" />
+                      {/* Miniatura = foto PRÓPRIA da peça; placeholder neutro quando não há.
+                          Nunca a foto de capa do kit. */}
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="search-result-thumbnail" />
+                      ) : (
+                        <div className="search-result-thumbnail" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)' }}>
+                          <ImageIcon style={{ width: 18, height: 18 }} />
+                        </div>
+                      )}
                       <div>
                         <span className="text-sm font-bold text-slate-800 block leading-tight">{item.name}</span>
                         <span className="text-[11px] font-medium text-slate-400 block mt-1">
@@ -861,11 +873,15 @@ export default function InventoryPage() {
                   {linkedItems.map((item) => (
                     <div key={item.id} className="flex-row-between bg-white p-2 rounded-lg border border-slate-100 shadow-xs">
                       <div className="flex-row-center">
-                        <img 
-                          src={item.image_url || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=150'} 
-                          alt={item.name} 
-                          className="checklist-item-thumbnail" 
-                        />
+                        {/* Miniatura = foto PRÓPRIA da peça; placeholder neutro quando
+                            não há. Sem fallback de foto genérica nem a capa do kit. */}
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="checklist-item-thumbnail" />
+                        ) : (
+                          <div className="checklist-item-thumbnail" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)' }}>
+                            <ImageIcon style={{ width: 18, height: 18 }} />
+                          </div>
+                        )}
                         <span className="text-sm font-bold text-slate-800 leading-tight">{item.name}</span>
                       </div>
                       <div className="flex-row-center">

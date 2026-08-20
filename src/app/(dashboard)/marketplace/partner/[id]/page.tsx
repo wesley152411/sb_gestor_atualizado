@@ -7,7 +7,7 @@ import { useCartStore } from '@/stores/cart-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { fetchPartnerPublicPage } from '@/services/api';
 import { Button } from '@/components/ui/Button';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel } from '@/lib/utils';
 import type { InventoryItem, PartnerDecorator, PublicMarketplaceItem } from '@/types';
 
 export default function PartnerPublicPage() {
@@ -127,7 +127,7 @@ export default function PartnerPublicPage() {
                   </div>
                   <div className="text-right">
                     <span className="stat-label">Valor (B2B)</span>
-                    <span className="stat-val text-indigo-600">{formatCurrency(item.rentalPrice)}</span>
+                    <span className="stat-val text-indigo-600">{formatPriceLabel(item.rentalPrice)}</span>
                   </div>
                 </div>
                 <div className="card-actions mt-4">
