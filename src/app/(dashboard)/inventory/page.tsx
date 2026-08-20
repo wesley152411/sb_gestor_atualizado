@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Plus, Search, SlidersHorizontal, Package, LayoutGrid,
   DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, ShoppingCart, Check
@@ -62,16 +62,6 @@ export default function InventoryPage() {
   const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredSinglePieceKits = singlePieceKits.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredMultiPieceKits = multiPieceKits.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
-
-  // Synchronize coverImageUrl with the single linked item's image_url in state (Peças Avulsas only)
-  useEffect(() => {
-    const totalPieces = linkedItems.reduce((sum, i) => sum + i.quantity, 0);
-    if (totalPieces === 1 && linkedItems.length === 1) {
-      if (linkedItems[0].image_url !== coverImageUrl) {
-        setLinkedItems(prev => prev.map((item, idx) => idx === 0 ? { ...item, image_url: coverImageUrl } : item));
-      }
-    }
-  }, [coverImageUrl, linkedItems.length]);
 
   // Abre o modal UNIFICADO (mesmo de "Criar Nova Peça/Kit") em modo edição de
   // Peça Avulsa: pré-preenche os campos compartilhados e guarda a peça original
@@ -232,7 +222,9 @@ export default function InventoryPage() {
       decorator_id: decorator.id,
       name: name,
       description: 'Peça avulsa criada via kit',
-      image_url: coverImageUrl || '',
+      // A foto de capa pertence AO KIT, não à peça. A peça nasce SEM imagem
+      // (placeholder no card); a decoradora sobe a foto dela depois pelo Editar.
+      image_url: '',
       status: 'Privado',
       stock_quantity: 10,
       rental_price: 25.0,
@@ -307,21 +299,10 @@ export default function InventoryPage() {
       }))
     };
 
-    // If it's a single-piece kit (Peça Avulsa), automatically sync the cover photo to the linked InventoryItem
-    const totalPieces = linkedItems.reduce((sum, i) => sum + i.quantity, 0);
-    if (totalPieces === 1 && linkedItems.length === 1) {
-      const singleItem = linkedItems[0];
-      const originalItem = items.find(i => i.id === singleItem.id);
-      if (originalItem && originalItem.image_url !== coverImageUrl) {
-        const updatedItem = {
-          ...originalItem,
-          image_url: coverImageUrl
-        };
-        await saveInventoryItem(updatedItem);
-        mutateItems();
-      }
-    }
-
+    // A foto de capa NÃO é sincronizada para a peça vinculada — nem no kit de
+    // uma peça só. A capa fica exclusivamente no registro do kit; a peça mantém
+    // (ou não) a própria foto, editável separadamente. Assim, trocar a capa do
+    // kit nunca altera nenhuma peça, e uma peça com foto própria fica intacta.
     await saveKit(kitData);
     addNotification('Kit Salvo', `O kit "${kitData.name}" foi registrado com sucesso.`);
     
