@@ -799,7 +799,7 @@ export default function InventoryPage() {
             placeholder="R$ 0,00"
             value={kitValue}
             onChange={handleKitValueChange}
-            error={showKitValueError ? 'Informe o valor do kit (maior que R$ 0,00) para salvar.' : undefined}
+            error={showKitValueError ? 'Informe o valor do kit' : undefined}
           />
 
           {/* Cover Photo Drag and Drop area */}
