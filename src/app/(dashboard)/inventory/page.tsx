@@ -43,7 +43,9 @@ export default function InventoryPage() {
   const [kitDescription, setKitDescription] = useState('');
   const [kitValue, setKitValue] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
-  const [linkedItems, setLinkedItems] = useState<{ id: string; name: string; quantity: number; image_url?: string }[]>([]);
+  // isNew = peça CRIADA dentro deste modal (vs. peça já existente só vinculada).
+  // Só as novas têm o estoque inicial semeado pela quantidade do modal ao salvar.
+  const [linkedItems, setLinkedItems] = useState<{ id: string; name: string; quantity: number; image_url?: string; isNew?: boolean }[]>([]);
   const [kitSearchQuery, setKitSearchQuery] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [editingKitId, setEditingKitId] = useState<string | null>(null);
@@ -182,12 +184,12 @@ export default function InventoryPage() {
     }
   };
 
-  const handleLinkKitItem = (item: { id: string; name: string; quantity: number; image_url?: string }) => {
+  const handleLinkKitItem = (item: { id: string; name: string; quantity: number; image_url?: string; isNew?: boolean }) => {
     const exists = linkedItems.find(i => i.id === item.id);
     if (exists) {
       setLinkedItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
-      setLinkedItems(prev => [...prev, { id: item.id, name: item.name, quantity: item.quantity, image_url: item.image_url }]);
+      setLinkedItems(prev => [...prev, { id: item.id, name: item.name, quantity: item.quantity, image_url: item.image_url, isNew: item.isNew }]);
     }
   };
 
@@ -226,11 +228,13 @@ export default function InventoryPage() {
       // (placeholder no card); a decoradora sobe a foto dela depois pelo Editar.
       image_url: '',
       status: 'Privado',
-      // Nada de valor inventado: estoque/preço/custo nascem ZERADOS. A quantidade
-      // do seletor no modal é a COMPOSIÇÃO do kit (quantas unidades o kit usa),
-      // NÃO o estoque da peça — são dados distintos. A decoradora preenche
-      // estoque e preço depois pelo Editar.
-      stock_quantity: 0,
+      // Preço/custo nascem ZERADOS (sem valor inventado) — a decoradora define
+      // depois pelo Editar. O ESTOQUE nasce com a quantidade do seletor (aqui, 1)
+      // e é reajustado ao salvar o kit com o valor final que ela deixar no modal.
+      // OBS: a quantidade do seletor é COMPOSIÇÃO do kit; para uma peça NOVA ela
+      // também semeia o estoque inicial. Para peça já existente, o estoque nunca
+      // é tocado (só as marcadas isNew são semeadas em handleSaveKit).
+      stock_quantity: 1,
       rental_price: 0,
       internal_cost: 0
     };
@@ -239,7 +243,7 @@ export default function InventoryPage() {
       // Vincula à lista do kit IMEDIATAMENTE, antes de qualquer revalidação:
       // se o refetch em segundo plano falhar, ele não pode engolir a atualização
       // do estado local (era esse o await abaixo que quebrava a adição na lista).
-      handleLinkKitItem({ id: saved.id, name: saved.name, quantity: 1, image_url: saved.image_url });
+      handleLinkKitItem({ id: saved.id, name: saved.name, quantity: 1, image_url: saved.image_url, isNew: true });
       setKitSearchQuery('');
       addNotification('Item Criado', `A peça "${saved.name}" foi salva e vinculada ao kit.`);
       // Revalida o acervo em segundo plano; um erro aqui não deve bloquear o fluxo.
@@ -307,6 +311,30 @@ export default function InventoryPage() {
     // uma peça só. A capa fica exclusivamente no registro do kit; a peça mantém
     // (ou não) a própria foto, editável separadamente. Assim, trocar a capa do
     // kit nunca altera nenhuma peça, e uma peça com foto própria fica intacta.
+
+    // Semeia o ESTOQUE INICIAL das peças CRIADAS neste fluxo (isNew) com a
+    // quantidade final do seletor. Peças já existentes NÃO têm o estoque tocado —
+    // para elas a quantidade vale só como composição do kit.
+    const seededNew = linkedItems.filter(i => i.isNew);
+    for (const li of seededNew) {
+      const original = items.find(i => i.id === li.id);
+      const base: InventoryItem = original ?? {
+        id: li.id,
+        decorator_id: decorator.id,
+        name: li.name,
+        description: 'Peça avulsa criada via kit',
+        image_url: '',
+        status: 'Privado',
+        stock_quantity: 0,
+        rental_price: 0,
+        internal_cost: 0,
+      };
+      if (base.stock_quantity !== li.quantity) {
+        await saveInventoryItem({ ...base, stock_quantity: li.quantity });
+      }
+    }
+    if (seededNew.length) mutateItems();
+
     await saveKit(kitData);
     addNotification('Kit Salvo', `O kit "${kitData.name}" foi registrado com sucesso.`);
     
@@ -329,6 +357,11 @@ export default function InventoryPage() {
 
   // Peças Avulsas: quantidade já presente no formulário em andamento para uma peça
   const getPartyFormQty = (itemId: string) => partyFormItems.find(p => p.item.id === itemId)?.quantity || 0;
+
+  // "Adicionar ao formulário" fica desabilitado sem estoque disponível OU enquanto
+  // o preço de locação não estiver definido (peça nova nasce com "A definir").
+  const isAddToFormDisabled = (item: InventoryItem) =>
+    getPartyFormQty(item.id) >= item.stock_quantity || !item.rental_price;
 
   const handleAddItemToForm = (item: InventoryItem) => {
     const currentQty = getPartyFormQty(item.id);
@@ -510,14 +543,14 @@ export default function InventoryPage() {
                     <button
                       type="button"
                       onClick={() => handleAddItemToForm(item)}
-                      disabled={getPartyFormQty(item.id) >= item.stock_quantity}
+                      disabled={isAddToFormDisabled(item)}
                       className="btn-primary"
                       style={{
                         width: '100%', marginTop: '14px', marginBottom: '8px', justifyContent: 'center',
                         backgroundColor: addedItemIds.has(item.id) ? '#16a34a' : '#2563eb',
                         display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 12px',
-                        opacity: getPartyFormQty(item.id) >= item.stock_quantity ? 0.5 : 1,
-                        cursor: getPartyFormQty(item.id) >= item.stock_quantity ? 'not-allowed' : 'pointer',
+                        opacity: isAddToFormDisabled(item) ? 0.5 : 1,
+                        cursor: isAddToFormDisabled(item) ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {addedItemIds.has(item.id) ? (
