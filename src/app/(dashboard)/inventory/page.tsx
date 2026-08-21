@@ -42,6 +42,9 @@ export default function InventoryPage() {
   const [kitName, setKitName] = useState('');
   const [kitDescription, setKitDescription] = useState('');
   const [kitValue, setKitValue] = useState('');
+  // Erro do valor do kit é ON SUBMIT: só vira true quando a decoradora tenta
+  // salvar sem valor válido. Ao abrir o modal começa limpo (sem erro herdado).
+  const [kitValueError, setKitValueError] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   // isNew = peça CRIADA dentro deste modal (vs. peça já existente só vinculada).
   // Só as novas têm o estoque inicial semeado pela quantidade do modal ao salvar.
@@ -81,6 +84,7 @@ export default function InventoryPage() {
     setEditingKitId(null);
     setEditingItem(item);
     setEditingItemId(item.id);
+    setKitValueError(false);
     setIsKitModalOpen(true);
   };
 
@@ -110,6 +114,7 @@ export default function InventoryPage() {
     setKitSearchQuery('');
     setEditingKitId(null);
     setEditingItemId(null);
+    setKitValueError(false);
     setIsKitModalOpen(true);
   };
 
@@ -135,6 +140,7 @@ export default function InventoryPage() {
     
     setKitSearchQuery('');
     setEditingKitId(kit.id);
+    setKitValueError(false);
     setIsKitModalOpen(true);
   };
 
@@ -293,9 +299,11 @@ export default function InventoryPage() {
       ? Number(kitValue.replace(/\D/g, '')) / 100
       : null;
 
-    // Valor do kit é OBRIGATÓRIO (> 0). Backstop: o botão "Salvar Kit" já fica
-    // desabilitado; isto impede o salvamento mesmo se o disabled for contornado.
+    // Valor do kit é OBRIGATÓRIO (> 0). Validação ON SUBMIT: ao clicar em Salvar
+    // sem valor válido, marca o erro (campo/rótulo vermelhos) e não salva. O
+    // vermelho some sozinho quando um valor > 0 é digitado (showKitValueError).
     if (!parsedValue || parsedValue <= 0) {
+      setKitValueError(true);
       return;
     }
 
@@ -376,6 +384,9 @@ export default function InventoryPage() {
   // valor é rascunho — existe no acervo, mas não circula (nem forma, nem público).
   const kitValueRequired = !editingItemId;
   const kitValueInvalid = kitValueRequired && !(parsedModalValue > 0);
+  // Só exibe o vermelho DEPOIS de tentar salvar (kitValueError) e enquanto o
+  // valor seguir inválido — some sozinho quando um valor > 0 é digitado.
+  const showKitValueError = kitValueError && kitValueInvalid;
 
   const handleAddItemToForm = (item: InventoryItem) => {
     const currentQty = getPartyFormQty(item.id);
@@ -754,7 +765,7 @@ export default function InventoryPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setIsKitModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveKit} disabled={kitValueInvalid}>
+            <Button onClick={handleSaveKit}>
               {editingItemId || editingKitId ? "Salvar Alterações" : "Salvar Kit"}
             </Button>
           </>
@@ -780,21 +791,16 @@ export default function InventoryPage() {
             />
           </div>
 
-          {/* Valor: obrigatório para KIT; opcional ao editar uma PEÇA (rascunho). */}
-          <div className="form-group">
-            <Input
-              type="text"
-              label={editingItemId ? 'Valor de Locação (opcional)' : 'Valor do Kit *'}
-              placeholder="R$ 0,00"
-              value={kitValue}
-              onChange={handleKitValueChange}
-            />
-            {kitValueInvalid && (
-              <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, display: 'block', marginTop: 4 }}>
-                Informe o valor do kit (maior que R$ 0,00) para salvar.
-              </span>
-            )}
-          </div>
+          {/* Valor: obrigatório para KIT; opcional ao editar uma PEÇA (rascunho).
+              Erro só aparece ON SUBMIT (showKitValueError). */}
+          <Input
+            type="text"
+            label={editingItemId ? 'Valor de Locação (opcional)' : 'Valor do Kit *'}
+            placeholder="R$ 0,00"
+            value={kitValue}
+            onChange={handleKitValueChange}
+            error={showKitValueError ? 'Informe o valor do kit (maior que R$ 0,00) para salvar.' : undefined}
+          />
 
           {/* Cover Photo Drag and Drop area */}
           <div className="form-group">
