@@ -10,11 +10,19 @@ export function formatCurrency(value: number | string): string {
 // informado (zero/vazio), para não exibir "R$ 0,00" como se fosse o valor real
 // da locação. Use em cards e vitrines; NÃO em cálculos/subtotais.
 export function formatPriceLabel(value: number | string | null | undefined): string {
+  return hasPrice(value) ? formatCurrency(Number(value)) : 'A definir';
+}
+
+// Regra de negócio: um valor de locação/kit só é "definido" se for um número
+// MAIOR que zero. IMPORTANTE: campos Decimal do Prisma chegam como STRING via API
+// (ex.: "0.00"); por isso NUNCA use `!value` ou `value === 0` — "0.00" é truthy e
+// != 0. Sempre passe por esta checagem, no front e no back.
+// Aceita unknown de propósito: além de number/string, recebe Prisma.Decimal
+// (objeto) vindo direto do banco nas rotas de API. Number() coage os três.
+export function hasPrice(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') return false;
   const n = Number(value);
-  if (value === null || value === undefined || value === '' || Number.isNaN(n) || n === 0) {
-    return 'A definir';
-  }
-  return formatCurrency(n);
+  return !Number.isNaN(n) && n > 0;
 }
 
 export function formatDate(dateStr: string): string {

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { hasPrice } from '@/lib/utils';
 
 export async function GET(request: Request) {
   try {
@@ -42,6 +43,15 @@ export async function POST(request: Request) {
     const existing = await prisma.inventoryItem.findUnique({ where: { id } });
     if (existing && existing.decorator_id !== sessionId) {
       return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+    }
+
+    // Regra: peça só vai a PÚBLICO com valor de locação definido (> R$ 0,00).
+    // Backstop de servidor — não confiar apenas no disabled do front.
+    if (data.status === 'Público' && !hasPrice(data.rental_price)) {
+      return NextResponse.json(
+        { error: 'Defina o valor de locação (maior que R$ 0,00) antes de publicar a peça.' },
+        { status: 400 },
+      );
     }
 
     // O dono é SEMPRE a sessão (decorator_id do corpo é ignorado).

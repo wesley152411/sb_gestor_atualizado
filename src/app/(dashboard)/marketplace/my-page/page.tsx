@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { formatCurrency, formatPriceLabel, getInitials } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel, hasPrice, getInitials } from '@/lib/utils';
 import type { InventoryItem, Kit, RentalOrder, ChatMessage } from '@/types';
 import {
   saveDecoratorProfile, saveInventoryItem, saveKit, createQuoteLink
@@ -181,7 +181,7 @@ export default function MyPage() {
     } else {
       // Peça: BLOQUEIA publicar sem preço. Sem valor inventado nem prompt — a
       // decoradora define o preço no Editar antes de tornar a peça pública.
-      if (nextStatus === 'Público' && (!item.rental_price || item.rental_price === 0)) {
+      if (nextStatus === 'Público' && !hasPrice(item.rental_price)) {
         addNotification(
           'Defina o preço antes de publicar',
           `Informe o preço de locação de "${item.name}" no Editar para publicá-la no Marketplace.`,
@@ -281,7 +281,7 @@ export default function MyPage() {
     if (!decorator || !editingItem.name) return;
 
     // Peça pública EXIGE preço definido (mesma regra do botão publicar).
-    if (editingItem.status === 'Público' && (!editingItem.rental_price || editingItem.rental_price === 0)) {
+    if (editingItem.status === 'Público' && !hasPrice(editingItem.rental_price)) {
       addNotification(
         'Defina o preço antes de publicar',
         `Informe o preço de locação de "${editingItem.name}" para deixá-la pública no Marketplace.`,

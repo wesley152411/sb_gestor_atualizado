@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { hasPrice } from '@/lib/utils';
 
 export async function GET(request: Request) {
   try {
@@ -35,6 +36,15 @@ export async function POST(request: Request) {
     const { id, ...data } = body;
     if (!id) {
       return NextResponse.json({ error: 'Kit ID is required' }, { status: 400 });
+    }
+
+    // Regra: o valor do kit é OBRIGATÓRIO (> R$ 0,00), na criação e na edição.
+    // Backstop de servidor — não confiar apenas no disabled do front.
+    if (!hasPrice(data.value)) {
+      return NextResponse.json(
+        { error: 'O valor do kit é obrigatório e deve ser maior que R$ 0,00.' },
+        { status: 400 },
+      );
     }
 
     // Autorização: não deixa editar kit de outra conta.

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { toDbDate } from '@/lib/utils';
+import { toDbDate, hasPrice } from '@/lib/utils';
 import { NextResponse } from 'next/server';
 import { getSessionDecoratorId } from '@/lib/supabase/server';
 
@@ -87,6 +87,27 @@ export async function POST(request: Request) {
     const orderItems = items as
       | { name: string; quantity: number; price: number; item_id?: string; kit_id?: string }[]
       | undefined;
+
+    // Regra: peça sem valor de locação (> R$ 0,00) NÃO pode entrar em pedido.
+    // Confere pelo PREÇO REAL da peça no acervo (não pelo price do corpo, que
+    // poderia ser forjado numa chamada direta). Backstop de servidor.
+    const pieceIds = (orderItems ?? []).filter((i) => i.item_id).map((i) => i.item_id!);
+    if (pieceIds.length > 0) {
+      const pieces = await prisma.inventoryItem.findMany({
+        where: { id: { in: pieceIds } },
+        select: { id: true, name: true, rental_price: true },
+      });
+      const priceById = new Map(pieces.map((p) => [p.id, p.rental_price]));
+      for (const oi of orderItems!) {
+        if (oi.item_id && !hasPrice(priceById.get(oi.item_id))) {
+          return NextResponse.json(
+            { error: `A peça "${oi.name}" está sem valor de locação definido e não pode ser adicionada ao pedido.` },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
     if ('event_date' in orderData) {
       orderData.event_date = toDbDate(orderData.event_date);
     }

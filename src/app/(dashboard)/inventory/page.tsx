@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useNotificationStore } from '@/stores/notification-store';
-import { formatCurrency, formatPriceLabel, getPlaceholderImage } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel, hasPrice, getPlaceholderImage } from '@/lib/utils';
 import type { InventoryItem, Kit } from '@/types';
 
 export default function InventoryPage() {
@@ -290,8 +290,14 @@ export default function InventoryPage() {
     }
 
     const parsedValue = kitValue.trim() !== ''
-      ? Number(kitValue.replace(/\D/g, '')) / 100 
+      ? Number(kitValue.replace(/\D/g, '')) / 100
       : null;
+
+    // Valor do kit é OBRIGATÓRIO (> 0). Backstop: o botão "Salvar Kit" já fica
+    // desabilitado; isto impede o salvamento mesmo se o disabled for contornado.
+    if (!parsedValue || parsedValue <= 0) {
+      return;
+    }
 
     const kitData: Partial<Kit> = {
       id: editingKitId || undefined,
@@ -361,7 +367,15 @@ export default function InventoryPage() {
   // "Adicionar ao formulário" fica desabilitado sem estoque disponível OU enquanto
   // o preço de locação não estiver definido (peça nova nasce com "A definir").
   const isAddToFormDisabled = (item: InventoryItem) =>
-    getPartyFormQty(item.id) >= item.stock_quantity || !item.rental_price;
+    getPartyFormQty(item.id) >= item.stock_quantity || !hasPrice(item.rental_price);
+
+  // Valor digitado no modal (em reais). O campo guarda a string formatada.
+  const parsedModalValue = kitValue.trim() !== '' ? Number(kitValue.replace(/\D/g, '')) / 100 : 0;
+  // Valor é OBRIGATÓRIO para KIT (criar/editar kit). Ao editar uma PEÇA
+  // (editingItemId), o mesmo campo é o preço da peça e segue OPCIONAL: peça sem
+  // valor é rascunho — existe no acervo, mas não circula (nem forma, nem público).
+  const kitValueRequired = !editingItemId;
+  const kitValueInvalid = kitValueRequired && !(parsedModalValue > 0);
 
   const handleAddItemToForm = (item: InventoryItem) => {
     const currentQty = getPartyFormQty(item.id);
@@ -740,7 +754,7 @@ export default function InventoryPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setIsKitModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveKit}>
+            <Button onClick={handleSaveKit} disabled={kitValueInvalid}>
               {editingItemId || editingKitId ? "Salvar Alterações" : "Salvar Kit"}
             </Button>
           </>
@@ -766,14 +780,21 @@ export default function InventoryPage() {
             />
           </div>
 
-          {/* Mesma estrutura do modal "Nova Peça" (construtor) — usada também na edição. */}
-          <Input
-            type="text"
-            label="Valor (opcional)"
-            placeholder="R$ 0,00"
-            value={kitValue}
-            onChange={handleKitValueChange}
-          />
+          {/* Valor: obrigatório para KIT; opcional ao editar uma PEÇA (rascunho). */}
+          <div className="form-group">
+            <Input
+              type="text"
+              label={editingItemId ? 'Valor de Locação (opcional)' : 'Valor do Kit *'}
+              placeholder="R$ 0,00"
+              value={kitValue}
+              onChange={handleKitValueChange}
+            />
+            {kitValueInvalid && (
+              <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, display: 'block', marginTop: 4 }}>
+                Informe o valor do kit (maior que R$ 0,00) para salvar.
+              </span>
+            )}
+          </div>
 
           {/* Cover Photo Drag and Drop area */}
           <div className="form-group">
