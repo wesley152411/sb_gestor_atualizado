@@ -9,16 +9,10 @@ interface NotificationState {
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
-  notifications: [
-    {
-      id: 1,
-      title: 'Boas-vindas ao SB GESTOR',
-      message: 'Comece cadastrando suas peças e explorando o catálogo de parcerias B2B.',
-      isAlert: false,
-      unread: true,
-      time: 'Agora',
-    },
-  ],
+  // Sem notificação semeada: o toast de boas-vindas vinha daqui e, como o store
+  // reinicia a cada carregamento de página, reaparecia toda vez (ruído). Os
+  // demais toasts continuam normais via addNotification.
+  notifications: [],
   addNotification: (title, message, isAlert = false) =>
     set((state) => ({
       notifications: [
