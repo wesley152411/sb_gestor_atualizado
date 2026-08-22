@@ -194,6 +194,9 @@ export interface PartnerDecorator {
   name: string;
   logoUrl?: string;
   location?: string;
+  about?: string;       // texto de apresentação (público)
+  whatsapp?: string;    // dígitos (DDI/DDD) — vira link wa.me na página pública
+  instagram?: string;   // handle (com ou sem @) — vira link na página pública
   publicPageId: string; // ID/slug da página pública (destino do botão "Ver página")
   publicItemCount?: number; // qtd de itens públicos que a parceira tem no feed
 }

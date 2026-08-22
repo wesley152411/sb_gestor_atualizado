@@ -25,6 +25,39 @@ export function hasPrice(value: unknown): boolean {
   return !Number.isNaN(n) && n > 0;
 }
 
+// ==================== CONTATO (WhatsApp / Instagram) ====================
+
+// Só dígitos (remove máscara, espaços, +, traços).
+export function sanitizePhoneDigits(raw?: string | null): string {
+  return (raw || '').replace(/\D/g, '');
+}
+
+// Handle do Instagram SEM @, sem URL, sem espaços — forma de armazenamento.
+export function sanitizeInstagramHandle(raw?: string | null): string {
+  if (!raw) return '';
+  return raw
+    .trim()
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+    .replace(/^@+/, '')
+    .replace(/\/+$/, '')
+    .replace(/\s+/g, '');
+}
+
+// Link clicável do WhatsApp (https://wa.me/<digitos>). Se vier número BR local
+// (10–11 dígitos, DDD+numero) sem DDI, prefixa 55. Vazio => '' (linha omitida).
+export function whatsappUrl(raw?: string | null): string {
+  let d = sanitizePhoneDigits(raw);
+  if (!d) return '';
+  if (d.length <= 11 && !d.startsWith('55')) d = `55${d}`;
+  return `https://wa.me/${d}`;
+}
+
+// Link clicável do perfil no Instagram, aceitando salvo com ou sem @.
+export function instagramUrl(raw?: string | null): string {
+  const h = sanitizeInstagramHandle(raw);
+  return h ? `https://instagram.com/${h}` : '';
+}
+
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
   const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;

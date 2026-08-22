@@ -279,6 +279,9 @@ export async function fetchPartnerPublicPage(
       name: d.name,
       logoUrl: d.avatar_url || undefined, // fonte ÚNICA da identidade: avatar_url. Sem avatar => placeholder (não usa mais logo_url legado)
       location: d.location,
+      about: d.about || undefined,
+      whatsapp: d.whatsapp || undefined,
+      instagram: d.instagram || undefined,
       publicPageId: d.id,
     };
 

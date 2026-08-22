@@ -7,8 +7,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
 
-    const decorator = await prisma.decorator.findUnique({
-      where: { id },
+    // Conta interna de teste NÃO tem página pública acessível (mesma flag da
+    // listagem do Marketplace). findFirst com o filtro => internal vira 404.
+    const decorator = await prisma.decorator.findFirst({
+      where: { id, is_internal: false },
       select: {
         id: true,
         name: true,
