@@ -51,7 +51,6 @@ export default function MyPage() {
   const [editingItem, setEditingItem] = useState<Partial<InventoryItem>>({});
   const [editingKit, setEditingKit] = useState<Partial<Kit>>({});
 
-  const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
@@ -87,26 +86,9 @@ export default function MyPage() {
   const inquiryRate = Number(decorator?.contact_rate ?? 0).toFixed(1);
   const reviewCount = decorator?.positive_reviews ?? 0;
 
-  // Image Upload Handlers
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !decorator) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target?.result as string;
-      if (!base64) return;
-      const updated = { ...decorator, avatar_url: base64 };
-      try {
-        await saveDecoratorProfile(updated);
-        updateDecorator({ avatar_url: base64 });
-        addNotification('Foto de Perfil Atualizada', 'A foto de perfil foi salva com sucesso!');
-      } catch (err) {
-        addNotification('Erro', 'Falha ao atualizar foto de perfil.');
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
+  // A FOTO DE PERFIL (avatar) só é alterada em Configurações → "Alterar foto".
+  // Aqui a Minha Página apenas EXIBE o avatar_url; sem upload/câmera. A capa
+  // (cover_url) continua editável nesta tela, no handler abaixo.
   const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !decorator) return;
@@ -349,14 +331,6 @@ export default function MyPage() {
         accept="image/*" 
         onChange={handleCoverChange} 
       />
-      <input 
-        type="file" 
-        ref={avatarInputRef} 
-        style={{ display: 'none' }} 
-        accept="image/*" 
-        onChange={handleAvatarChange} 
-      />
-
       <div className="mypage-cover" onClick={() => coverInputRef.current?.click()}>
         {decorator?.cover_url ? (
           <img src={decorator.cover_url} alt="Cover" />
@@ -370,7 +344,8 @@ export default function MyPage() {
       </div>
 
       <div className="mypage-profile-card">
-        <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
+        {/* Avatar SÓ exibição — foto de perfil é alterada em Configurações. */}
+        <div className="relative">
           {decorator?.avatar_url ? (
             <img
               src={decorator.avatar_url}
@@ -382,9 +357,6 @@ export default function MyPage() {
               {getInitials(decorator?.name)}
             </div>
           )}
-          <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-4 border-transparent">
-            <Camera className="w-6 h-6 text-white" />
-          </div>
         </div>
         <div className="flex-1 mt-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>

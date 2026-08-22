@@ -61,8 +61,8 @@ export async function generateQuotePDF(
   };
 
   // ---------- CABEÇALHO: imagem da decoradora ----------
-  // Imagem única da conta (avatar_url). logo_url mantido só como fallback legado.
-  const logoSource = decorator?.avatar_url || decorator?.logo_url;
+  // Fonte ÚNICA da identidade da conta: avatar_url (definido em Configurações).
+  const logoSource = decorator?.avatar_url;
   const logoData = await toDataUrl(logoSource);
 
   if (logoData) {

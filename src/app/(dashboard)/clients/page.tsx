@@ -203,10 +203,10 @@ export default function ClientsPage() {
           <div className="quote-doc">
             {/* Cabeçalho: imagem única da decoradora (avatar), igual ao PDF */}
             <div className="quote-doc-header">
-              {(previewOwner?.avatar_url || previewOwner?.logo_url) ? (
+              {previewOwner?.avatar_url ? (
                 <img
                   className="quote-doc-logo"
-                  src={previewOwner?.avatar_url || previewOwner?.logo_url}
+                  src={previewOwner.avatar_url}
                   alt={previewOwner?.name || 'Logo'}
                 />
               ) : (

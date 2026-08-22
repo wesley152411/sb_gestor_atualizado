@@ -213,7 +213,7 @@ function toPartnerDecorator(d?: Decorator): PartnerDecorator {
   return {
     id: d?.id || '',
     name: d?.name || 'Parceira',
-    logoUrl: d?.avatar_url || d?.logo_url, // imagem única da conta (avatar); logo = fallback legado
+    logoUrl: d?.avatar_url || undefined, // fonte ÚNICA da identidade: avatar_url. Sem avatar => placeholder (não usa mais logo_url legado)
     location: d?.location,
     publicPageId: d?.id || '', // futura página pública da parceira
   };
@@ -277,7 +277,7 @@ export async function fetchPartnerPublicPage(
     const partner: PartnerDecorator = {
       id: d.id,
       name: d.name,
-      logoUrl: d.avatar_url || d.logo_url, // imagem única da conta (avatar); logo = fallback legado
+      logoUrl: d.avatar_url || undefined, // fonte ÚNICA da identidade: avatar_url. Sem avatar => placeholder (não usa mais logo_url legado)
       location: d.location,
       publicPageId: d.id,
     };
