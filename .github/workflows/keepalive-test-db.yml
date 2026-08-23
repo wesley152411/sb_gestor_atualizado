@@ -1,0 +1,25 @@
+name: Keepalive banco de teste
+
+# O plano gratuito do Supabase pausa o projeto após 7 dias sem atividade. Se
+# passarmos uma semana sem PR, a primeira execução do harness falharia/demoraria.
+# Este job faz uma consulta simples semanal para manter o projeto de TESTE ativo.
+on:
+  schedule:
+    - cron: '0 12 * * 1' # toda segunda-feira, 12:00 UTC
+  workflow_dispatch: {}    # permite disparar manualmente
+
+jobs:
+  ping:
+    if: ${{ vars.HARNESS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consulta simples via PostgREST (conta como atividade)
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            "${{ secrets.TEST_SUPABASE_URL }}/rest/v1/decorators?select=id&limit=1" \
+            -H "apikey: ${{ secrets.TEST_SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.TEST_SUPABASE_ANON_KEY }}")
+          echo "HTTP $code"
+          # 200 (lista, possivelmente vazia por RLS) ou 401/403 já contam como
+          # atividade no banco. Só falha se não houve resposta (000).
+          [ "$code" != "000" ]

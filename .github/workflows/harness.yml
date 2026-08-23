@@ -1,0 +1,50 @@
+name: Harness de isolamento
+
+# Roda em todo PR e push na main. DORMANT até o projeto Supabase de TESTE estar
+# pronto: ligue definindo a variável de repositório HARNESS_ENABLED=true
+# (Settings → Secrets and variables → Actions → Variables). Sem isso, o job é
+# pulado e a CI fica verde.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  isolation:
+    if: ${{ vars.HARNESS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      # Tudo vem de GitHub Secrets do projeto de TESTE — NUNCA de produção.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+      DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      TEST_BASE_URL: http://localhost:3000
+      # Confirma explicitamente que o alvo é o banco de teste (a guarda exige).
+      HARNESS_ALLOW_TEST_DB: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Subir o app (dev) em background
+        run: npm run dev &
+
+      - name: Esperar o servidor responder
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/login || true)
+            if [ "$code" = "200" ] || [ "$code" = "307" ]; then echo "servidor pronto"; exit 0; fi
+            sleep 3
+          done
+          echo "servidor não respondeu a tempo"; exit 1
+
+      - name: Rodar o harness de isolamento
+        run: npm test
