@@ -156,11 +156,15 @@ describe('Isolamento multi-conta', () => {
     await cleanupAccounts([U.id]);
   });
 
-  it('SENTINELA: mailer_autoconfirm está DESLIGADO (conta nova nasce não confirmada)', async () => {
-    // Cobre por teste o risco de religarem o autoconfirm no painel: se isso
-    // acontecer, o signUp passa a devolver sessão e e-mail já confirmado, e este
-    // teste falha na hora — sem custo em produção. mailer_autoconfirm=false é
-    // configuração crítica de lançamento.
+  // PROD-ONLY: esta sentinela verifica uma configuração do PAINEL da PRODUÇÃO
+  // (mailer_autoconfirm=false). O projeto de TESTE deliberadamente tem autoconfirm
+  // LIGADO (para não bater no rate limit do Auth), então ela não faz sentido lá e
+  // é pulada nas execuções contra o banco de teste. Rode-a manualmente contra a
+  // produção quando quiser reconferir o painel (signUp de leitura, sem criar dados).
+  it.skipIf(process.env.HARNESS_ALLOW_TEST_DB === 'true')('SENTINELA: mailer_autoconfirm está DESLIGADO (conta nova nasce não confirmada)', async () => {
+    // Se religarem o autoconfirm no painel, o signUp passa a devolver sessão e
+    // e-mail já confirmado, e este teste falha na hora. mailer_autoconfirm=false
+    // é configuração crítica de lançamento.
     const s = await rawSignUp('conf');
     expect(s.session, 'signUp devolveu sessão => autoconfirm LIGADO (barreira desfeita no painel)').toBeNull();
     expect(s.emailConfirmedAt, 'conta nasceu confirmada => autoconfirm LIGADO no painel').toBeFalsy();
