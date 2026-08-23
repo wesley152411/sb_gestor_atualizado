@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { toDbDate } from '@/lib/utils';
+import { toDbDate, hasPrice } from '@/lib/utils';
 import { NextResponse } from 'next/server';
 import { getSessionDecoratorId } from '@/lib/supabase/server';
 
@@ -34,6 +34,28 @@ export async function POST(request: Request) {
     }
     if ('event_date' in data) {
       data.event_date = toDbDate(data.event_date);
+    }
+
+    // Regra: peça sem valor de locação (> R$ 0,00) NÃO pode entrar no formulário.
+    // Confere pelo PREÇO REAL da peça no acervo (não pelo price do corpo).
+    const evItems = Array.isArray(data.items)
+      ? (data.items as { id?: string; name?: string }[])
+      : [];
+    const evPieceIds = evItems.filter((i) => i.id).map((i) => i.id!);
+    if (evPieceIds.length > 0) {
+      const pieces = await prisma.inventoryItem.findMany({
+        where: { id: { in: evPieceIds } },
+        select: { id: true, name: true, rental_price: true },
+      });
+      const priceById = new Map(pieces.map((p) => [p.id, p.rental_price]));
+      for (const it of evItems) {
+        if (it.id && !hasPrice(priceById.get(it.id))) {
+          return NextResponse.json(
+            { error: `A peça "${it.name}" está sem valor de locação definido e não pode entrar no formulário.` },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     // Autorização: não deixa editar evento de outra conta.

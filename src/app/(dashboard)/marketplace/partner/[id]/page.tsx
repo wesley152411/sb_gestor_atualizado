@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ShoppingBag, List, Store, ArrowLeft, MapPin } from 'lucide-react';
+import { ShoppingBag, List, Store, ArrowLeft, MapPin, MessageCircle, AtSign } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { fetchPartnerPublicPage } from '@/services/api';
 import { Button } from '@/components/ui/Button';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel, whatsappUrl, instagramUrl, sanitizeInstagramHandle } from '@/lib/utils';
 import type { InventoryItem, PartnerDecorator, PublicMarketplaceItem } from '@/types';
 
 export default function PartnerPublicPage() {
@@ -98,6 +98,40 @@ export default function PartnerPublicPage() {
         </div>
       </div>
 
+      {/* Apresentação + contato. Campos vazios são OMITIDOS (sem linha em branco
+          nem link quebrado). Links externos abrem em nova aba com rel seguro. */}
+      {(partner.about || partner.whatsapp || partner.instagram) && (
+        <div style={{ marginTop: 16 }}>
+          {partner.about && (
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, marginBottom: 14, maxWidth: 680, whiteSpace: 'pre-line' }}>
+              {partner.about}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {partner.whatsapp && (
+              <a
+                href={whatsappUrl(partner.whatsapp)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#059669', background: 'rgba(5,150,105,0.10)', padding: '8px 14px', borderRadius: 8, textDecoration: 'none' }}
+              >
+                <MessageCircle className="w-4 h-4" /> WhatsApp
+              </a>
+            )}
+            {partner.instagram && (
+              <a
+                href={instagramUrl(partner.instagram)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#c026d3', background: 'rgba(192,38,211,0.10)', padding: '8px 14px', borderRadius: 8, textDecoration: 'none' }}
+              >
+                <AtSign className="w-4 h-4" /> {sanitizeInstagramHandle(partner.instagram)}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="cards-grid" style={{ marginTop: 24 }}>
         {publicItems.length === 0 ? (
           <div className="col-span-full py-12 text-center text-slate-500">
@@ -127,7 +161,7 @@ export default function PartnerPublicPage() {
                   </div>
                   <div className="text-right">
                     <span className="stat-label">Valor (B2B)</span>
-                    <span className="stat-val text-indigo-600">{formatCurrency(item.rentalPrice)}</span>
+                    <span className="stat-val text-indigo-600">{formatPriceLabel(item.rentalPrice)}</span>
                   </div>
                 </div>
                 <div className="card-actions mt-4">

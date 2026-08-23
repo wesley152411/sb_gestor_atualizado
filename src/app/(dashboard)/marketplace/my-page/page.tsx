@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { formatCurrency, getInitials } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel, hasPrice, getInitials } from '@/lib/utils';
 import type { InventoryItem, Kit, RentalOrder, ChatMessage } from '@/types';
 import {
   saveDecoratorProfile, saveInventoryItem, saveKit, createQuoteLink
@@ -51,7 +51,6 @@ export default function MyPage() {
   const [editingItem, setEditingItem] = useState<Partial<InventoryItem>>({});
   const [editingKit, setEditingKit] = useState<Partial<Kit>>({});
 
-  const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
@@ -87,26 +86,9 @@ export default function MyPage() {
   const inquiryRate = Number(decorator?.contact_rate ?? 0).toFixed(1);
   const reviewCount = decorator?.positive_reviews ?? 0;
 
-  // Image Upload Handlers
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !decorator) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target?.result as string;
-      if (!base64) return;
-      const updated = { ...decorator, avatar_url: base64 };
-      try {
-        await saveDecoratorProfile(updated);
-        updateDecorator({ avatar_url: base64 });
-        addNotification('Foto de Perfil Atualizada', 'A foto de perfil foi salva com sucesso!');
-      } catch (err) {
-        addNotification('Erro', 'Falha ao atualizar foto de perfil.');
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
+  // A FOTO DE PERFIL (avatar) só é alterada em Configurações → "Alterar foto".
+  // Aqui a Minha Página apenas EXIBE o avatar_url; sem upload/câmera. A capa
+  // (cover_url) continua editável nesta tela, no handler abaixo.
   const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !decorator) return;
@@ -161,17 +143,11 @@ export default function MyPage() {
     const nextStatus = isPublic ? 'Privado' : 'Público';
     
     if (item.isKit) {
-      let rentalPrice = item.rental_price;
-      if (nextStatus === 'Público' && (!rentalPrice || rentalPrice === 0)) {
-        const priceStr = window.prompt(`Defina o preço de locação B2B para o kit "${item.name}" (R$):`, '150.00');
-        if (priceStr === null) return;
-        rentalPrice = parseFloat(priceStr) || 150.00;
-      }
-
+      // Kit: o valor é opcional. Publica com o valor que já tiver (0/vazio
+      // aparece como "A definir" na vitrine). Nada de valor inventado.
       const updatedKit = {
         ...item.rawKit,
         status: nextStatus,
-        value: rentalPrice
       };
 
       try {
@@ -185,11 +161,15 @@ export default function MyPage() {
         addNotification('Erro', 'Falha ao alterar status do kit.');
       }
     } else {
-      let rentalPrice = item.rental_price;
-      if (nextStatus === 'Público' && (!rentalPrice || rentalPrice === 0)) {
-        const priceStr = window.prompt(`Defina o preço de locação B2B para "${item.name}" (R$):`, '50.00');
-        if (priceStr === null) return;
-        rentalPrice = parseFloat(priceStr) || 50.00;
+      // Peça: BLOQUEIA publicar sem preço. Sem valor inventado nem prompt — a
+      // decoradora define o preço no Editar antes de tornar a peça pública.
+      if (nextStatus === 'Público' && !hasPrice(item.rental_price)) {
+        addNotification(
+          'Defina o preço antes de publicar',
+          `Informe o preço de locação de "${item.name}" no Editar para publicá-la no Marketplace.`,
+          true
+        );
+        return;
       }
 
       const updatedItem = {
@@ -200,7 +180,7 @@ export default function MyPage() {
         image_url: item.image_url,
         status: nextStatus as 'Público' | 'Privado',
         stock_quantity: item.stock_quantity,
-        rental_price: rentalPrice,
+        rental_price: item.rental_price,
         internal_cost: item.internal_cost
       } as InventoryItem;
 
@@ -281,7 +261,17 @@ export default function MyPage() {
 
   const handleSaveItem = async () => {
     if (!decorator || !editingItem.name) return;
-    
+
+    // Peça pública EXIGE preço definido (mesma regra do botão publicar).
+    if (editingItem.status === 'Público' && !hasPrice(editingItem.rental_price)) {
+      addNotification(
+        'Defina o preço antes de publicar',
+        `Informe o preço de locação de "${editingItem.name}" para deixá-la pública no Marketplace.`,
+        true
+      );
+      return;
+    }
+
     const itemToSave = {
       ...editingItem,
       decorator_id: decorator.id,
@@ -341,14 +331,6 @@ export default function MyPage() {
         accept="image/*" 
         onChange={handleCoverChange} 
       />
-      <input 
-        type="file" 
-        ref={avatarInputRef} 
-        style={{ display: 'none' }} 
-        accept="image/*" 
-        onChange={handleAvatarChange} 
-      />
-
       <div className="mypage-cover" onClick={() => coverInputRef.current?.click()}>
         {decorator?.cover_url ? (
           <img src={decorator.cover_url} alt="Cover" />
@@ -362,7 +344,8 @@ export default function MyPage() {
       </div>
 
       <div className="mypage-profile-card">
-        <div className="relative group cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
+        {/* Avatar SÓ exibição — foto de perfil é alterada em Configurações. */}
+        <div className="relative">
           {decorator?.avatar_url ? (
             <img
               src={decorator.avatar_url}
@@ -374,9 +357,6 @@ export default function MyPage() {
               {getInitials(decorator?.name)}
             </div>
           )}
-          <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-4 border-transparent">
-            <Camera className="w-6 h-6 text-white" />
-          </div>
         </div>
         <div className="flex-1 mt-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -558,7 +538,7 @@ export default function MyPage() {
                       </div>
                       <div className="mp-card-row">
                         <span className="mp-card-row-label">Locação B2B</span>
-                        <span className="mp-card-row-value accent">{formatCurrency(item.rental_price)}</span>
+                        <span className="mp-card-row-value accent">{formatPriceLabel(item.rental_price)}</span>
                       </div>
                     </div>
                   </div>
@@ -707,7 +687,7 @@ export default function MyPage() {
                         </span>
                       </div>
                       <span className="import-inv-meta block mt-0.5">
-                        {item.isKit ? 'Itens do kit' : `Estoque: ${item.stock_quantity} un`} • {formatCurrency(item.rental_price)}/locação
+                        {item.isKit ? 'Itens do kit' : `Estoque: ${item.stock_quantity} un`} • {formatPriceLabel(item.rental_price)}/locação
                       </span>
                       <div className="mt-1">
                         <span className={`import-inv-status ${isPublic ? 'public' : 'private'}`}>

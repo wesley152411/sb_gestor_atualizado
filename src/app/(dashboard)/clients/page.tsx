@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, CheckSquare, FileText } from 'lucide-react';
-import { savePartyEvent } from '@/services/api';
+import { Download, CheckSquare, FileText, ChevronDown, XCircle, Trash2 } from 'lucide-react';
+import { confirmPartyEvent, cancelPartyEvent, discardPartyEvent } from '@/services/api';
 import { usePartyEvents, useClients, useDecorators } from '@/hooks/swr-hooks';
 import { generateQuotePDF } from '@/lib/quote-pdf';
+import { generateLogisticsPDF } from '@/lib/pdf-generator';
 import { Button } from '@/components/ui/Button';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Table } from '@/components/ui/TableAndTabs';
@@ -13,9 +14,17 @@ import { Modal } from '@/components/ui/Modal';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { PartyEvent } from '@/types';
+import { EVENT_STATUS, ALL_EVENT_STATUSES, effectiveStatus, statusBadge, isDraftLink } from '@/lib/event-status';
+import type { EventStatus, PartyEvent } from '@/types';
 
-const STATUS_OPTIONS: PartyEvent['status'][] = ['Pendente', 'Confirmado', 'Finalizado'];
+const STATUS_OPTIONS: EventStatus[] = ALL_EVENT_STATUSES;
+
+// Chave de ordenação: envio mais recente primeiro; rascunhos usam a criação.
+function sortKey(e: PartyEvent): number {
+  const d = e.submitted_at || e.created_at || '';
+  const t = new Date(d).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
 
 export default function ClientsPage() {
   // ISOLAMENTO MULTI-CONTA: só os dados da decoradora logada. Nunca chamar
@@ -32,6 +41,8 @@ export default function ClientsPage() {
   // Evento em preview (abre o documento antes de gerar o PDF).
   const [previewEvent, setPreviewEvent] = useState<PartyEvent | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   // Resolve o cliente e a decoradora DONA do evento em preview,
   // para nunca misturar dados/logo entre contas diferentes.
@@ -53,16 +64,57 @@ export default function ClientsPage() {
     }
   };
 
-  const handleConcludeEvent = async (eventData: PartyEvent) => {
-    if (confirm(`Deseja concluir o evento de "${eventData.client_name}" e devolver todas as peças ao estoque livre?`)) {
+  // Confirmar: um clique, sem modal. IRREVERSÍVEL (não há caminho de volta).
+  const handleConfirm = async (e: PartyEvent) => {
+    setBusyId(e.id);
+    try {
+      await confirmPartyEvent(e.id);
+      addNotification('Evento confirmado', `"${e.client_name}" está confirmado — preparando a montagem.`);
+      // PDF logístico é gerado AO CONFIRMAR (não no envio): é aqui que o
+      // orçamento vira evento de verdade e a montagem começa a ser preparada.
       try {
-        await savePartyEvent({ ...eventData, status: 'Finalizado' });
-        addNotification("Itens Devolvidos", `As peças da festa "${eventData.theme}" retornaram ao acervo.`);
-        mutate();
-      } catch (error) {
-        console.error('Falha ao concluir evento:', error);
-        addNotification('Erro ao Concluir Evento', 'Não foi possível atualizar o status no servidor.', true);
+        await generateLogisticsPDF({ ...e, status: EVENT_STATUS.CONFIRMADO });
+      } catch (pdfErr) {
+        console.error('Falha ao gerar PDF logístico na confirmação:', pdfErr);
+        addNotification('PDF não gerado', 'O evento foi confirmado, mas o PDF logístico falhou. Baixe pelo Calendário.', true);
       }
+      mutate();
+    } catch (err: any) {
+      addNotification('Erro ao confirmar', err.message || 'Não foi possível confirmar.', true);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Cancelar: destrutivo → passo de confirmação. Sai das contagens/Calendário.
+  const handleCancel = async (e: PartyEvent) => {
+    setOpenMenuId(null);
+    if (!confirm(`Cancelar o evento de "${e.client_name || e.theme}"? Ele sai das contagens do Dashboard e do Calendário. Esta ação não pode ser desfeita.`)) return;
+    setBusyId(e.id);
+    try {
+      await cancelPartyEvent(e.id);
+      addNotification('Evento cancelado', `"${e.client_name || e.theme}" foi cancelado.`);
+      mutate();
+    } catch (err: any) {
+      addNotification('Erro ao cancelar', err.message || 'Não foi possível cancelar.', true);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Descartar: apaga um link ainda NÃO preenchido (some da lista).
+  const handleDiscard = async (e: PartyEvent) => {
+    setOpenMenuId(null);
+    if (!confirm(`Descartar este link não preenchido de "${e.theme}"? Ele será removido da lista.`)) return;
+    setBusyId(e.id);
+    try {
+      await discardPartyEvent(e.id);
+      addNotification('Link descartado', 'O link não preenchido foi removido.');
+      mutate();
+    } catch (err: any) {
+      addNotification('Erro ao descartar', err.message || 'Não foi possível descartar.', true);
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -81,15 +133,16 @@ export default function ClientsPage() {
     setMonthFilter('');
   };
 
-  const filteredEvents = events.filter(e => {
-    // Ignora rascunhos de link de orçamento ainda não preenchidos pela cliente.
-    if (!e.client_name.trim()) return false;
-    const matchesSearch = e.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.theme.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter.size === 0 || statusFilter.has(e.status);
-    const matchesMonth = monthFilter === '' || (e.event_date?.slice(0, 7) === monthFilter);
-    return matchesSearch && matchesStatus && matchesMonth;
-  });
+  const filteredEvents = events
+    .filter(e => {
+      const es = effectiveStatus(e); // aplica a finalização automática por data
+      const matchesSearch = `${e.client_name} ${e.theme}`.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter.size === 0 || statusFilter.has(es);
+      const matchesMonth = monthFilter === '' || (e.event_date?.slice(0, 7) === monthFilter);
+      return matchesSearch && matchesStatus && matchesMonth;
+    })
+    // Do envio mais recente para o mais antigo (rascunhos pela data de criação).
+    .sort((a, b) => sortKey(b) - sortKey(a));
 
   if (isLoading) return <div className="p-8 text-center text-slate-500">Carregando clientes...</div>;
 
@@ -143,44 +196,81 @@ export default function ClientsPage() {
             <td colSpan={7} className="text-center py-8 text-slate-500">Nenhum evento encontrado.</td>
           </tr>
         ) : (
-          filteredEvents.map(event => (
+          filteredEvents.map(event => {
+            const es = effectiveStatus(event);
+            const draft = isDraftLink(event);
+            const badge = statusBadge(es);
+            const canConfirm = es === EVENT_STATUS.AGUARDANDO_CONFIRMACAO;
+            const canCancel = es === EVENT_STATUS.AGUARDANDO_CONFIRMACAO || es === EVENT_STATUS.CONFIRMADO;
+            const hasMenu = canCancel || draft;
+            return (
             <tr key={event.id}>
-              <td className="font-bold">{event.client_name}</td>
-              <td>{event.phone}</td>
-              <td>{formatDate(event.event_date)}</td>
+              <td className="font-bold">{event.client_name || <span className="text-slate-400">(link não preenchido)</span>}</td>
+              <td>{event.phone || '—'}</td>
+              <td>{event.event_date ? formatDate(event.event_date) : '—'}</td>
               <td>
                 <span className="category-pill">{event.theme}</span>
               </td>
               <td>
-                <Badge variant={event.status === 'Confirmado' ? 'success' : event.status === 'Pendente' ? 'warning' : 'neutral'}>
-                  {event.status}
-                </Badge>
+                <Badge variant={badge.variant}>{badge.label}</Badge>
               </td>
               <td className="font-bold">{formatCurrency(event.total_value)}</td>
               <td>
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    title="Visualizar documento"
-                    onClick={() => setPreviewEvent(event)}
-                  >
-                    <FileText className="w-4 h-4" />
-                  </Button>
-                  {event.status !== 'Finalizado' && (
-                    <Button 
-                      variant="primary" 
-                      size="icon" 
-                      title="Concluir Evento (Devolver Estoque)"
-                      onClick={() => handleConcludeEvent(event)}
+                <div className="flex gap-2" style={{ position: 'relative' }}>
+                  {!draft && (
+                    <Button variant="secondary" size="icon" title="Visualizar documento" onClick={() => setPreviewEvent(event)}>
+                      <FileText className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {canConfirm && (
+                    <Button
+                      variant="primary"
+                      size="icon"
+                      title="Confirmar evento"
+                      disabled={busyId === event.id}
+                      onClick={() => handleConfirm(event)}
                     >
                       <CheckSquare className="w-4 h-4" />
                     </Button>
                   )}
+                  {hasMenu && (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        title="Mais ações"
+                        disabled={busyId === event.id}
+                        onClick={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                      {openMenuId === event.id && (
+                        <>
+                          {/* clique fora fecha o menu */}
+                          <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpenMenuId(null)} />
+                          <div className="row-menu" style={{ position: 'absolute', right: 0, top: '110%', zIndex: 30, background: 'white', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, padding: 6 }}>
+                            {canCancel && (
+                              <button type="button" className="row-menu-item" onClick={() => handleCancel(event)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', fontSize: 13, fontWeight: 600, color: '#dc2626', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                                <XCircle className="w-4 h-4" /> Cancelar evento
+                              </button>
+                            )}
+                            {draft && (
+                              <button type="button" className="row-menu-item" onClick={() => handleDiscard(event)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', fontSize: 13, fontWeight: 600, color: '#64748b', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                                <Trash2 className="w-4 h-4" /> Descartar link
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               </td>
             </tr>
-          ))
+            );
+          })
         )}
       </Table>
 
@@ -203,10 +293,10 @@ export default function ClientsPage() {
           <div className="quote-doc">
             {/* Cabeçalho: imagem única da decoradora (avatar), igual ao PDF */}
             <div className="quote-doc-header">
-              {(previewOwner?.avatar_url || previewOwner?.logo_url) ? (
+              {previewOwner?.avatar_url ? (
                 <img
                   className="quote-doc-logo"
-                  src={previewOwner?.avatar_url || previewOwner?.logo_url}
+                  src={previewOwner.avatar_url}
                   alt={previewOwner?.name || 'Logo'}
                 />
               ) : (

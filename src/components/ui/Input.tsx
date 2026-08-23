@@ -14,7 +14,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, icon: Icon, ...props }, ref) => {
     return (
       <div className="form-group">
-        {label && <label className="form-label">{label}</label>}
+        {label && <label className="form-label" style={error ? { color: '#ef4444' } : undefined}>{label}</label>}
         <div className="relative">
           {Icon && (
             <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />

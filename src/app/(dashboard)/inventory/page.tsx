@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Plus, Search, SlidersHorizontal, Package, LayoutGrid,
   DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, ShoppingCart, Check
@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useNotificationStore } from '@/stores/notification-store';
-import { formatCurrency, getPlaceholderImage } from '@/lib/utils';
+import { formatCurrency, formatPriceLabel, hasPrice, getPlaceholderImage } from '@/lib/utils';
 import type { InventoryItem, Kit } from '@/types';
 
 export default function InventoryPage() {
@@ -42,8 +42,13 @@ export default function InventoryPage() {
   const [kitName, setKitName] = useState('');
   const [kitDescription, setKitDescription] = useState('');
   const [kitValue, setKitValue] = useState('');
+  // Erro do valor do kit é ON SUBMIT: só vira true quando a decoradora tenta
+  // salvar sem valor válido. Ao abrir o modal começa limpo (sem erro herdado).
+  const [kitValueError, setKitValueError] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState('');
-  const [linkedItems, setLinkedItems] = useState<{ id: string; name: string; quantity: number; image_url?: string }[]>([]);
+  // isNew = peça CRIADA dentro deste modal (vs. peça já existente só vinculada).
+  // Só as novas têm o estoque inicial semeado pela quantidade do modal ao salvar.
+  const [linkedItems, setLinkedItems] = useState<{ id: string; name: string; quantity: number; image_url?: string; isNew?: boolean }[]>([]);
   const [kitSearchQuery, setKitSearchQuery] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [editingKitId, setEditingKitId] = useState<string | null>(null);
@@ -63,16 +68,6 @@ export default function InventoryPage() {
   const filteredSinglePieceKits = singlePieceKits.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredMultiPieceKits = multiPieceKits.filter(k => k.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  // Synchronize coverImageUrl with the single linked item's image_url in state (Peças Avulsas only)
-  useEffect(() => {
-    const totalPieces = linkedItems.reduce((sum, i) => sum + i.quantity, 0);
-    if (totalPieces === 1 && linkedItems.length === 1) {
-      if (linkedItems[0].image_url !== coverImageUrl) {
-        setLinkedItems(prev => prev.map((item, idx) => idx === 0 ? { ...item, image_url: coverImageUrl } : item));
-      }
-    }
-  }, [coverImageUrl, linkedItems.length]);
-
   // Abre o modal UNIFICADO (mesmo de "Criar Nova Peça/Kit") em modo edição de
   // Peça Avulsa: pré-preenche os campos compartilhados e guarda a peça original
   // (editingItem) para preservar os campos numéricos/status ao salvar.
@@ -89,6 +84,7 @@ export default function InventoryPage() {
     setEditingKitId(null);
     setEditingItem(item);
     setEditingItemId(item.id);
+    setKitValueError(false);
     setIsKitModalOpen(true);
   };
 
@@ -118,6 +114,7 @@ export default function InventoryPage() {
     setKitSearchQuery('');
     setEditingKitId(null);
     setEditingItemId(null);
+    setKitValueError(false);
     setIsKitModalOpen(true);
   };
 
@@ -143,6 +140,7 @@ export default function InventoryPage() {
     
     setKitSearchQuery('');
     setEditingKitId(kit.id);
+    setKitValueError(false);
     setIsKitModalOpen(true);
   };
 
@@ -192,12 +190,12 @@ export default function InventoryPage() {
     }
   };
 
-  const handleLinkKitItem = (item: { id: string; name: string; quantity: number; image_url?: string }) => {
+  const handleLinkKitItem = (item: { id: string; name: string; quantity: number; image_url?: string; isNew?: boolean }) => {
     const exists = linkedItems.find(i => i.id === item.id);
     if (exists) {
       setLinkedItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
-      setLinkedItems(prev => [...prev, { id: item.id, name: item.name, quantity: item.quantity, image_url: item.image_url }]);
+      setLinkedItems(prev => [...prev, { id: item.id, name: item.name, quantity: item.quantity, image_url: item.image_url, isNew: item.isNew }]);
     }
   };
 
@@ -232,18 +230,26 @@ export default function InventoryPage() {
       decorator_id: decorator.id,
       name: name,
       description: 'Peça avulsa criada via kit',
-      image_url: coverImageUrl || '',
+      // A foto de capa pertence AO KIT, não à peça. A peça nasce SEM imagem
+      // (placeholder no card); a decoradora sobe a foto dela depois pelo Editar.
+      image_url: '',
       status: 'Privado',
-      stock_quantity: 10,
-      rental_price: 25.0,
-      internal_cost: 10.0
+      // Preço/custo nascem ZERADOS (sem valor inventado) — a decoradora define
+      // depois pelo Editar. O ESTOQUE nasce com a quantidade do seletor (aqui, 1)
+      // e é reajustado ao salvar o kit com o valor final que ela deixar no modal.
+      // OBS: a quantidade do seletor é COMPOSIÇÃO do kit; para uma peça NOVA ela
+      // também semeia o estoque inicial. Para peça já existente, o estoque nunca
+      // é tocado (só as marcadas isNew são semeadas em handleSaveKit).
+      stock_quantity: 1,
+      rental_price: 0,
+      internal_cost: 0
     };
     try {
       const saved = await saveInventoryItem(newItem);
       // Vincula à lista do kit IMEDIATAMENTE, antes de qualquer revalidação:
       // se o refetch em segundo plano falhar, ele não pode engolir a atualização
       // do estado local (era esse o await abaixo que quebrava a adição na lista).
-      handleLinkKitItem({ id: saved.id, name: saved.name, quantity: 1, image_url: saved.image_url });
+      handleLinkKitItem({ id: saved.id, name: saved.name, quantity: 1, image_url: saved.image_url, isNew: true });
       setKitSearchQuery('');
       addNotification('Item Criado', `A peça "${saved.name}" foi salva e vinculada ao kit.`);
       // Revalida o acervo em segundo plano; um erro aqui não deve bloquear o fluxo.
@@ -290,8 +296,16 @@ export default function InventoryPage() {
     }
 
     const parsedValue = kitValue.trim() !== ''
-      ? Number(kitValue.replace(/\D/g, '')) / 100 
+      ? Number(kitValue.replace(/\D/g, '')) / 100
       : null;
+
+    // Valor do kit é OBRIGATÓRIO (> 0). Validação ON SUBMIT: ao clicar em Salvar
+    // sem valor válido, marca o erro (campo/rótulo vermelhos) e não salva. O
+    // vermelho some sozinho quando um valor > 0 é digitado (showKitValueError).
+    if (!parsedValue || parsedValue <= 0) {
+      setKitValueError(true);
+      return;
+    }
 
     const kitData: Partial<Kit> = {
       id: editingKitId || undefined,
@@ -307,20 +321,33 @@ export default function InventoryPage() {
       }))
     };
 
-    // If it's a single-piece kit (Peça Avulsa), automatically sync the cover photo to the linked InventoryItem
-    const totalPieces = linkedItems.reduce((sum, i) => sum + i.quantity, 0);
-    if (totalPieces === 1 && linkedItems.length === 1) {
-      const singleItem = linkedItems[0];
-      const originalItem = items.find(i => i.id === singleItem.id);
-      if (originalItem && originalItem.image_url !== coverImageUrl) {
-        const updatedItem = {
-          ...originalItem,
-          image_url: coverImageUrl
-        };
-        await saveInventoryItem(updatedItem);
-        mutateItems();
+    // A foto de capa NÃO é sincronizada para a peça vinculada — nem no kit de
+    // uma peça só. A capa fica exclusivamente no registro do kit; a peça mantém
+    // (ou não) a própria foto, editável separadamente. Assim, trocar a capa do
+    // kit nunca altera nenhuma peça, e uma peça com foto própria fica intacta.
+
+    // Semeia o ESTOQUE INICIAL das peças CRIADAS neste fluxo (isNew) com a
+    // quantidade final do seletor. Peças já existentes NÃO têm o estoque tocado —
+    // para elas a quantidade vale só como composição do kit.
+    const seededNew = linkedItems.filter(i => i.isNew);
+    for (const li of seededNew) {
+      const original = items.find(i => i.id === li.id);
+      const base: InventoryItem = original ?? {
+        id: li.id,
+        decorator_id: decorator.id,
+        name: li.name,
+        description: 'Peça avulsa criada via kit',
+        image_url: '',
+        status: 'Privado',
+        stock_quantity: 0,
+        rental_price: 0,
+        internal_cost: 0,
+      };
+      if (base.stock_quantity !== li.quantity) {
+        await saveInventoryItem({ ...base, stock_quantity: li.quantity });
       }
     }
+    if (seededNew.length) mutateItems();
 
     await saveKit(kitData);
     addNotification('Kit Salvo', `O kit "${kitData.name}" foi registrado com sucesso.`);
@@ -344,6 +371,22 @@ export default function InventoryPage() {
 
   // Peças Avulsas: quantidade já presente no formulário em andamento para uma peça
   const getPartyFormQty = (itemId: string) => partyFormItems.find(p => p.item.id === itemId)?.quantity || 0;
+
+  // "Adicionar ao formulário" fica desabilitado sem estoque disponível OU enquanto
+  // o preço de locação não estiver definido (peça nova nasce com "A definir").
+  const isAddToFormDisabled = (item: InventoryItem) =>
+    getPartyFormQty(item.id) >= item.stock_quantity || !hasPrice(item.rental_price);
+
+  // Valor digitado no modal (em reais). O campo guarda a string formatada.
+  const parsedModalValue = kitValue.trim() !== '' ? Number(kitValue.replace(/\D/g, '')) / 100 : 0;
+  // Valor é OBRIGATÓRIO para KIT (criar/editar kit). Ao editar uma PEÇA
+  // (editingItemId), o mesmo campo é o preço da peça e segue OPCIONAL: peça sem
+  // valor é rascunho — existe no acervo, mas não circula (nem forma, nem público).
+  const kitValueRequired = !editingItemId;
+  const kitValueInvalid = kitValueRequired && !(parsedModalValue > 0);
+  // Só exibe o vermelho DEPOIS de tentar salvar (kitValueError) e enquanto o
+  // valor seguir inválido — some sozinho quando um valor > 0 é digitado.
+  const showKitValueError = kitValueError && kitValueInvalid;
 
   const handleAddItemToForm = (item: InventoryItem) => {
     const currentQty = getPartyFormQty(item.id);
@@ -517,7 +560,7 @@ export default function InventoryPage() {
                       </div>
                       <div className="acervo-metric-right">
                         <span className="acervo-metric-label">LOCAÇÃO B2B</span>
-                        <span className="acervo-metric-value acervo-price">{formatCurrency(item.rental_price)}</span>
+                        <span className="acervo-metric-value acervo-price">{formatPriceLabel(item.rental_price)}</span>
                       </div>
                     </div>
 
@@ -525,14 +568,14 @@ export default function InventoryPage() {
                     <button
                       type="button"
                       onClick={() => handleAddItemToForm(item)}
-                      disabled={getPartyFormQty(item.id) >= item.stock_quantity}
+                      disabled={isAddToFormDisabled(item)}
                       className="btn-primary"
                       style={{
                         width: '100%', marginTop: '14px', marginBottom: '8px', justifyContent: 'center',
                         backgroundColor: addedItemIds.has(item.id) ? '#16a34a' : '#2563eb',
                         display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '8px 12px',
-                        opacity: getPartyFormQty(item.id) >= item.stock_quantity ? 0.5 : 1,
-                        cursor: getPartyFormQty(item.id) >= item.stock_quantity ? 'not-allowed' : 'pointer',
+                        opacity: isAddToFormDisabled(item) ? 0.5 : 1,
+                        cursor: isAddToFormDisabled(item) ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {addedItemIds.has(item.id) ? (
@@ -748,13 +791,15 @@ export default function InventoryPage() {
             />
           </div>
 
-          {/* Mesma estrutura do modal "Nova Peça" (construtor) — usada também na edição. */}
+          {/* Valor: obrigatório para KIT; opcional ao editar uma PEÇA (rascunho).
+              Erro só aparece ON SUBMIT (showKitValueError). */}
           <Input
             type="text"
-            label="Valor (opcional)"
+            label={editingItemId ? 'Valor de Locação (opcional)' : 'Valor do Kit *'}
             placeholder="R$ 0,00"
             value={kitValue}
             onChange={handleKitValueChange}
+            error={showKitValueError ? 'Informe o valor do kit' : undefined}
           />
 
           {/* Cover Photo Drag and Drop area */}
@@ -843,7 +888,15 @@ export default function InventoryPage() {
                 {kitSearchResults.map(item => (
                   <div key={item.id} className="linked-item-row hover:bg-slate-50 transition-colors">
                     <div className="flex-row-center">
-                      <img src={item.image_url} alt={item.name} className="search-result-thumbnail" />
+                      {/* Miniatura = foto PRÓPRIA da peça; placeholder neutro quando não há.
+                          Nunca a foto de capa do kit. */}
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="search-result-thumbnail" />
+                      ) : (
+                        <div className="search-result-thumbnail" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)' }}>
+                          <ImageIcon style={{ width: 18, height: 18 }} />
+                        </div>
+                      )}
                       <div>
                         <span className="text-sm font-bold text-slate-800 block leading-tight">{item.name}</span>
                         <span className="text-[11px] font-medium text-slate-400 block mt-1">
@@ -880,11 +933,15 @@ export default function InventoryPage() {
                   {linkedItems.map((item) => (
                     <div key={item.id} className="flex-row-between bg-white p-2 rounded-lg border border-slate-100 shadow-xs">
                       <div className="flex-row-center">
-                        <img 
-                          src={item.image_url || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=150'} 
-                          alt={item.name} 
-                          className="checklist-item-thumbnail" 
-                        />
+                        {/* Miniatura = foto PRÓPRIA da peça; placeholder neutro quando
+                            não há. Sem fallback de foto genérica nem a capa do kit. */}
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="checklist-item-thumbnail" />
+                        ) : (
+                          <div className="checklist-item-thumbnail" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-light)' }}>
+                            <ImageIcon style={{ width: 18, height: 18 }} />
+                          </div>
+                        )}
                         <span className="text-sm font-bold text-slate-800 leading-tight">{item.name}</span>
                       </div>
                       <div className="flex-row-center">

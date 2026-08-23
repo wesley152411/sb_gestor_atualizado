@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { EVENT_STATUS } from '@/lib/event-status';
 
 export async function POST(request: Request) {
   try {
@@ -49,6 +50,11 @@ export async function POST(request: Request) {
       items = [{ id: item.id, name: item.name, quantity: 1, price }];
     }
 
+    // SEMPRE um token NOVO por clique. Não reaproveitamos rascunho da mesma
+    // peça/kit: a decoradora pode mandar a MESMA peça para duas clientes; com
+    // token compartilhado, a 1ª que preenchesse travaria o link e a 2ª tomaria
+    // 409 — perdendo o orçamento em silêncio. O lixo de cliques acidentais é
+    // resolvido pelo "Descartar link" na aba Clientes.
     const quote = await prisma.partyEvent.create({
       data: {
         id: `quote-${Date.now()}`,
@@ -59,7 +65,7 @@ export async function POST(request: Request) {
         client_name: '',
         theme: name,
         total_value: price,
-        status: 'Pendente',
+        status: EVENT_STATUS.AGUARDANDO_PREENCHIMENTO,
         items,
       },
     });

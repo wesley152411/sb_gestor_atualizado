@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { saveDecoratorProfile, signOut, resetPassword, uploadImage } from '@/services/api';
 import { detectCity } from '@/lib/geolocation';
-import { getInitials } from '@/lib/utils';
+import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import type { Decorator } from '@/types';
@@ -27,11 +27,19 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     if (!profile.id) return;
     setIsLoading(true);
-    // Nota: whatsapp / instagram / about / cover_url não têm mais campo nesta tela,
-    // mas continuam no estado (carregados do perfil) e são re-salvos sem alteração,
-    // preservando os dados usados na Minha Página e no orçamento público.
-    const updated = await saveDecoratorProfile(profile as Decorator);
+    // Sanitiza os campos de contato ANTES de gravar (armazenamento limpo):
+    // - about: trim; - whatsapp: só dígitos (DDI/DDD); - instagram: handle sem @.
+    // Vazio => null (não undefined): o /api/decorators/me só sobrescreve quando a
+    // chave vem no corpo; enviar null garante que LIMPAR o campo realmente grava.
+    const sanitized = {
+      ...profile,
+      about: profile.about?.trim() || null,
+      whatsapp: sanitizePhoneDigits(profile.whatsapp) || null,
+      instagram: sanitizeInstagramHandle(profile.instagram) || null,
+    } as Record<string, unknown>;
+    const updated = await saveDecoratorProfile(sanitized as unknown as Decorator);
     updateDecorator(updated);
+    setProfile(updated);
     addNotification('Perfil Atualizado', 'Suas informações foram salvas com sucesso.');
     setIsLoading(false);
   };
@@ -198,6 +206,31 @@ export default function SettingsPage() {
                 {isLocating ? '⏳ Localizando…' : '📍 Usar GPS'}
               </button>
             </div>
+
+            {/* Apresentação e contato — exibidos na página pública da parceira. */}
+            <div className="form-group">
+              <label className="form-label">Sobre</label>
+              <textarea
+                className="form-input"
+                placeholder="Fale um pouco sobre a sua empresa de decoração..."
+                rows={4}
+                value={profile.about || ''}
+                onChange={e => setProfile({ ...profile, about: e.target.value })}
+              />
+            </div>
+            <Input
+              label="WhatsApp"
+              placeholder="(31) 99999-9999"
+              value={profile.whatsapp || ''}
+              onChange={e => setProfile({ ...profile, whatsapp: e.target.value })}
+            />
+            <Input
+              label="Instagram"
+              placeholder="@seu.perfil"
+              value={profile.instagram || ''}
+              onChange={e => setProfile({ ...profile, instagram: e.target.value })}
+            />
+
             <div className="settings-actions-end">
               <Button onClick={handleSaveProfile} isLoading={isLoading}>Salvar Alterações</Button>
             </div>

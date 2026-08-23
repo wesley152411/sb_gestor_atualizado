@@ -149,6 +149,7 @@ model PartyEvent {
   source_item_id        String?
   source_kit_id         String?
   observation           String?
+  submitted_at          DateTime?      @db.Timestamptz(6)
   decorators            Decorator?     @relation(fields: [decorator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   clients               Client?        @relation(fields: [client_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   inventory_items_quote InventoryItem? @relation("party_event_source_item", fields: [source_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)

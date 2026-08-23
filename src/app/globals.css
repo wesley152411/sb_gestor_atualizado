@@ -472,7 +472,17 @@ img { max-width: 100%; display: block; }
 }
 
 /* ==================== FORMS ==================== */
-.form-group { margin-bottom: 16px; }
+/* Campo reutilizável (label + input). Vira coluna flex para que, numa linha de
+   grid (grid-2/grid-3), as células — esticadas à mesma altura — empurrem o input
+   para a BASE via margin-top:auto. Assim, quando um label quebra em duas linhas,
+   os inputs vizinhos continuam alinhados por topo e base (ícones nativos de data/
+   hora na mesma altura). Em campo isolado (não esticado) não há efeito visual. */
+.form-group {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+}
+.form-group > .relative { margin-top: auto; }
 
 .form-label {
   display: block;

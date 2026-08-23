@@ -85,7 +85,7 @@ export const initialPartyEvents: PartyEvent[] = [
   {
     id: 'evt-2', client_name: 'Juliana Souza', phone: '11977776666', address: 'Rua Augusta, 500 - São Paulo, SP',
     setup_time: '10:00', start_time: '15:00', theme: 'Festa Infantil Bosque', total_value: 2800.00, event_date: '2026-06-15',
-    status: 'Pendente', items: [{ id: 'inv-1', name: 'Cadeira Dior Dourada Resina', quantity: 100, price: 15.00 }],
+    status: 'Aguardando confirmação', items: [{ id: 'inv-1', name: 'Cadeira Dior Dourada Resina', quantity: 100, price: 15.00 }],
   },
 ];
 
