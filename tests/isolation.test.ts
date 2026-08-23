@@ -14,7 +14,7 @@ beforeAll(async () => {
   ]);
   // Dados só da conta A: um cliente e um evento.
   await post('/api/clients', A.cookie, { id: `cli_${Date.now()}`, name: 'Cliente de A', phone: '11999990000' });
-  await post('/api/party-events', A.cookie, { id: `evt_${Date.now()}`, client_name: 'Festa de A', event_date: '2026-09-01', status: 'Pendente' });
+  await post('/api/party-events', A.cookie, { id: `evt_${Date.now()}`, client_name: 'Festa de A', event_date: '2026-09-01', status: 'Aguardando confirmação' });
 });
 
 afterAll(async () => {
@@ -191,5 +191,74 @@ describe('Isolamento multi-conta', () => {
     expect(loc).toContain('/login');
     expect(loc).toContain('erro=confirmacao');
     await cleanupAccounts([M.id]);
+  });
+});
+
+// Regressão do link de orçamento público: a rota é aberta (sem sessão), então
+// precisa devolver SÓ o card + a decoradora, nunca dados sensíveis; e só o dono
+// age sobre o próprio evento.
+describe('Isolamento — link de orçamento público (/api/public/quote)', () => {
+  it('token válido lê só o próprio orçamento e o payload é enxuto (sem e-mail/custo/listas)', async () => {
+    // A cria uma peça e gera o link de orçamento dela.
+    const itemId = `inv_${Date.now()}`;
+    await post('/api/inventory', A.cookie, {
+      id: itemId, name: 'Peça Link A', description: 'x', image_url: '',
+      status: 'Privado', stock_quantity: 5, rental_price: 100, internal_cost: 40,
+    });
+    const linkRes = await post('/api/quote-links', A.cookie, { itemId });
+    expect(linkRes.status).toBe(200);
+    const { token } = await linkRes.json();
+    expect(token).toBeTruthy();
+
+    // GET público (SEM cookie) — contrato mínimo.
+    const res = await api(`/api/public/quote/${token}`, null);
+    expect(res.status).toBe(200);
+    const pub = await res.json();
+    expect(pub.card?.name).toBe('Peça Link A');
+    expect(pub.decorator?.name).toBeTruthy();
+
+    // A decoradora só expõe nome + whatsapp.
+    expect(Object.keys(pub.decorator).sort()).toEqual(['name', 'whatsapp']);
+    // Top-level restrito ao contrato — nada de clients/events/acervo.
+    const allowedTop = ['token', 'status', 'decorator', 'card', 'client_name', 'phone', 'address', 'event_date', 'setup_time', 'start_time', 'observation'];
+    expect(Object.keys(pub).every((k) => allowedTop.includes(k))).toBe(true);
+    // Nunca vaza e-mail de login nem custo interno.
+    const raw = JSON.stringify(pub);
+    expect(raw).not.toContain('internal_cost');
+    expect(raw).not.toContain(A.email);
+    expect(pub.client_name).toBe(''); // rascunho, ainda não preenchido
+  });
+
+  it('token alterado não devolve nada (404)', async () => {
+    const itemId = `inv_${Date.now()}`;
+    await post('/api/inventory', A.cookie, {
+      id: itemId, name: 'Peça Link A2', description: 'x', image_url: '',
+      status: 'Privado', stock_quantity: 5, rental_price: 100, internal_cost: 40,
+    });
+    const { token } = await (await post('/api/quote-links', A.cookie, { itemId })).json();
+    const tampered = token.slice(0, -1) + (token.endsWith('a') ? 'b' : 'a');
+    const res = await api(`/api/public/quote/${tampered}`, null);
+    expect(res.status).toBe(404);
+  });
+
+  it('B não confirma, cancela nem descarta um evento de A (403)', async () => {
+    const ev = await prisma.partyEvent.findFirst({ where: { decorator_id: A.id }, orderBy: { created_at: 'desc' } });
+    expect(ev).toBeTruthy();
+    for (const action of ['confirm', 'cancel', 'discard'] as const) {
+      const r = await post(`/api/party-events/${ev!.id}`, B.cookie, { action });
+      expect(r.status, action).toBe(403);
+    }
+  });
+
+  it('gerar link exige sessão e a posse da peça (401 sem sessão; 403 de peça alheia)', async () => {
+    const itemId = `inv_${Date.now()}`;
+    await post('/api/inventory', A.cookie, {
+      id: itemId, name: 'Peça de A', description: 'x', image_url: '',
+      status: 'Privado', stock_quantity: 5, rental_price: 100, internal_cost: 40,
+    });
+    // sem sessão
+    expect((await post('/api/quote-links', null, { itemId })).status).toBe(401);
+    // B tentando gerar link de uma peça de A
+    expect((await post('/api/quote-links', B.cookie, { itemId })).status).toBe(403);
   });
 });
