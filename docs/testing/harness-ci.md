@@ -17,31 +17,29 @@ teste existir e a variável `HARNESS_ENABLED` for ligada. Nada aqui toca produç
 4. **Replicar o schema** (abaixo) no projeto de teste.
 5. Abrir um PR — o job **Harness de isolamento** roda contra o banco de teste.
 
-## Replicar o schema com fidelidade (não recriar na mão)
+## Replicar o schema com fidelidade
 
 O ponto do harness são as **políticas de RLS**; recriar só as tabelas não basta.
-Use o Supabase CLI para gerar as migrations a partir da PRODUÇÃO e aplicá-las no
-teste, evitando divergência silenciosa:
+O baseline **já está versionado** em `supabase/migrations/*_baseline.sql`, gerado
+por um `pg_dump --schema-only` **read-only da produção** (o `supabase db pull`
+falhou porque a prod nunca teve histórico de migrations — este projeto está
+adotando migrations agora). Ele traz tabelas, constraints (inclui o CHECK dos 5
+status), índices, **10 políticas RLS**, e a semente do bucket de Storage
+`festora`.
+
+Aplicar no projeto de TESTE:
 
 ```bash
-# uma vez, se ainda não houver versionamento de migrations
-supabase init
-
-# 1) puxar o schema da PRODUÇÃO para uma migration versionada
-#    (traz tabelas, constraints — inclui o CHECK dos 5 status —, índices,
-#     policies RLS, triggers e funções)
-supabase link --project-ref urvbkfyyvbsahdnkkwed        # produção
-supabase db pull                                        # gera supabase/migrations/*.sql
-
-# 2) aplicar a MESMA migration no projeto de TESTE
 supabase link --project-ref <ref-de-teste>
-supabase db push
+supabase db push        # aplica supabase/migrations/*_baseline.sql no teste
 ```
 
-> **Storage:** `db pull` não traz os buckets. Recrie no teste os buckets usados
-> pelo app — `avatars` e `inventory` — (dashboard do Storage ou
-> `insert into storage.buckets (id, name, public) values ('avatars','avatars',true), ('inventory','inventory',true);`)
-> e replique as policies de Storage se houver.
+> **Produção:** NÃO rodar `supabase db pull` nem `migration repair` contra a prod
+> por ora — ela não tem tabela de histórico e a adoção do ledger na prod é um
+> passo separado (opcional). O baseline veio de leitura pura; a produção não foi
+> tocada.
+> **Storage:** os buckets são DADOS (não vêm no dump do schema). O baseline já
+> semeia `festora`; se criar novos buckets, replique nos dois.
 
 ## Manter os dois em sincronia (a partir de agora)
 
