@@ -131,7 +131,7 @@ export interface PartyEvent {
   theme: string;
   total_value: number;
   event_date: string;
-  status: 'Confirmado' | 'Pendente' | 'Finalizado';
+  status: EventStatus;
   items: PartyEventItem[];
   decorator_id?: string;
   client_id?: string;
@@ -140,7 +140,17 @@ export interface PartyEvent {
   source_kit_id?: string;
   observation?: string;
   created_at?: string;
+  submitted_at?: string; // quando a cliente ENVIOU o link (POST público); null nos rascunhos
 }
+
+// Ciclo de vida do PartyEvent (orçamento por link e evento interno) — vocabulário
+// ÚNICO em todo o sistema. Ver src/lib/event-status.ts para regras/helpers.
+export type EventStatus =
+  | 'Aguardando preenchimento' // link gerado, cliente ainda não enviou (rascunho)
+  | 'Aguardando confirmação'   // cliente enviou / orçamento manual aguardando fechar
+  | 'Confirmado'               // decoradora fechou — bloqueia estoque
+  | 'Finalizado'               // evento já ocorreu (derivado por data)
+  | 'Cancelado';               // cliente desistiu
 
 // Dados públicos de um card (peça/kit) de origem, exibidos na página do link de orçamento.
 export interface QuoteSourceCard {
@@ -155,7 +165,7 @@ export interface QuoteSourceCard {
 
 export interface QuoteLinkData {
   token: string;
-  status: 'Confirmado' | 'Pendente' | 'Finalizado';
+  status: EventStatus;
   decorator: { name: string; whatsapp?: string };
   card: QuoteSourceCard;
   client_name: string;

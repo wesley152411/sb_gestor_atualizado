@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, MessageCircle } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, whatsappUrl } from '@/lib/utils';
+import { EVENT_STATUS } from '@/lib/event-status';
 import type { QuoteLinkData } from '@/types';
 
 // ==================== TOKENS VISUAIS ====================
@@ -60,8 +61,6 @@ export default function PublicQuotePage() {
     }
     load();
   }, [token]);
-
-  const isLocked = quote?.status === 'Confirmado' || quote?.status === 'Finalizado';
 
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.event_date) {
@@ -118,6 +117,14 @@ export default function PublicQuotePage() {
   }
 
   const items = quote.card.items || [];
+
+  // Só o RASCUNHO ("Aguardando preenchimento") é editável. Depois do envio (ou
+  // se já veio enviado/confirmado/finalizado) → tela de agradecimento em leitura.
+  // Cancelado → mensagem própria de orçamento inativo.
+  const isCancelled = quote.status === EVENT_STATUS.CANCELADO;
+  const isDraft = quote.status === EVENT_STATUS.AGUARDANDO_PREENCHIMENTO;
+  const showForm = isDraft && !submitted;
+  const waLink = whatsappUrl(quote.decorator.whatsapp);
 
   return (
     <div style={pageWrapperStyle}>
@@ -178,13 +185,33 @@ export default function PublicQuotePage() {
           </div>
         </div>
 
-        {isLocked ? (
+        {isCancelled ? (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <CheckCircle2 className="w-10 h-10" style={{ color: '#10b981', margin: '0 auto 12px' }} />
-            <p style={{ fontWeight: 700, marginBottom: 4 }}>Este orçamento já foi confirmado.</p>
-            <p style={{ fontSize: 13, color: '#8a8078' }}>
-              Qualquer alteração agora precisa ser feita diretamente com {quote.decorator.name}.
+            <p style={{ fontWeight: 700, marginBottom: 4, fontSize: 16 }}>Orçamento não está mais ativo</p>
+            <p style={{ fontSize: 13, color: '#8a8078', marginBottom: waLink ? 18 : 0 }}>
+              Este orçamento foi cancelado. Se ainda tiver interesse, fale diretamente com {quote.decorator.name}.
             </p>
+            {waLink && <WhatsAppLink href={waLink} />}
+          </div>
+        ) : !showForm ? (
+          <div style={{ padding: '8px 0' }}>
+            <div style={{ textAlign: 'center', marginBottom: 22 }}>
+              <CheckCircle2 className="w-10 h-10" style={{ color: '#10b981', margin: '0 auto 12px' }} />
+              <p style={{ fontWeight: 700, marginBottom: 4, fontSize: 16 }}>Pedido recebido! 🎉</p>
+              <p style={{ fontSize: 13, color: '#8a8078' }}>
+                Seus dados foram enviados para {quote.decorator.name}. Agora é só aguardar a confirmação do orçamento.
+              </p>
+            </div>
+            <div style={{ background: '#FBF7F2', border: '1px solid #F2E4DE', borderRadius: 14, padding: 18, marginBottom: waLink ? 18 : 0 }}>
+              <ReadRow label="Nome" value={form.name} />
+              <ReadRow label="Telefone" value={form.phone} />
+              <ReadRow label="Endereço" value={form.address} />
+              <ReadRow label="Data do evento" value={form.event_date} />
+              <ReadRow label="Horário de chegada" value={form.setup_time} />
+              <ReadRow label="Horário de início" value={form.start_time} />
+              {form.observation?.trim() && <ReadRow label="Observações" value={form.observation} />}
+            </div>
+            {waLink && <WhatsAppLink href={waLink} />}
           </div>
         ) : (
           <>
@@ -244,6 +271,30 @@ export default function PublicQuotePage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Linha somente-leitura dos dados enviados (tela de agradecimento).
+function ReadRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 0', borderBottom: '1px dashed #EADFD6' }}>
+      <span style={{ fontSize: 12, color: '#a2968e', fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 13, color: '#2f2a26', textAlign: 'right', wordBreak: 'break-word' }}>{value || '—'}</span>
+    </div>
+  );
+}
+
+// Botão de contato com a decoradora por WhatsApp (nova aba, rel seguro).
+function WhatsAppLink({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '12px 16px', borderRadius: 12, background: '#059669', color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none' }}
+    >
+      <MessageCircle className="w-4 h-4" /> Falar no WhatsApp
+    </a>
   );
 }
 

@@ -13,6 +13,7 @@ import { useNotificationStore } from '@/stores/notification-store';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/utils';
+import { EVENT_STATUS, effectiveStatus, showsInCalendar } from '@/lib/event-status';
 import { generateLogisticsPDF } from '@/lib/pdf-generator';
 import type { RentalOrder, PartyEvent } from '@/types';
 
@@ -58,9 +59,9 @@ function getWeekDays(anchor: Date): Date[] {
 type StatusKey = 'success' | 'warning' | 'neutral';
 
 function statusMeta(status?: string): { key: StatusKey; Icon: LucideIcon; label: string } {
-  if (status === 'Confirmado') return { key: 'success', Icon: CheckCircle2, label: status };
-  if (status === 'Pendente') return { key: 'warning', Icon: Clock, label: status };
-  return { key: 'neutral', Icon: Clock, label: status || '—' };
+  if (status === EVENT_STATUS.CONFIRMADO) return { key: 'success', Icon: CheckCircle2, label: status };
+  if (status === EVENT_STATUS.AGUARDANDO_CONFIRMACAO) return { key: 'warning', Icon: Clock, label: status };
+  return { key: 'neutral', Icon: Clock, label: status || '—' }; // Finalizado / Cancelado / etc.
 }
 
 // Give each item a more meaningful glyph than a generic box, inferred from its
@@ -111,6 +112,8 @@ export default function CalendarPage() {
         if (key) getBucket(key).rentalOrders.push(o);
       });
       partyEvents.forEach((e) => {
+        // Fora do Calendário: rascunho de link (sem data) e cancelado.
+        if (!showsInCalendar(e)) return;
         const key = toDateKey(e.event_date);
         if (key) getBucket(key).partyEvents.push(e);
       });
@@ -335,7 +338,7 @@ function DayDetails({ bucket, decoratorId, onDownloadPDF }: {
           key={event.id}
           eyebrow="Formulário de Festa"
           title={event.client_name}
-          status={event.status}
+          status={effectiveStatus(event)}
           items={event.items}
           phone={event.phone}
           action={

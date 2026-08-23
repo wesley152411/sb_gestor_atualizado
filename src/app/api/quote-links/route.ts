@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { EVENT_STATUS } from '@/lib/event-status';
 
 export async function POST(request: Request) {
   try {
@@ -49,6 +50,21 @@ export async function POST(request: Request) {
       items = [{ id: item.id, name: item.name, quantity: 1, price }];
     }
 
+    // Reaproveita um link ainda NÃO preenchido da MESMA peça/kit (mesmo dono),
+    // em vez de criar outro a cada clique — evita a proliferação de órfãos.
+    const existingDraft = await prisma.partyEvent.findFirst({
+      where: {
+        decorator_id: decoratorId,
+        status: EVENT_STATUS.AGUARDANDO_PREENCHIMENTO,
+        client_id: null,
+        ...(sourceKitId ? { source_kit_id: sourceKitId } : { source_item_id: sourceItemId }),
+      },
+      orderBy: { created_at: 'desc' },
+    });
+    if (existingDraft?.public_token) {
+      return NextResponse.json({ token: existingDraft.public_token });
+    }
+
     const quote = await prisma.partyEvent.create({
       data: {
         id: `quote-${Date.now()}`,
@@ -59,7 +75,7 @@ export async function POST(request: Request) {
         client_name: '',
         theme: name,
         total_value: price,
-        status: 'Pendente',
+        status: EVENT_STATUS.AGUARDANDO_PREENCHIMENTO,
         items,
       },
     });

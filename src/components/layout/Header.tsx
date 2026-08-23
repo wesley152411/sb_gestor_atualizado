@@ -7,6 +7,7 @@ import { useCartStore } from '@/stores/cart-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePartyEvents, useRentalOrders } from '@/hooks/swr-hooks';
 import { formatCurrency } from '@/lib/utils';
+import { EVENT_STATUS, effectiveStatus } from '@/lib/event-status';
 import { Button } from '../ui/Button';
 
 type DerivedNotif = {
@@ -43,7 +44,7 @@ export function Header() {
   const notifications: DerivedNotif[] = [
     // Festas confirmadas no Calendário
     ...events
-      .filter(e => e.status === 'Confirmado')
+      .filter(e => effectiveStatus(e) === EVENT_STATUS.CONFIRMADO)
       .map(e => ({
         id: `party-${e.id}`,
         kind: 'party' as const,
@@ -54,7 +55,7 @@ export function Header() {
       })),
     // Cliente preencheu o link de orçamento (ainda pendente de confirmação)
     ...events
-      .filter(e => e.public_token && e.client_name && e.status === 'Pendente')
+      .filter(e => e.client_name && e.status === EVENT_STATUS.AGUARDANDO_CONFIRMACAO)
       .map(e => ({
         id: `quote-${e.id}`,
         kind: 'quote' as const,

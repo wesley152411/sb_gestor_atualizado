@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/utils';
+import { EVENT_STATUS, blocksStock, reservesStock } from '@/lib/event-status';
+import type { EventStatus } from '@/types';
 import type { InventoryItem, PartyEvent, Kit } from '@/types';
 
 export default function PartyFormPage() {
@@ -37,7 +39,7 @@ export default function PartyFormPage() {
   const [theme, setTheme] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [totalValue, setTotalValue] = useState('');
-  const [contractStatus, setContractStatus] = useState<'Confirmado' | 'Pendente' | 'Finalizado'>('Confirmado');
+  const [contractStatus, setContractStatus] = useState<EventStatus>(EVENT_STATUS.CONFIRMADO);
 
   // Unified Modal
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -144,7 +146,9 @@ export default function PartyFormPage() {
     const blocked: string[] = [];
     const warnings: string[] = [];
 
-    const eventsOnDate = events.filter(e => e.event_date === date && e.status !== 'Finalizado');
+    // Só eventos que SEGURAM estoque na data: Confirmado (bloqueia) e Aguardando
+    // confirmação (reserva temporária). Rascunho/Finalizado/Cancelado ficam fora.
+    const eventsOnDate = events.filter(e => e.event_date === date && (blocksStock(e) || reservesStock(e)));
 
     newItems.forEach(newItem => {
       const invItem = inventory.find(i => i.id === newItem.id);
@@ -157,8 +161,8 @@ export default function PartyFormPage() {
       eventsOnDate.forEach(evt => {
         const found = evt.items.find(i => i.id === newItem.id);
         if (found) {
-          if (evt.status === 'Confirmado') sumConfirmed += found.quantity;
-          if (evt.status === 'Pendente') sumPending += found.quantity;
+          if (blocksStock(evt)) sumConfirmed += found.quantity;
+          else if (reservesStock(evt)) sumPending += found.quantity;
         }
       });
 
@@ -318,8 +322,8 @@ export default function PartyFormPage() {
               onChange={e => setContractStatus(e.target.value as any)}
               className="form-select"
             >
+              <option value="Aguardando confirmação">Aguardando confirmação / Orçamento (Reserva Temporária)</option>
               <option value="Confirmado">Confirmado / Assinado (Bloqueia Estoque Físico)</option>
-              <option value="Pendente">Pendente / Orçamento (Reserva Temporária)</option>
               <option value="Finalizado">Finalizado / Entregue</option>
             </select>
           </div>

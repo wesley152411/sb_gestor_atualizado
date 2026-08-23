@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { toDbDate } from '@/lib/utils';
 import { NextResponse } from 'next/server';
+import { EVENT_STATUS } from '@/lib/event-status';
 
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
@@ -72,8 +73,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     if (!quote) {
       return NextResponse.json({ error: 'Link não encontrado' }, { status: 404 });
     }
-    if (quote.status === 'Confirmado' || quote.status === 'Finalizado') {
-      return NextResponse.json({ error: 'Este orçamento já foi confirmado e não pode mais ser editado.' }, { status: 409 });
+    // O envio é DEFINITIVO: só o rascunho ("Aguardando preenchimento") aceita
+    // POST. Qualquer outro estado (já enviado, confirmado, finalizado, cancelado)
+    // retorna 409 — a cliente não reabre e reedita depois de enviar.
+    if (quote.status !== EVENT_STATUS.AGUARDANDO_PREENCHIMENTO) {
+      return NextResponse.json({ error: 'Este orçamento já foi enviado e não pode mais ser editado.' }, { status: 409 });
     }
 
     // Upsert Client: match by phone or CPF within the same decorator, to avoid duplicates.
@@ -111,6 +115,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
         setup_time,
         start_time,
         observation: observation ?? null,
+        // Envio recebido: passa a aguardar a confirmação da decoradora e registra
+        // o momento do envio (ordena a aba Clientes do mais recente ao mais antigo).
+        status: EVENT_STATUS.AGUARDANDO_CONFIRMACAO,
+        submitted_at: new Date(),
       },
     });
 

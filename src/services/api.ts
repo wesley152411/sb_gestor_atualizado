@@ -1,4 +1,5 @@
 import { getSupabaseClient, getSupabaseMailerClient } from '@/lib/supabase/client';
+import { EVENT_STATUS } from '@/lib/event-status';
 import {
   initialDecorators, initialInventory, initialChatMessages,
   initialRentalOrders, initialClients, initialPartyEvents, initialKits,
@@ -506,7 +507,7 @@ export async function savePartyEvent(event: Partial<PartyEvent>): Promise<PartyE
     id: event.id || generateId('evt'), client_name: event.client_name || '', phone: event.phone || '',
     address: event.address || '', setup_time: event.setup_time || '', start_time: event.start_time || '',
     theme: event.theme || '', total_value: event.total_value || 0, event_date: event.event_date || '',
-    status: event.status || 'Pendente', items: event.items || [], decorator_id: event.decorator_id,
+    status: event.status || EVENT_STATUS.AGUARDANDO_CONFIRMACAO, items: event.items || [], decorator_id: event.decorator_id,
   };
 
   let res: Response;
@@ -540,6 +541,24 @@ function savePartyEventLocally(full: PartyEvent): PartyEvent {
   setLocal('party_events', events);
   return full;
 }
+
+// Ações da decoradora sobre o próprio evento (confirmar/cancelar/descartar).
+// Rota autenticada com checagem de posse — ver /api/party-events/[id].
+async function partyEventAction(id: string, action: 'confirm' | 'cancel' | 'discard') {
+  const res = await fetch(`/api/party-events/${id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Não foi possível concluir a ação.');
+  }
+  return res.json();
+}
+export const confirmPartyEvent = (id: string) => partyEventAction(id, 'confirm');
+export const cancelPartyEvent = (id: string) => partyEventAction(id, 'cancel');
+export const discardPartyEvent = (id: string) => partyEventAction(id, 'discard');
 
 // ==================== QUOTE LINKS ====================
 

@@ -6,12 +6,9 @@ import { FinancialChart, ThemesChart, VolumeChart } from '@/components/analytics
 import { useAuthStore } from '@/stores/auth-store';
 import { usePartyEvents, useInventory } from '@/hooks/swr-hooks';
 import { formatCurrency } from '@/lib/utils';
+import { countsAsRevenue } from '@/lib/event-status';
 import { useState } from 'react';
 import type { PartyEvent } from '@/types';
-
-// Somente contratos fechados/entregues contam como receita real —
-// "Pendente" é apenas orçamento, ainda não é uma venda confirmada.
-const REVENUE_STATUSES: PartyEvent['status'][] = ['Confirmado', 'Finalizado'];
 
 function monthKey(dateStr?: string): string {
   return dateStr ? dateStr.slice(0, 7) : '';
@@ -41,7 +38,7 @@ export default function AnalyticsPage() {
 
   // --- KPI Calculations (respeitam o filtro de período) ---
   const revenueEvents = events.filter((e) =>
-    REVENUE_STATUSES.includes(e.status) &&
+    countsAsRevenue(e) &&
     (monthFilter === '' || monthKey(e.event_date) === monthFilter)
   );
 
@@ -76,7 +73,7 @@ export default function AnalyticsPage() {
   });
 
   const eventsByMonth = monthBuckets.map(({ key }) =>
-    events.filter((e) => REVENUE_STATUSES.includes(e.status) && monthKey(e.event_date) === key)
+    events.filter((e) => countsAsRevenue(e) && monthKey(e.event_date) === key)
   );
 
   const financialLabels = monthBuckets.map((b) => b.label);
