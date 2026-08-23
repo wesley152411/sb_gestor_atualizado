@@ -5,6 +5,7 @@ import { Download, CheckSquare, FileText, ChevronDown, XCircle, Trash2 } from 'l
 import { confirmPartyEvent, cancelPartyEvent, discardPartyEvent } from '@/services/api';
 import { usePartyEvents, useClients, useDecorators } from '@/hooks/swr-hooks';
 import { generateQuotePDF } from '@/lib/quote-pdf';
+import { generateLogisticsPDF } from '@/lib/pdf-generator';
 import { Button } from '@/components/ui/Button';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Table } from '@/components/ui/TableAndTabs';
@@ -69,6 +70,14 @@ export default function ClientsPage() {
     try {
       await confirmPartyEvent(e.id);
       addNotification('Evento confirmado', `"${e.client_name}" está confirmado — preparando a montagem.`);
+      // PDF logístico é gerado AO CONFIRMAR (não no envio): é aqui que o
+      // orçamento vira evento de verdade e a montagem começa a ser preparada.
+      try {
+        await generateLogisticsPDF({ ...e, status: EVENT_STATUS.CONFIRMADO });
+      } catch (pdfErr) {
+        console.error('Falha ao gerar PDF logístico na confirmação:', pdfErr);
+        addNotification('PDF não gerado', 'O evento foi confirmado, mas o PDF logístico falhou. Baixe pelo Calendário.', true);
+      }
       mutate();
     } catch (err: any) {
       addNotification('Erro ao confirmar', err.message || 'Não foi possível confirmar.', true);

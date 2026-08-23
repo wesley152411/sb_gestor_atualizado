@@ -50,21 +50,11 @@ export async function POST(request: Request) {
       items = [{ id: item.id, name: item.name, quantity: 1, price }];
     }
 
-    // Reaproveita um link ainda NÃO preenchido da MESMA peça/kit (mesmo dono),
-    // em vez de criar outro a cada clique — evita a proliferação de órfãos.
-    const existingDraft = await prisma.partyEvent.findFirst({
-      where: {
-        decorator_id: decoratorId,
-        status: EVENT_STATUS.AGUARDANDO_PREENCHIMENTO,
-        client_id: null,
-        ...(sourceKitId ? { source_kit_id: sourceKitId } : { source_item_id: sourceItemId }),
-      },
-      orderBy: { created_at: 'desc' },
-    });
-    if (existingDraft?.public_token) {
-      return NextResponse.json({ token: existingDraft.public_token });
-    }
-
+    // SEMPRE um token NOVO por clique. Não reaproveitamos rascunho da mesma
+    // peça/kit: a decoradora pode mandar a MESMA peça para duas clientes; com
+    // token compartilhado, a 1ª que preenchesse travaria o link e a 2ª tomaria
+    // 409 — perdendo o orçamento em silêncio. O lixo de cliques acidentais é
+    // resolvido pelo "Descartar link" na aba Clientes.
     const quote = await prisma.partyEvent.create({
       data: {
         id: `quote-${Date.now()}`,
