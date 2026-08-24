@@ -133,9 +133,14 @@ export default function ClientsPage() {
     setMonthFilter('');
   };
 
+  // Rascunhos de link (Aguardando preenchimento) ficam OCULTOS na visão padrão —
+  // só aparecem quando a decoradora ativa o chip de filtro correspondente. Evita
+  // que cliques de "Copiar link" não preenchidos poluam a lista de eventos reais.
+  const showingDrafts = statusFilter.has(EVENT_STATUS.AGUARDANDO_PREENCHIMENTO);
   const filteredEvents = events
     .filter(e => {
       const es = effectiveStatus(e); // aplica a finalização automática por data
+      if (es === EVENT_STATUS.AGUARDANDO_PREENCHIMENTO && !showingDrafts) return false;
       const matchesSearch = `${e.client_name} ${e.theme}`.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter.size === 0 || statusFilter.has(es);
       const matchesMonth = monthFilter === '' || (e.event_date?.slice(0, 7) === monthFilter);
