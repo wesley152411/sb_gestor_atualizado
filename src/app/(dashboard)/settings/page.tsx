@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { saveDecoratorProfile, signOut, resetPassword, uploadImage } from '@/services/api';
 import { detectCity } from '@/lib/geolocation';
-import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle } from '@/lib/utils';
+import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle, defaultPromoTemplate, fillPromoTemplate } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import type { Decorator } from '@/types';
@@ -233,6 +233,38 @@ export default function SettingsPage() {
 
             <div className="settings-actions-end">
               <Button onClick={handleSaveProfile} isLoading={isLoading}>Salvar Alterações</Button>
+            </div>
+          </div>
+
+          {/* Bloco Mensagem de reativação (promocional / WhatsApp) */}
+          <div className="settings-card">
+            <h2 className="settings-section-title">Mensagem de reativação (WhatsApp)</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: -4, marginBottom: 12 }}>
+              Usada quando você reativa uma cliente antiga pela aba Clientes. Variável disponível:{' '}
+              <code style={{ background: 'var(--bg-input)', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>{'{nome}'}</code>{' '}
+              — trocada pelo nome da cliente no envio.
+            </p>
+            <div className="form-group">
+              <label className="form-label">Template da mensagem</label>
+              <textarea
+                className="form-input"
+                rows={4}
+                placeholder={defaultPromoTemplate(profile.name || '')}
+                value={profile.promo_message_template || ''}
+                onChange={e => setProfile({ ...profile, promo_message_template: e.target.value })}
+              />
+            </div>
+            <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', marginBottom: 4 }}>Prévia (cliente “Maria”)</div>
+              <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+                {fillPromoTemplate((profile.promo_message_template || '').trim() || defaultPromoTemplate(profile.name || ''), 'Maria')}
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+              ⚠️ Disparo promocional em volume pelo WhatsApp pessoal pode fazer seu número ser reportado e bloqueado. Espace os envios.
+            </p>
+            <div className="settings-actions-end">
+              <Button onClick={handleSaveProfile} isLoading={isLoading}>Salvar Mensagem</Button>
             </div>
           </div>
 

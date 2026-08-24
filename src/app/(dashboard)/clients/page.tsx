@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { Download, CheckSquare, FileText, ChevronDown, XCircle, Trash2 } from 'lucide-react';
-import { confirmPartyEvent, cancelPartyEvent, discardPartyEvent } from '@/services/api';
+import { useState, useEffect } from 'react';
+import { Download, CheckSquare, FileText, ChevronDown, XCircle, Trash2, MessageCircle } from 'lucide-react';
+import { confirmPartyEvent, cancelPartyEvent, discardPartyEvent, getPromoMessages, sendPromoMessage, saveClient } from '@/services/api';
 import { usePartyEvents, useClients, useDecorators } from '@/hooks/swr-hooks';
 import { generateQuotePDF } from '@/lib/quote-pdf';
 import { generateLogisticsPDF } from '@/lib/pdf-generator';
@@ -11,13 +11,25 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { Table } from '@/components/ui/TableAndTabs';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, isValidPromoPhone, promoWhatsappUrl, fillPromoTemplate, defaultPromoTemplate } from '@/lib/utils';
 import { EVENT_STATUS, ALL_EVENT_STATUSES, effectiveStatus, statusBadge, isDraftLink } from '@/lib/event-status';
-import type { EventStatus, PartyEvent } from '@/types';
+import type { EventStatus, PartyEvent, Client, ClientPromoMessage } from '@/types';
 
 const STATUS_OPTIONS: EventStatus[] = ALL_EVENT_STATUSES;
+
+// Elegível para reativação promocional: evento passou há mais de 1 mês. A partir
+// daí o botão fica visível permanentemente (sem janela de expiração).
+function isPromoEligible(event_date?: string): boolean {
+  if (!event_date) return false;
+  const end = new Date(`${String(event_date).slice(0, 10)}T23:59:59-03:00`);
+  if (Number.isNaN(end.getTime())) return false;
+  const plus1m = new Date(end);
+  plus1m.setMonth(plus1m.getMonth() + 1);
+  return Date.now() > plus1m.getTime();
+}
 
 // Chave de ordenação: envio mais recente primeiro; rascunhos usam a criação.
 function sortKey(e: PartyEvent): number {
@@ -43,6 +55,55 @@ export default function ClientsPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Histórico de mensagens promocionais (para o selinho de "já enviado" e a
+  // linha "última mensagem aberta em" no modal). Recarrega após cada envio.
+  const [promoMsgs, setPromoMsgs] = useState<ClientPromoMessage[]>([]);
+  const loadPromo = () => { getPromoMessages().then(setPromoMsgs).catch(() => {}); };
+  useEffect(() => { if (decorator?.id) loadPromo(); }, [decorator?.id]);
+  // client_id -> data do ÚLTIMO envio (a lista vem ordenada desc).
+  const lastPromoByClient = new Map<string, string>();
+  for (const m of promoMsgs) if (!lastPromoByClient.has(m.client_id)) lastPromoByClient.set(m.client_id, m.sent_at);
+
+  // Estado do modal de reativação promocional.
+  const [promoModal, setPromoModal] = useState<{ event: PartyEvent; client: Client | null } | null>(null);
+  const [promoPhone, setPromoPhone] = useState('');
+  const [promoText, setPromoText] = useState('');
+  const [promoSending, setPromoSending] = useState(false);
+
+  const openPromoModal = (event: PartyEvent) => {
+    const client = clients.find(c => c.id === event.client_id) || null;
+    const nome = client?.name || event.client_name || '';
+    const template = (decorator?.promo_message_template || '').trim() || defaultPromoTemplate(decorator?.name || '');
+    setPromoModal({ event, client });
+    setPromoPhone(client?.phone || event.phone || '');
+    setPromoText(fillPromoTemplate(template, nome));
+    setOpenMenuId(null);
+  };
+
+  const handleSendPromo = async () => {
+    if (!promoModal) return;
+    const { event, client } = promoModal;
+    const clientId = client?.id || event.client_id;
+    if (!clientId) { addNotification('Sem cliente', 'Este evento não tem cliente vinculado.', true); return; }
+    if (!isValidPromoPhone(promoPhone)) { addNotification('Telefone inválido', 'Informe um telefone válido (com DDD).', true); return; }
+    setPromoSending(true);
+    try {
+      // Correção do número salva NO CADASTRO do cliente (não vale só p/ este envio).
+      if (client && promoPhone.trim() !== (client.phone || '').trim()) {
+        await saveClient({ ...client, phone: promoPhone.trim() });
+      }
+      // Abre o WhatsApp em nova aba e REGISTRA o envio (link aberto, não entregue).
+      window.open(promoWhatsappUrl(promoPhone, promoText), '_blank', 'noopener,noreferrer');
+      await sendPromoMessage(clientId, promoPhone.trim(), promoText);
+      loadPromo();
+      setPromoModal(null);
+    } catch (err: any) {
+      addNotification('Erro ao registrar', err.message || 'Não foi possível registrar o envio.', true);
+    } finally {
+      setPromoSending(false);
+    }
+  };
 
   // Resolve o cliente e a decoradora DONA do evento em preview,
   // para nunca misturar dados/logo entre contas diferentes.
@@ -207,7 +268,14 @@ export default function ClientsPage() {
             const badge = statusBadge(es);
             const canConfirm = es === EVENT_STATUS.AGUARDANDO_CONFIRMACAO;
             const canCancel = es === EVENT_STATUS.AGUARDANDO_CONFIRMACAO || es === EVENT_STATUS.CONFIRMADO;
-            const hasMenu = canCancel || draft;
+            // Reativação: só para eventos passados (>1 mês). A seta é só para
+            // eventos NÃO passados — os dois nunca convivem na mesma linha.
+            const promo = isPromoEligible(event.event_date);
+            const hasMenu = (canCancel || draft) && !promo;
+            const promoClient = clients.find(c => c.id === event.client_id) || null;
+            const promoPhoneVal = promoClient?.phone || event.phone || '';
+            const promoPhoneOk = isValidPromoPhone(promoPhoneVal);
+            const lastSent = event.client_id ? lastPromoByClient.get(event.client_id) : undefined;
             return (
             <tr key={event.id}>
               <td className="font-bold">{event.client_name || <span className="text-slate-400">(link não preenchido)</span>}</td>
@@ -226,6 +294,28 @@ export default function ClientsPage() {
                     <Button variant="secondary" size="icon" title="Visualizar documento" onClick={() => setPreviewEvent(event)}>
                       <FileText className="w-4 h-4" />
                     </Button>
+                  )}
+                  {promo && (
+                    <div style={{ position: 'relative', display: 'inline-flex' }}>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        title={promoPhoneOk ? 'Enviar mensagem de reativação (WhatsApp)' : 'Cliente sem telefone cadastrado'}
+                        disabled={!promoPhoneOk}
+                        onClick={() => openPromoModal(event)}
+                        style={lastSent ? { borderColor: '#059669', color: '#059669' } : undefined}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </Button>
+                      {lastSent && (
+                        <span
+                          title={`Última mensagem aberta em ${formatDate(lastSent)}`}
+                          style={{ position: 'absolute', top: -7, right: -7, background: '#059669', color: '#fff', fontSize: 9, fontWeight: 700, lineHeight: 1.4, borderRadius: 8, padding: '0 5px', whiteSpace: 'nowrap' }}
+                        >
+                          {formatDate(lastSent)}
+                        </span>
+                      )}
+                    </div>
                   )}
                   {canConfirm && (
                     <Button
@@ -400,6 +490,58 @@ export default function ClientsPage() {
                 <li>Registrar avarias no sistema SB GESTOR.</li>
               </ul>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal de reativação promocional (WhatsApp, um a um) */}
+      <Modal
+        isOpen={!!promoModal}
+        onClose={() => setPromoModal(null)}
+        title="Mensagem de reativação"
+        className="max-w-lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPromoModal(null)}>Cancelar</Button>
+            <Button icon={MessageCircle} isLoading={promoSending} onClick={handleSendPromo}>Enviar</Button>
+          </>
+        }
+      >
+        {promoModal && (
+          <div className="space-y-4">
+            <div>
+              <Input
+                label="Telefone do Cliente"
+                value={promoPhone}
+                onChange={(e) => setPromoPhone(e.target.value)}
+                placeholder="(11) 99999-9999"
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-light)', marginTop: 4 }}>
+                Se corrigir o número, ele é salvo no cadastro do cliente.
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              {(() => {
+                const last = promoModal.client?.id ? lastPromoByClient.get(promoModal.client.id) : undefined;
+                return last ? `Última mensagem aberta em ${formatDate(last)}` : 'Nenhuma mensagem enviada ainda';
+              })()}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Mensagem</label>
+              <textarea
+                className="form-input"
+                rows={5}
+                value={promoText}
+                onChange={(e) => setPromoText(e.target.value)}
+                style={{ resize: 'vertical', lineHeight: 1.5 }}
+              />
+            </div>
+
+            <p style={{ fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', margin: 0 }}>
+              ⚠️ O sistema registra que o link foi <strong>aberto</strong>, não que a mensagem foi entregue. Disparo promocional em volume pelo WhatsApp pessoal pode levar o número a ser bloqueado — espace os envios.
+            </p>
           </div>
         )}
       </Modal>

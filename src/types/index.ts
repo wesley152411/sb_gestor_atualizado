@@ -16,6 +16,17 @@ export interface Decorator {
   reach?: number;
   contact_rate?: number;
   positive_reviews?: number;
+  promo_message_template?: string; // template da mensagem promocional; variável {nome}
+}
+
+// Registro de mensagem promocional ABERTA no WhatsApp (histórico completo).
+export interface ClientPromoMessage {
+  id: string;
+  client_id: string;
+  decorator_id: string;
+  sent_at: string;
+  phone: string;
+  message: string;
 }
 
 export interface InventoryItem {

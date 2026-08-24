@@ -65,8 +65,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     const body = await request.json();
     const { name, phone, email, cpf, address, event_date, setup_time, start_time, observation } = body;
 
-    if (!name || !event_date) {
-      return NextResponse.json({ error: 'Nome e data do evento são obrigatórios' }, { status: 400 });
+    // Telefone agora é OBRIGATÓRIO (habilita a reativação promocional depois).
+    if (!name || !event_date || !phone || !String(phone).trim()) {
+      return NextResponse.json({ error: 'Nome, telefone e data do evento são obrigatórios' }, { status: 400 });
     }
 
     const quote = await prisma.partyEvent.findUnique({ where: { public_token: token } });

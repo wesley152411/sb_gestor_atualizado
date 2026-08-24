@@ -63,8 +63,8 @@ export default function PublicQuotePage() {
   }, [token]);
 
   const handleSubmit = async () => {
-    if (!form.name.trim() || !form.event_date) {
-      setErrorMsg('Preencha ao menos seu nome e a data do evento.');
+    if (!form.name.trim() || !form.phone.trim() || !form.event_date) {
+      setErrorMsg('Preencha seu nome, telefone e a data do evento.');
       return;
     }
     setErrorMsg('');
@@ -229,7 +229,7 @@ export default function PublicQuotePage() {
             <SectionTitle>Seus dados</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 8 }}>
               <Input label="Nome completo" style={inputStyle} placeholder="Seu nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              <Input label="Telefone" style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(11) 99999-9999" />
+              <Input label="Telefone" style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(11) 99999-9999" required />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
               <Input label="E-mail" style={inputStyle} type="email" placeholder="voce@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />

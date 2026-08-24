@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     instagram: pick<string | null>('instagram', null),
     about: pick<string | null>('about', null),
     cover_url: pick<string | null>('cover_url', null),
+    promo_message_template: pick<string | null>('promo_message_template', null),
     membership_level: existing?.membership_level ?? 'Membro',
   };
 

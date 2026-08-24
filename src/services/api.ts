@@ -7,7 +7,7 @@ import {
 import type {
   Decorator, InventoryItem, ChatMessage, RentalOrder,
   Client, PartyEvent, Kit, SignupMetadata, AuthResult, CalendarMonthData,
-  PartnerDecorator, PublicMarketplaceItem,
+  PartnerDecorator, PublicMarketplaceItem, ClientPromoMessage,
 } from '@/types';
 import { generateId } from '@/lib/utils';
 
@@ -488,6 +488,29 @@ export async function saveClient(client: Partial<Client>): Promise<Client> {
   else clients.push(full);
   setLocal('clients', clients);
   return full;
+}
+
+// ==================== PROMO MESSAGES (reativação WhatsApp) ====================
+
+export async function getPromoMessages(): Promise<ClientPromoMessage[]> {
+  try {
+    const res = await fetch('/api/promo-messages');
+    if (res.ok) return await res.json();
+  } catch { /* sem sessão / offline */ }
+  return [];
+}
+
+export async function sendPromoMessage(clientId: string, phone: string, message: string): Promise<ClientPromoMessage> {
+  const res = await fetch('/api/promo-messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId, phone, message }),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.error || 'Falha ao registrar o envio.');
+  }
+  return res.json();
 }
 
 // ==================== PARTY EVENTS ====================

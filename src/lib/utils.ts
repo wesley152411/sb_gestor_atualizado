@@ -58,6 +58,36 @@ export function instagramUrl(raw?: string | null): string {
   return h ? `https://instagram.com/${h}` : '';
 }
 
+// ==================== MENSAGEM PROMOCIONAL (WhatsApp) ====================
+
+// Telefone VÁLIDO para o disparo promocional: após normalização, a parte local
+// (sem DDI) tem 10 ou 11 dígitos. Cobre registros antigos sem telefone.
+export function isValidPromoPhone(raw?: string | null): boolean {
+  const d = sanitizePhoneDigits(raw);
+  if (!d) return false;
+  const local = d.startsWith('55') && d.length > 11 ? d.slice(2) : d;
+  return local.length === 10 || local.length === 11;
+}
+
+// Monta o link wa.me com a mensagem já codificada. Acrescenta 55 se não houver DDI.
+export function promoWhatsappUrl(rawPhone: string | null | undefined, message: string): string {
+  let d = sanitizePhoneDigits(rawPhone);
+  if (d.length <= 11 && !d.startsWith('55')) d = `55${d}`;
+  return `https://wa.me/${d}?text=${encodeURIComponent(message)}`;
+}
+
+// Template promocional padrão, já com o nome da empresa preenchido. A ÚNICA
+// variável do template é {nome} (nome da cliente), trocada na hora de montar o link.
+export function defaultPromoTemplate(empresa: string): string {
+  const nomeEmpresa = (empresa || 'nossa equipe').trim();
+  return `Oi, {nome}! Aqui é a ${nomeEmpresa}. Foi um prazer decorar sua festa 💐 Estamos com condições especiais esse mês — se estiver planejando alguma comemoração, fala com a gente!`;
+}
+
+// Substitui {nome} pela cliente. Não altera o template salvo.
+export function fillPromoTemplate(template: string, nomeCliente: string): string {
+  return (template || '').replace(/\{nome\}/g, (nomeCliente || '').trim() || 'você');
+}
+
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
   const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
