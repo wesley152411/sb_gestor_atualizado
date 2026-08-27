@@ -57,6 +57,19 @@ CREATE POLICY client_promo_messages_own ON public.client_promo_messages
   WITH CHECK (decorator_id = auth.uid()::text);
 ```
 
+## Rollback (escrito ANTES de aplicar)
+
+Reversão completa da migração `20260824000100`. Não toca dado de outras tabelas;
+o `DROP TABLE` leva junto os índices e a policy, mas deixo o `DROP POLICY` explícito
+no mesmo estilo do `rls-rollback.sql`. Reversível a qualquer momento.
+
+```sql
+-- ordem: policy → tabela → coluna
+DROP POLICY IF EXISTS client_promo_messages_own ON public.client_promo_messages;
+DROP TABLE  IF EXISTS public.client_promo_messages;           -- índices + RLS caem junto
+ALTER TABLE public.decorators DROP COLUMN IF EXISTS promo_message_template;
+```
+
 ## ✅ Checklist de lançamento (NÃO ligar a flag sem cumprir)
 
 > Regra dura: **não** definir `NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP='true'` na Netlify
