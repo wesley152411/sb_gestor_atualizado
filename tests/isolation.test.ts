@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createTestAccount, setEmailConfirmed, rawSignUp, deleteAuthUser, sweepTestAccounts, api, post, cleanupAccounts, prisma, type TestAccount } from './helpers';
+import { createTestAccount, setEmailConfirmed, rawSignUp, deleteAuthUser, sweepTestAccounts, assertDbReachable, api, post, cleanupAccounts, prisma, type TestAccount } from './helpers';
 
 let A: TestAccount;
 let B: TestAccount;
 let C: TestAccount;
 
 beforeAll(async () => {
+  await assertDbReachable();  // pré-condição: Prisma autentica no banco de TESTE
   await sweepTestAccounts(); // limpa resíduo de execuções anteriores
   [A, B, C] = await Promise.all([
     createTestAccount('A'),

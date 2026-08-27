@@ -121,6 +121,25 @@ export async function createTestAccount(label: string): Promise<TestAccount> {
   return { id, email, cookie };
 }
 
+// Pré-condição: o Prisma precisa conseguir AUTENTICAR no banco de TESTE
+// (DATABASE_URL). Chamada como primeira linha do beforeAll para transformar o
+// stack cru do Prisma numa mensagem que nomeia a causa. Falhas comuns no CI:
+// senha rotacionada e não atualizada no secret TEST_DATABASE_URL, ou usuário do
+// pooler incorreto (tem de ser postgres.<ref>, não `postgres` puro).
+export async function assertDbReachable() {
+  try {
+    await prisma.$queryRawUnsafe('SELECT 1');
+  } catch (e: any) {
+    const first = String(e?.message || e).split('\n').find((l: string) => l.trim()) || String(e);
+    throw new Error(
+      '🛑 Pré-condição do harness — o Prisma não autenticou no banco de TESTE (DATABASE_URL). ' +
+      'Verifique o secret TEST_DATABASE_URL: (1) a senha é a ATUAL do banco (se você rotacionou, ' +
+      'atualize o secret); (2) o usuário do session pooler é postgres.<ref>, não `postgres` puro. ' +
+      `Erro do Prisma: ${first}`
+    );
+  }
+}
+
 // Varre TODAS as contas de teste (decoradora + Auth) pelo padrão de e-mail.
 // Robusto contra execuções interrompidas que deixaram resíduo em produção.
 export async function sweepTestAccounts() {
