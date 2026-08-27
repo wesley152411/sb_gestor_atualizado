@@ -49,3 +49,7 @@ next-env.d.ts
 
 # Supabase CLI cache local
 supabase/.temp/
+
+# Skills de agente instaladas localmente (Emil Kowalski etc.) — ferramenta pessoal, não do app
+.agents/
+skills-lock.json
