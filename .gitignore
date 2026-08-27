@@ -53,3 +53,10 @@ supabase/.temp/
 # Skills de agente instaladas localmente (Emil Kowalski etc.) — ferramenta pessoal, não do app
 .agents/
 skills-lock.json
+
+# Impeccable (skill de design) — cópias para outros harnesses; ferramenta pessoal, não do app.
+# NÃO ignorar .github/ inteiro (tem os workflows de CI) — só as pastas do impeccable.
+.codex/
+.github/agents/
+.github/hooks/
+.github/skills/
