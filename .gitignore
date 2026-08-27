@@ -60,3 +60,8 @@ skills-lock.json
 .github/agents/
 .github/hooks/
 .github/skills/
+
+# Dumps de banco (dados reais de cliente). O destino padrão do backup-db.ps1 é
+# FORA do repo (~/sbgestor-backups). Isto é rede extra caso apontem -OutDir aqui.
+*.dump
+/backups/
