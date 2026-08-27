@@ -32,3 +32,11 @@ CREATE POLICY client_promo_messages_own ON public.client_promo_messages
   FOR ALL TO authenticated
   USING ((decorator_id = (auth.uid())::text))
   WITH CHECK ((decorator_id = (auth.uid())::text));
+
+-- 4. GRANTS: alinha ao baseline das outras 10 tabelas, que NÃO têm grant para
+--    anon/authenticated (o PostgREST nega antes mesmo da RLS — defesa em camadas).
+--    Toda tabela nova de public nasce com os grants DEFAULT do Supabase (ALTER
+--    DEFAULT PRIVILEGES concede tudo a anon/authenticated). Sem revogar, a tabela
+--    fica acessível a anon/authenticated no PostgREST, protegida SÓ pela policy —
+--    a camada de grant fica faltando. Idempotente. (service_role não é tocado.)
+REVOKE ALL ON public.client_promo_messages FROM anon, authenticated;

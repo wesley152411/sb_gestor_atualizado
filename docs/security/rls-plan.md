@@ -13,10 +13,18 @@ promocional por WhatsApp adicionou a tabela `client_promo_messages`, que segue o
 padrão (`ENABLE`, sem `FORCE`, 1 policy `client_promo_messages_own` com `decorator_id =
 auth.uid()::text`). Diferença: o RLS dela nasce na própria migração de criação
 (`supabase/migrations/20260824000100_client_promo_messages.sql`), não no `rls-enable.sql`.
-O `rls-auth-test.mjs` já cobre as **11 tabelas**. **Ainda NÃO aplicada em produção** — a
-feature está atrás da flag `NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP` (off em prod). A migração
-precisa ser aplicada e a policy ativa ANTES de ligar a flag (ver
-`docs/features/promo-whatsapp.md`).
+O `rls-auth-test.mjs` já cobre as **11 tabelas**. A feature está atrás da flag
+`NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP` (off em prod). A migração precisa estar aplicada e a
+policy ativa ANTES de ligar a flag (ver `docs/features/promo-whatsapp.md`).
+
+> **Achado (2026-08-27): grants default em tabela nova.** Toda tabela criada em `public`
+> nasce com os grants DEFAULT do Supabase (`ALTER DEFAULT PRIVILEGES` concede tudo a
+> `anon`/`authenticated`). As 10 tabelas antigas foram endurecidas (sem esses grants), mas
+> a `client_promo_messages` nasceu com eles — ficava acessível a anon/authenticated no
+> PostgREST, protegida só pela RLS (faltando a camada de grant). Corrigido com
+> `REVOKE ALL ON public.client_promo_messages FROM anon, authenticated;` na própria
+> migração. **Regra para QUALQUER tabela nova:** revogar os grants de anon/authenticated
+> para bater com o baseline, senão a defesa em camadas fica incompleta.
 
 **Validação por lote (4 provas):** (1) Prisma/app lê e grava normal; (2) PostgREST anônimo
 401; (3) **teste autenticado** `node docs/security/rls-auth-test.mjs` — token real vê SÓ as

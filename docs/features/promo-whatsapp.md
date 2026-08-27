@@ -81,6 +81,10 @@ ALTER TABLE public.decorators DROP COLUMN IF EXISTS promo_message_template;
 - [ ] `client_promo_messages` existe em prod com **RLS ligado** e a policy
       `client_promo_messages_own` ativa (conferir no painel do Supabase ou via
       `rls-auth-test.mjs` apontado ao banco correto).
+- [ ] **Grants revogados** de `anon`/`authenticated` em `client_promo_messages`
+      (a tabela nasce com grants default do Supabase; sem revogar, fica acessível
+      no PostgREST protegida só pela RLS, diferente das outras 10 tabelas). O
+      `REVOKE` já está na migração — conferir com uma query read-only aos grants.
 - [ ] Coluna `decorators.promo_message_template` existe em prod.
 - [ ] `rls-auth-test.mjs` verde para as **11 tabelas** no banco alvo.
 - [ ] Só então ligar a flag na Netlify e validar o fluxo com uma conta real.
