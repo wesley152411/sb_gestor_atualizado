@@ -31,8 +31,11 @@ if (`${URL} ${process.env.DATABASE_URL || ''}`.includes(PROD_REF)) {
   process.exit(1);
 }
 
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SERVICE_KEY) { console.error('🛑 rls-auth-test abortado: SUPABASE_SERVICE_ROLE_KEY ausente — necessário para criar contas já confirmadas via Admin API (independe de "Confirm email").'); process.exit(1); }
 const p = new PrismaClient();
 const sb = createClient(URL, ANON, { auth: { persistSession: false } });
+const admin = createClient(URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const TABLES = ['clients','party_events','rental_orders','rental_order_items','chat_messages',
                 'decorators','inventory_items','kits','consumables','forum_posts',
                 'client_promo_messages'];
@@ -41,9 +44,14 @@ const ok = (c, m) => { if (c) { pass++; console.log('   OK  ', m); } else { fail
 
 async function mkUser(tag) {
   const email = `rlsauth_${tag}_${Date.now()}@sbgestor-test.local`;
-  const { data, error } = await sb.auth.signUp({ email, password: 'RlsAuth12345!' });
-  if (error || !data.session) throw new Error(`signUp ${tag}: ${error?.message||'sem sessão'}`);
-  return { id: data.user.id, token: data.session.access_token };
+  const password = 'RlsAuth12345!';
+  // Cria via Admin API já confirmado (não depende de "Confirm email" nem envia e-mail),
+  // depois faz login normal para obter o access_token (JWT) que o PostgREST exige.
+  const { data: created, error: cErr } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  if (cErr || !created?.user) throw new Error(`createUser ${tag}: ${cErr?.message || 'sem user no retorno'}`);
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error || !data.session) throw new Error(`signIn ${tag}: ${error?.message || 'sem sessão'}`);
+  return { id: created.user.id, token: data.session.access_token };
 }
 async function restGet(table, token) {
   const r = await fetch(`${URL}/rest/v1/${table}?select=id`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } });
