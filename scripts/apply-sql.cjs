@@ -1,46 +1,52 @@
 // Aplica um arquivo .sql statement-a-statement no banco apontado por DATABASE_URL.
-// Reutilizável para TESTE e (depois, juntos) PRODUÇÃO. NUNCA embute credencial:
-// a conexão vem do ambiente (ou de um .env.test/.env.local gitignorado).
+// NUNCA embute credencial: a conexão vem de arquivos .env (ou do process.env).
 //
 // Uso:
-//   DATABASE_URL='...' node scripts/apply-sql.cjs <arquivo.sql> [--expect-ref=<ref>]
-//   (ou defina DATABASE_URL num .env.test gitignorado e rode sem inline)
+//   node scripts/apply-sql.cjs <arquivo.sql> [--env=test|prod] [--expect-ref=<ref>]
+//
+// --env escolhe QUAIS arquivos carregar (acaba com o remendo de renomear arquivo):
+//   test (padrão) → .env, .env.local, .env.test, .env.test.local   (teste vence)
+//   prod          → .env, .env.local                                (IGNORA os .env.test*)
+// Os arquivos da env escolhida são AUTORITATIVOS: o ÚLTIMO vence e sobrescrevem
+// inclusive o que veio do shell — o alvo é sempre o que a env selecionada diz.
 //
 // --expect-ref: trava de segurança — aborta se o DATABASE_URL não contiver esse
-// ref de projeto. Evita aplicar no banco errado (teste vs produção).
+// ref de projeto. Recomendado em produção: --env=prod --expect-ref=urvbkfyyvbsahdnkkwed
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
-
-// Precedência (o ÚLTIMO vence): .env < .env.local < .env.test < .env.test.local.
-// Os arquivos de TESTE têm override:true — sobrescrevem inclusive o que já veio do
-// SHELL (ex.: um DATABASE_URL de dev exportado no ambiente). Sem isso, um
-// DATABASE_URL pré-existente no process.env vencia o .env.test.local (bug do
-// first-wins) e o --expect-ref abortava apontando pro banco errado.
-const loadedFiles = [];
-function loadEnvFile(f, override) {
-  let txt;
-  try { txt = fs.readFileSync(f, 'utf8'); } catch { return; }
-  loadedFiles.push(f);
-  for (const line of txt.split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
-    if (!m) continue;
-    const key = m[1], val = m[2].trim().replace(/^["']|["']$/g, '');
-    if (override || !process.env[key]) process.env[key] = val;
-  }
-}
-loadEnvFile('.env', false);
-loadEnvFile('.env.local', false);
-loadEnvFile('.env.test', true);
-loadEnvFile('.env.test.local', true);
 
 const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith('--'));
 const expectRef = (args.find((a) => a.startsWith('--expect-ref=')) || '').split('=')[1];
+const envMode = (args.find((a) => a.startsWith('--env=')) || '--env=test').split('=')[1];
 
 if (!file) {
-  console.error('uso: node scripts/apply-sql.cjs <arquivo.sql> [--expect-ref=<ref>]');
+  console.error('uso: node scripts/apply-sql.cjs <arquivo.sql> [--env=test|prod] [--expect-ref=<ref>]');
   process.exit(1);
 }
+
+const ENV_SETS = {
+  test: ['.env', '.env.local', '.env.test', '.env.test.local'],
+  prod: ['.env', '.env.local'],
+};
+if (!(envMode in ENV_SETS)) {
+  console.error(`🛑 --env inválido: "${envMode}". Use test | prod.`);
+  process.exit(1);
+}
+
+// Carrega os arquivos da env escolhida como AUTORITATIVOS (override, o último vence).
+const loadedFiles = [];
+for (const f of ENV_SETS[envMode]) {
+  let txt;
+  try { txt = fs.readFileSync(f, 'utf8'); } catch { continue; }
+  loadedFiles.push(f);
+  for (const line of txt.split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
+    if (!m) continue;
+    process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
+  }
+}
+
 const url = process.env.DATABASE_URL;
 
 // Descreve o alvo SEM a senha (host/db/user) — o "user" carrega o ref (postgres.<ref>).
@@ -53,16 +59,16 @@ function describeTarget(u) {
 }
 const target = describeTarget(url);
 
-// Log de diagnóstico ANTES de qualquer decisão: mostra o que foi carregado e de onde.
-console.log(`envs carregados (o último vence): ${loadedFiles.join(', ') || '(nenhum arquivo .env encontrado)'}`);
+// Log de diagnóstico ANTES de qualquer decisão: modo, arquivos e alvo resolvido.
+console.log(`--env=${envMode} | arquivos carregados (o último vence): ${loadedFiles.join(', ') || '(nenhum — usando process.env)'}`);
 console.log(`DATABASE_URL lido → ${target}`);
 
 if (!url) {
-  console.error('🛑 DATABASE_URL não definido (nem no ambiente nem em .env.test/.env.local).');
+  console.error(`🛑 DATABASE_URL não definido (--env=${envMode}). Verifique os arquivos: ${ENV_SETS[envMode].join(', ')}.`);
   process.exit(1);
 }
 if (expectRef && !url.includes(expectRef)) {
-  console.error(`🛑 Abortado: DATABASE_URL não contém o ref esperado "${expectRef}". Alvo lido: ${target}. Arquivos: ${loadedFiles.join(', ')}. Nada foi aplicado.`);
+  console.error(`🛑 Abortado: DATABASE_URL não contém o ref esperado "${expectRef}". Alvo lido: ${target} (--env=${envMode}). A --env aponta pro projeto certo? Nada foi aplicado.`);
   process.exit(1);
 }
 
