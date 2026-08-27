@@ -14,13 +14,23 @@ import { readFileSync } from 'fs';
 import { PrismaClient } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
 
-for (const f of ['.env.local', '.env']) {
+for (const f of ['.env.test.local', '.env.test', '.env.local', '.env']) {
   try { for (const line of readFileSync(f,'utf8').split(/\r?\n/)) {
     const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g,'');
   } } catch {}
 }
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL, ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// TRAVA DE PRODUÇÃO: este teste CRIA/derruba usuários e CONCEDE/revoga GRANT.
+// Jamais pode rodar contra produção. Aborta se o ref de prod aparecer no alvo.
+const PROD_REF = 'urvbkfyyvbsahdnkkwed';
+if (!URL) { console.error('🛑 rls-auth-test abortado: NEXT_PUBLIC_SUPABASE_URL vazio — configure o projeto de TESTE (ex.: .env.test).'); process.exit(1); }
+if (`${URL} ${process.env.DATABASE_URL || ''}`.includes(PROD_REF)) {
+  console.error('🛑 rls-auth-test ABORTADO: o alvo é PRODUÇÃO. Ele cria/derruba contas e concede/revoga GRANT — só roda no projeto de TESTE.');
+  process.exit(1);
+}
+
 const p = new PrismaClient();
 const sb = createClient(URL, ANON, { auth: { persistSession: false } });
 const TABLES = ['clients','party_events','rental_orders','rental_order_items','chat_messages',
