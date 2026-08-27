@@ -126,7 +126,29 @@ export async function createTestAccount(label: string): Promise<TestAccount> {
 // stack cru do Prisma numa mensagem que nomeia a causa. Falhas comuns no CI:
 // senha rotacionada e não atualizada no secret TEST_DATABASE_URL, ou usuário do
 // pooler incorreto (tem de ser postgres.<ref>, não `postgres` puro).
+// Descreve o DATABASE_URL SEM vazar a senha: host/porta/db/usuário + só o TAMANHO
+// da senha (revela senha vazia ou espaço/quebra-de-linha colados por engano no
+// secret). É o que o CI está REALMENTE usando — some com o "adivinhar pelo que salvei".
+function describeDbUrl(raw: string): string {
+  if (!raw) return 'DATABASE_URL VAZIO (não chegou ao ambiente do CI)';
+  const outerWs = raw !== raw.trim() ? ' ⚠ há espaço/quebra nas BORDAS da string inteira' : '';
+  const pwInfo = (pw: string) =>
+    pw.length === 0 ? 'SEM SENHA' : `senha=${pw.length}chars${/^\s|\s$/.test(pw) ? ' ⚠(espaço nas bordas da senha)' : ''}`;
+  try {
+    const u = new URL(raw.trim());
+    return `host=${u.hostname} port=${u.port || '(default)'} db=${u.pathname.replace(/^\//, '') || '(vazio)'} ` +
+      `user=${decodeURIComponent(u.username)} ${pwInfo(decodeURIComponent(u.password || ''))} ` +
+      `params=${u.search || '(nenhum)'}${outerWs}`;
+  } catch {
+    const m = raw.trim().match(/^[a-z]+:\/\/([^:]+):([^@]*)@([^:/?]+)(?::(\d+))?\/?([^?]*)/i);
+    if (!m) return `NÃO PARSEÁVEL (len=${raw.length})${outerWs}`;
+    return `host=${m[3]} port=${m[4] || '(default)'} db=${m[5] || '(vazio)'} user=${m[1]} ${pwInfo(m[2])} (parse regex)${outerWs}`;
+  }
+}
+
 export async function assertDbReachable() {
+  const target = describeDbUrl(process.env.DATABASE_URL || '');
+  console.log('[harness] alvo do Prisma →', target);
   try {
     await prisma.$queryRawUnsafe('SELECT 1');
   } catch (e: any) {
@@ -135,7 +157,7 @@ export async function assertDbReachable() {
       '🛑 Pré-condição do harness — o Prisma não autenticou no banco de TESTE (DATABASE_URL). ' +
       'Verifique o secret TEST_DATABASE_URL: (1) a senha é a ATUAL do banco (se você rotacionou, ' +
       'atualize o secret); (2) o usuário do session pooler é postgres.<ref>, não `postgres` puro. ' +
-      `Erro do Prisma: ${first}`
+      `Erro do Prisma: ${first}. Alvo resolvido no CI → ${target}`
     );
   }
 }
