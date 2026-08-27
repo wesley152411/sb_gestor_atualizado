@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { PrismaClient } from '@prisma/client';
 
@@ -20,6 +21,7 @@ loadEnv();
 
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
 export const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+export const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
 export const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 
 export const prisma = new PrismaClient();
@@ -44,37 +46,73 @@ function jarToHeader(jar: Jar): string {
 
 export type TestAccount = { id: string; email: string; cookie: string };
 
-// Cria uma conta REAL de teste (auto-confirma) e garante o perfil (lazy /me).
+// Cliente Supabase com a SERVICE ROLE (Admin API). Só no harness/CI.
+function adminClient() {
+  if (!SERVICE_KEY) {
+    throw new Error(
+      '🛑 Pré-condição do harness — SUPABASE_SERVICE_ROLE_KEY ausente. O CI precisa do secret ' +
+      'TEST_SUPABASE_SERVICE_ROLE_KEY (Admin API) para criar contas de teste já confirmadas. ' +
+      'Sem ele, não há como semear usuários sem passar pelo mailer.'
+    );
+  }
+  return createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+// Cria uma conta REAL de teste e garante o perfil (lazy /me). O usuário é criado
+// pela ADMIN API (service role) com email_confirm:true → nasce JÁ confirmado e SEM
+// disparar e-mail de confirmação. Assim o harness NÃO depende da opção "Confirm
+// email" do painel do projeto de teste, nem esbarra no limite do mailer embutido
+// (que, com a confirmação ligada, derruba o signUp quando se cria várias contas).
+// Cada throw abaixo nomeia a pré-condição exata, para o log do CI ser autoexplicativo.
 export async function createTestAccount(label: string): Promise<TestAccount> {
-  const jar: Jar = new Map();
-  const supabase = clientWithJar(jar);
   const email = `harness_${label}_${Date.now()}@sbgestor-test.local`;
   const password = 'Harness12345!';
 
-  const { data, error } = await supabase.auth.signUp({
+  // 1) Cria o usuário confirmado via Admin API (não envia e-mail).
+  const { data: created, error: createErr } = await adminClient().auth.admin.createUser({
     email,
     password,
-    options: { data: { company_name: `Harness ${label}`, name: `Harness ${label}`, location: 'Cidade Teste - TS' } },
+    email_confirm: true,
+    user_metadata: { company_name: `Harness ${label}`, name: `Harness ${label}`, location: 'Cidade Teste - TS' },
   });
-  if (error || !data.user) throw new Error(`signUp falhou (${label}): ${error?.message}`);
-  const id = data.user.id;
+  if (createErr || !created?.user) {
+    throw new Error(
+      `🛑 Pré-condição do harness — falha ao criar usuário (${label}) via Admin API: ` +
+      `${createErr?.message || 'retorno sem user'}. Verifique a SERVICE_ROLE key e a URL do projeto de TESTE.`
+    );
+  }
+  const id = created.user.id;
 
-  // Confirmação de e-mail está LIGADA em produção, então o signUp não devolve
-  // sessão. Simulamos o clique no link confirmando direto no banco e então
-  // fazemos login para obter a sessão real (mesmo caminho de cookie de produção).
-  await setEmailConfirmed(id, true);
+  // 2) Login REAL pelo caminho de cookie de produção (@supabase/ssr + jar). Como o
+  //    usuário já nasce confirmado, isto NÃO depende de "Confirm email".
+  const jar: Jar = new Map();
+  const supabase = clientWithJar(jar);
   const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-  if (signInErr) throw new Error(`login falhou (${label}): ${signInErr.message}`);
+  if (signInErr) {
+    throw new Error(
+      `🛑 Pré-condição do harness — login falhou (${label}): ${signInErr.message}. ` +
+      `O usuário foi criado confirmado via Admin API, então isto aponta para credenciais/URL do ` +
+      `projeto de teste (anon key/URL), NÃO para a opção "Confirm email".`
+    );
+  }
   const cookie = jarToHeader(jar);
-  if (!cookie) throw new Error(`sem cookie de sessão (${label})`);
+  if (!cookie) {
+    throw new Error(`🛑 Pré-condição do harness — login OK mas sem cookie de sessão (${label}): o client @supabase/ssr não gravou o cookie no jar.`);
+  }
 
-  // cria o perfil da decoradora (identidade pela sessão)
+  // 3) Cria o perfil da decoradora (identidade pela sessão). Exercita o servidor Next.
   const res = await fetch(`${BASE_URL}/api/decorators/me`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: cookie },
     body: '{}',
   });
-  if (!res.ok) throw new Error(`criar perfil falhou (${label}): HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(
+      `🛑 Pré-condição do harness — criar perfil falhou (${label}): HTTP ${res.status} ${body.slice(0, 200)}. ` +
+      `O servidor Next respondeu; verifique DATABASE_URL do projeto de teste (caminho Prisma).`
+    );
+  }
 
   // Conta de teste NUNCA aparece na vitrine/contatos, nem durante a execução:
   // marca is_internal=true. Se um run vazar a linha, ela fica invisível.
