@@ -11,15 +11,27 @@
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 
-// carrega .env.test(.local) ANTES de .env.local/.env (first-wins)
-for (const f of ['.env.test.local', '.env.test', '.env.local', '.env']) {
-  try {
-    for (const line of fs.readFileSync(f, 'utf8').split(/\r?\n/)) {
-      const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
-    }
-  } catch { /* arquivo ausente */ }
+// Precedência (o ÚLTIMO vence): .env < .env.local < .env.test < .env.test.local.
+// Os arquivos de TESTE têm override:true — sobrescrevem inclusive o que já veio do
+// SHELL (ex.: um DATABASE_URL de dev exportado no ambiente). Sem isso, um
+// DATABASE_URL pré-existente no process.env vencia o .env.test.local (bug do
+// first-wins) e o --expect-ref abortava apontando pro banco errado.
+const loadedFiles = [];
+function loadEnvFile(f, override) {
+  let txt;
+  try { txt = fs.readFileSync(f, 'utf8'); } catch { return; }
+  loadedFiles.push(f);
+  for (const line of txt.split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
+    if (!m) continue;
+    const key = m[1], val = m[2].trim().replace(/^["']|["']$/g, '');
+    if (override || !process.env[key]) process.env[key] = val;
+  }
 }
+loadEnvFile('.env', false);
+loadEnvFile('.env.local', false);
+loadEnvFile('.env.test', true);
+loadEnvFile('.env.test.local', true);
 
 const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith('--'));
@@ -30,20 +42,29 @@ if (!file) {
   process.exit(1);
 }
 const url = process.env.DATABASE_URL;
+
+// Descreve o alvo SEM a senha (host/db/user) — o "user" carrega o ref (postgres.<ref>).
+function describeTarget(u) {
+  if (!u) return '(DATABASE_URL vazio)';
+  try {
+    const x = new URL(u);
+    return `host=${x.hostname} db=${x.pathname.replace(/^\//, '')} user=${decodeURIComponent(x.username)}`;
+  } catch { return '(não parseável)'; }
+}
+const target = describeTarget(url);
+
+// Log de diagnóstico ANTES de qualquer decisão: mostra o que foi carregado e de onde.
+console.log(`envs carregados (o último vence): ${loadedFiles.join(', ') || '(nenhum arquivo .env encontrado)'}`);
+console.log(`DATABASE_URL lido → ${target}`);
+
 if (!url) {
-  console.error('🛑 DATABASE_URL não definido (env ou .env.test).');
+  console.error('🛑 DATABASE_URL não definido (nem no ambiente nem em .env.test/.env.local).');
   process.exit(1);
 }
 if (expectRef && !url.includes(expectRef)) {
-  console.error(`🛑 Abortado: DATABASE_URL não contém o ref esperado "${expectRef}". Alvo errado? Nada foi aplicado.`);
+  console.error(`🛑 Abortado: DATABASE_URL não contém o ref esperado "${expectRef}". Alvo lido: ${target}. Arquivos: ${loadedFiles.join(', ')}. Nada foi aplicado.`);
   process.exit(1);
 }
-
-let target = '(não parseável)';
-try {
-  const u = new URL(url);
-  target = `host=${u.hostname} db=${u.pathname.replace(/^\//, '')} user=${decodeURIComponent(u.username)}`;
-} catch { /* mostra o que der */ }
 
 // remove comentários de linha (-- ...) e divide por ';'. As migrações deste repo
 // não usam dollar-quoting nem ';' dentro de literais, então o split simples basta.

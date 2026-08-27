@@ -14,11 +14,22 @@ import { readFileSync } from 'fs';
 import { PrismaClient } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
 
-for (const f of ['.env.test.local', '.env.test', '.env.local', '.env']) {
-  try { for (const line of readFileSync(f,'utf8').split(/\r?\n/)) {
-    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g,'');
-  } } catch {}
+// Precedência (o ÚLTIMO vence): .env < .env.local < .env.test < .env.test.local.
+// .env.test(.local) têm override:true — vencem inclusive o que já está no SHELL,
+// senão um NEXT_PUBLIC_SUPABASE_URL/DATABASE_URL de dev exportado no ambiente
+// mandaria este teste para o projeto errado (e a trava de prod abortaria).
+const loadedEnvFiles = [];
+for (const [f, override] of [['.env', false], ['.env.local', false], ['.env.test', true], ['.env.test.local', true]]) {
+  try {
+    const txt = readFileSync(f, 'utf8');
+    loadedEnvFiles.push(f);
+    for (const line of txt.split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
+      if (!m) continue;
+      const key = m[1], val = m[2].trim().replace(/^["']|["']$/g, '');
+      if (override || !process.env[key]) process.env[key] = val;
+    }
+  } catch {}
 }
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL, ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -33,6 +44,11 @@ if (`${URL} ${process.env.DATABASE_URL || ''}`.includes(PROD_REF)) {
 
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!SERVICE_KEY) { console.error('🛑 rls-auth-test abortado: SUPABASE_SERVICE_ROLE_KEY ausente — necessário para criar contas já confirmadas via Admin API (independe de "Confirm email").'); process.exit(1); }
+{
+  const dbHost = (() => { try { return new URL(process.env.DATABASE_URL || '').hostname; } catch { return '(?)'; } })();
+  console.log(`envs carregados (o último vence): ${loadedEnvFiles.join(', ') || '(nenhum)'}`);
+  console.log(`alvo → supabase=${URL} db_host=${dbHost}\n`);
+}
 const p = new PrismaClient();
 const sb = createClient(URL, ANON, { auth: { persistSession: false } });
 const admin = createClient(URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
