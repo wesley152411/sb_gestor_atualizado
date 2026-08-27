@@ -266,3 +266,69 @@ describe('Isolamento — link de orçamento público (/api/public/quote)', () =>
     expect((await post('/api/quote-links', B.cookie, { itemId })).status).toBe(403);
   });
 });
+
+// Reativação promocional (client_promo_messages). A rota vive atrás de uma
+// feature flag: LIGADA, precisa do mesmo isolamento das demais rotas de dados;
+// DESLIGADA, nem existe (404), inclusive para sessão válida — a guarda de flag
+// roda ANTES da checagem de sessão. O harness sobe em `next dev`, onde a flag
+// nasce LIGADA (fallback de dev); para exercitar o 404 da flag desligada, rode
+// com NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP=false (há um job de CI dedicado a isso).
+// Cada teste detecta o estado real da flag NESTE servidor e afirma o contrato
+// correspondente, pulando o outro — assim o arquivo passa nos dois modos.
+describe('Isolamento — reativação promocional (/api/promo-messages)', () => {
+  // A rota responde 404 quando a flag está desligada (flagGuard antes de tudo).
+  async function flagIsOn(): Promise<boolean> {
+    return (await api('/api/promo-messages', A.cookie)).status !== 404;
+  }
+
+  it('sem sessão nunca devolve dados (401 com a flag ligada; 404 com ela desligada)', async () => {
+    const r = await api('/api/promo-messages', null);
+    // Ligada: a guarda de sessão responde 401. Desligada: a guarda de flag
+    // responde 404 antes de checar a sessão. Em nenhum caso 200.
+    expect([401, 404]).toContain(r.status);
+    expect(r.status).not.toBe(200);
+  });
+
+  it('FLAG LIGADA: decorator vem da sessão, posse do cliente é exigida e B não lê os envios de A', async ({ skip }) => {
+    if (!(await flagIsOn())) return skip();
+
+    // Cliente pertencente à A.
+    const clientId = `cli_promo_${Date.now()}`;
+    await post('/api/clients', A.cookie, { id: clientId, name: 'Cliente Promo A', phone: '11999990000' });
+
+    // 1) A registra envio no PRÓPRIO cliente, mas FORJA o dono no corpo (id de B,
+    //    nas duas grafias) → 200 e a linha carimba decorator_id=A: o servidor
+    //    IGNORA o parâmetro e usa a sessão (exatamente o buraco corrigido na Etapa 1).
+    const ok = await post('/api/promo-messages', A.cookie, {
+      clientId, phone: '11999990000', message: 'Oi Maria',
+      decoratorId: B.id, decorator_id: B.id,
+    });
+    expect(ok.status).toBe(200);
+    const row = await ok.json();
+    expect(row.decorator_id).toBe(A.id);   // sessão venceu o corpo forjado
+    expect(row.decorator_id).not.toBe(B.id);
+    expect(row.client_id).toBe(clientId);
+
+    // 2) B tentando registrar envio no cliente de A → 403 (posse checada no servidor).
+    const cross = await post('/api/promo-messages', B.cookie, { clientId, phone: '11999990000', message: 'invasao' });
+    expect(cross.status).toBe(403);
+
+    // 3) GET de B não enxerga nenhum envio de A (isolamento por sessão).
+    const bList = await (await api('/api/promo-messages', B.cookie)).json();
+    expect(Array.isArray(bList)).toBe(true);
+    expect(bList.some((m: any) => m.decorator_id === A.id)).toBe(false);
+
+    // 4) A enxerga o próprio envio.
+    const aList = await (await api('/api/promo-messages', A.cookie)).json();
+    expect(aList.some((m: any) => m.id === row.id && m.decorator_id === A.id)).toBe(true);
+  });
+
+  it('FLAG DESLIGADA: a rota não existe nem para sessão válida (404 no GET e no POST)', async ({ skip }) => {
+    if (await flagIsOn()) return skip();
+    expect((await api('/api/promo-messages', A.cookie)).status).toBe(404);
+    const clientId = `cli_promo_off_${Date.now()}`;
+    await post('/api/clients', A.cookie, { id: clientId, name: 'Cliente Off', phone: '11999990000' });
+    const r = await post('/api/promo-messages', A.cookie, { clientId, phone: '11999990000', message: 'x' });
+    expect(r.status).toBe(404);
+  });
+});

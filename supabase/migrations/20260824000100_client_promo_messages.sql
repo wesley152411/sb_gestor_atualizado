@@ -14,8 +14,11 @@ CREATE TABLE IF NOT EXISTS public.client_promo_messages (
   phone        text NOT NULL,
   message      text NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_promo_decorator ON public.client_promo_messages (decorator_id);
-CREATE INDEX IF NOT EXISTS idx_promo_client    ON public.client_promo_messages (client_id);
+-- O GET filtra por decorator_id e ordena por sent_at DESC → índice composto serve
+-- o filtro e a ordenação de uma vez. O de client_id atende consultas por cliente
+-- e a FK.
+CREATE INDEX IF NOT EXISTS idx_promo_decorator_sent ON public.client_promo_messages (decorator_id, sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_promo_client         ON public.client_promo_messages (client_id);
 
 -- 3. RLS no MESMO padrão das outras tabelas (ENABLE, policy própria, auth.uid()::text
 --    porque as colunas de id são text). O caminho Prisma (owner) segue passando;
