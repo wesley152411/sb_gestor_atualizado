@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { CheckCircle2, MessageCircle } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
-import { formatCurrency, whatsappUrl } from '@/lib/utils';
+import { formatCurrency, whatsappUrl, isValidBrPhone, sanitizePhoneDigits } from '@/lib/utils';
 import { EVENT_STATUS } from '@/lib/event-status';
 import type { QuoteLinkData } from '@/types';
 
@@ -31,6 +32,7 @@ export default function PublicQuotePage() {
     name: '', phone: '', email: '', cpf: '', address: '',
     event_date: '', setup_time: '', start_time: '', observation: '',
   });
+  const phoneRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -63,8 +65,13 @@ export default function PublicQuotePage() {
   }, [token]);
 
   const handleSubmit = async () => {
-    if (!form.name.trim() || !form.phone.trim() || !form.event_date) {
-      setErrorMsg('Preencha seu nome, telefone e a data do evento.');
+    if (!form.name.trim() || !form.event_date) {
+      setErrorMsg('Preencha seu nome e a data do evento.');
+      return;
+    }
+    if (!isValidBrPhone(form.phone)) {
+      setErrorMsg('Informe um telefone com DDD.');
+      phoneRef.current?.focus();
       return;
     }
     setErrorMsg('');
@@ -73,7 +80,8 @@ export default function PublicQuotePage() {
       const res = await fetch(`/api/public/quote/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        // Telefone salvo NORMALIZADO (só dígitos) — a normalização já existe.
+        body: JSON.stringify({ ...form, phone: sanitizePhoneDigits(form.phone) }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -229,7 +237,7 @@ export default function PublicQuotePage() {
             <SectionTitle>Seus dados</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 8 }}>
               <Input label="Nome completo" style={inputStyle} placeholder="Seu nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              <Input label="Telefone" style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(11) 99999-9999" required />
+              <PhoneInput ref={phoneRef} label="Telefone" style={inputStyle} value={form.phone} onChange={(d) => setForm({ ...form, phone: d })} placeholder="(11) 99999-9999" required />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
               <Input label="E-mail" style={inputStyle} type="email" placeholder="voce@email.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />

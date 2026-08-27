@@ -69,6 +69,29 @@ export function isValidPromoPhone(raw?: string | null): boolean {
   return local.length === 10 || local.length === 11;
 }
 
+// Máscara progressiva BR: (DD) XXXX-XXXX (10) ou (DD) XXXXX-XXXX (11). Aceita
+// qualquer entrada (extrai dígitos), trata colagem de número já formatado.
+export function formatPhoneMask(raw?: string | null): string {
+  const d = sanitizePhoneDigits(raw).slice(0, 11);
+  if (d.length === 0) return '';
+  if (d.length <= 2) return `(${d}`;
+  const ddd = d.slice(0, 2);
+  const rest = d.slice(2);
+  if (rest.length <= 4) return `(${ddd}) ${rest}`;
+  // Ponto de quebra do traço: 4 dígitos finais (celular 11 dígitos → 5+4).
+  const cut = rest.length <= 8 ? 4 : 5;
+  return `(${ddd}) ${rest.slice(0, cut)}-${rest.slice(cut)}`;
+}
+
+// Validação do formulário/modal: DDD obrigatório (2 dígitos, 11–99) e total de
+// 10 ou 11 dígitos. SEM DDI aqui (a normalização com 55 acontece só no link).
+export function isValidBrPhone(raw?: string | null): boolean {
+  const d = sanitizePhoneDigits(raw);
+  if (d.length !== 10 && d.length !== 11) return false;
+  const ddd = Number(d.slice(0, 2));
+  return ddd >= 11 && ddd <= 99;
+}
+
 // Monta o link wa.me com a mensagem já codificada. Acrescenta 55 se não houver DDI.
 export function promoWhatsappUrl(rawPhone: string | null | undefined, message: string): string {
   let d = sanitizePhoneDigits(rawPhone);

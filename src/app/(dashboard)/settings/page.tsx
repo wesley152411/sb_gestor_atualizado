@@ -7,6 +7,7 @@ import { useNotificationStore } from '@/stores/notification-store';
 import { saveDecoratorProfile, signOut, resetPassword, uploadImage } from '@/services/api';
 import { detectCity } from '@/lib/geolocation';
 import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle, defaultPromoTemplate, fillPromoTemplate } from '@/lib/utils';
+import { promoWhatsappEnabled } from '@/lib/feature-flags';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import type { Decorator } from '@/types';
@@ -236,7 +237,8 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Bloco Mensagem de reativação (promocional / WhatsApp) */}
+          {/* Bloco Mensagem de reativação — só renderiza com a flag ligada */}
+          {promoWhatsappEnabled && (
           <div className="settings-card">
             <h2 className="settings-section-title">Mensagem de reativação (WhatsApp)</h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: -4, marginBottom: 12 }}>
@@ -267,6 +269,7 @@ export default function SettingsPage() {
               <Button onClick={handleSaveProfile} isLoading={isLoading}>Salvar Mensagem</Button>
             </div>
           </div>
+          )}
 
           {/* Bloco Segurança */}
           <div className="settings-card">

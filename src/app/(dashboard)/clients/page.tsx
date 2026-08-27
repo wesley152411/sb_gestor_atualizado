@@ -11,10 +11,11 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { Table } from '@/components/ui/TableAndTabs';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
-import { Input } from '@/components/ui/Input';
+import { PhoneInput } from '@/components/ui/PhoneInput';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
-import { formatCurrency, formatDate, isValidPromoPhone, promoWhatsappUrl, fillPromoTemplate, defaultPromoTemplate } from '@/lib/utils';
+import { formatCurrency, formatDate, isValidPromoPhone, isValidBrPhone, promoWhatsappUrl, fillPromoTemplate, defaultPromoTemplate, sanitizePhoneDigits } from '@/lib/utils';
+import { promoWhatsappEnabled, PROMO_COMING_SOON } from '@/lib/feature-flags';
 import { EVENT_STATUS, ALL_EVENT_STATUSES, effectiveStatus, statusBadge, isDraftLink } from '@/lib/event-status';
 import type { EventStatus, PartyEvent, Client, ClientPromoMessage } from '@/types';
 
@@ -86,16 +87,17 @@ export default function ClientsPage() {
     const { event, client } = promoModal;
     const clientId = client?.id || event.client_id;
     if (!clientId) { addNotification('Sem cliente', 'Este evento não tem cliente vinculado.', true); return; }
-    if (!isValidPromoPhone(promoPhone)) { addNotification('Telefone inválido', 'Informe um telefone válido (com DDD).', true); return; }
+    if (!isValidBrPhone(promoPhone)) { addNotification('Telefone inválido', 'Informe um telefone com DDD.', true); return; }
+    const digits = sanitizePhoneDigits(promoPhone);
     setPromoSending(true);
     try {
-      // Correção do número salva NO CADASTRO do cliente (não vale só p/ este envio).
-      if (client && promoPhone.trim() !== (client.phone || '').trim()) {
-        await saveClient({ ...client, phone: promoPhone.trim() });
+      // Correção do número salva NO CADASTRO do cliente (só dígitos), não só p/ este envio.
+      if (client && digits !== sanitizePhoneDigits(client.phone)) {
+        await saveClient({ ...client, phone: digits });
       }
       // Abre o WhatsApp em nova aba e REGISTRA o envio (link aberto, não entregue).
-      window.open(promoWhatsappUrl(promoPhone, promoText), '_blank', 'noopener,noreferrer');
-      await sendPromoMessage(clientId, promoPhone.trim(), promoText);
+      window.open(promoWhatsappUrl(digits, promoText), '_blank', 'noopener,noreferrer');
+      await sendPromoMessage(clientId, digits, promoText);
       loadPromo();
       setPromoModal(null);
     } catch (err: any) {
@@ -300,21 +302,31 @@ export default function ClientsPage() {
                       <Button
                         variant="secondary"
                         size="icon"
-                        title={promoPhoneOk ? 'Enviar mensagem de reativação (WhatsApp)' : 'Cliente sem telefone cadastrado'}
-                        disabled={!promoPhoneOk}
-                        onClick={() => openPromoModal(event)}
-                        style={lastSent ? { borderColor: '#059669', color: '#059669' } : undefined}
+                        title={!promoWhatsappEnabled ? 'Em breve' : (promoPhoneOk ? 'Enviar mensagem de reativação (WhatsApp)' : 'Cliente sem telefone cadastrado')}
+                        disabled={promoWhatsappEnabled && !promoPhoneOk}
+                        onClick={() => promoWhatsappEnabled ? openPromoModal(event) : addNotification('Em breve', PROMO_COMING_SOON)}
+                        style={{
+                          ...(lastSent && promoWhatsappEnabled ? { borderColor: '#059669', color: '#059669' } : {}),
+                          ...(!promoWhatsappEnabled ? { opacity: 0.6 } : {}),
+                        }}
                       >
                         <MessageCircle className="w-4 h-4" />
                       </Button>
-                      {lastSent && (
+                      {!promoWhatsappEnabled ? (
+                        <span
+                          title="Em breve"
+                          style={{ position: 'absolute', top: -7, right: -7, background: '#94a3b8', color: '#fff', fontSize: 9, fontWeight: 700, lineHeight: 1.4, borderRadius: 8, padding: '0 5px', whiteSpace: 'nowrap' }}
+                        >
+                          Em breve
+                        </span>
+                      ) : lastSent ? (
                         <span
                           title={`Última mensagem aberta em ${formatDate(lastSent)}`}
                           style={{ position: 'absolute', top: -7, right: -7, background: '#059669', color: '#fff', fontSize: 9, fontWeight: 700, lineHeight: 1.4, borderRadius: 8, padding: '0 5px', whiteSpace: 'nowrap' }}
                         >
                           {formatDate(lastSent)}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   )}
                   {canConfirm && (
@@ -496,7 +508,7 @@ export default function ClientsPage() {
 
       {/* Modal de reativação promocional (WhatsApp, um a um) */}
       <Modal
-        isOpen={!!promoModal}
+        isOpen={!!promoModal && promoWhatsappEnabled}
         onClose={() => setPromoModal(null)}
         title="Mensagem de reativação"
         className="max-w-lg"
@@ -510,10 +522,10 @@ export default function ClientsPage() {
         {promoModal && (
           <div className="space-y-4">
             <div>
-              <Input
+              <PhoneInput
                 label="Telefone do Cliente"
                 value={promoPhone}
-                onChange={(e) => setPromoPhone(e.target.value)}
+                onChange={(d) => setPromoPhone(d)}
                 placeholder="(11) 99999-9999"
               />
               <div style={{ fontSize: 11, color: 'var(--text-light)', marginTop: 4 }}>

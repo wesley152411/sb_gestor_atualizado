@@ -1,11 +1,20 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { promoWhatsappEnabled } from '@/lib/feature-flags';
+
+// Guarda de feature flag NO SERVIDOR: esconder só o botão deixaria o endpoint
+// aberto. Com a flag desligada (produção), a rota nem existe.
+function flagGuard() {
+  return promoWhatsappEnabled ? null : NextResponse.json({ error: 'Recurso indisponível' }, { status: 404 });
+}
 
 // Histórico de mensagens promocionais ABERTAS no WhatsApp. Dono SEMPRE pela
 // sessão (nunca por parâmetro). Só do próprio acervo.
 export async function GET() {
   try {
+    const blocked = flagGuard();
+    if (blocked) return blocked;
     const decoratorId = await getSessionDecoratorId();
     if (!decoratorId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
@@ -23,6 +32,8 @@ export async function GET() {
 // o sistema só sabe que o link foi montado/aberto.
 export async function POST(request: Request) {
   try {
+    const blocked = flagGuard();
+    if (blocked) return blocked;
     const decoratorId = await getSessionDecoratorId();
     if (!decoratorId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
