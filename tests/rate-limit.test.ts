@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { api } from './helpers';
-import { checkPublicRateLimit, __resetLimitersForTest } from '../src/lib/rate-limit';
+import { checkPublicRateLimit, resolveClientIp, __resetLimitersForTest } from '../src/lib/rate-limit';
 
 // Rate limiting das rotas públicas. Roda no job de CI `rate-limit`, que sobe o
 // servidor com NEXT_PUBLIC_RATE_LIMIT_ENABLED=true (enforce) + credenciais Upstash.
@@ -33,6 +33,26 @@ it.runIf(process.env.RATE_LIMIT_JOB === '1')(
     expect(enforcing, 'rate limiting não está em enforce no job rate-limit').toBe(true);
   }
 );
+
+// Anti-spoof da identidade (função pura, não precisa de Upstash — roda sempre).
+// A Netlify acrescenta o IP real ao FINAL do x-forwarded-for; pegar a primeira
+// entrada deixaria a chave falsificável. Confirmamos que usamos a última.
+describe('resolveClientIp — anti-spoof do x-forwarded-for', () => {
+  it('usa a ÚLTIMA entrada (a que a Netlify pôs), não a primeira forjada', () => {
+    const h = new Headers({ 'x-forwarded-for': '66.66.66.66, 179.152.173.47' });
+    expect(resolveClientIp(h).ip).toBe('179.152.173.47');
+  });
+  it('valor único no x-forwarded-for é usado como está', () => {
+    expect(resolveClientIp(new Headers({ 'x-forwarded-for': '179.152.173.47' })).ip).toBe('179.152.173.47');
+  });
+  it('x-nf-client-connection-ip, quando presente, tem prioridade', () => {
+    const h = new Headers({ 'x-nf-client-connection-ip': '10.0.0.1', 'x-forwarded-for': '1.2.3.4' });
+    expect(resolveClientIp(h).ip).toBe('10.0.0.1');
+  });
+  it('sem nenhum header de IP, cai em "unknown"', () => {
+    expect(resolveClientIp(new Headers()).ip).toBe('unknown');
+  });
+});
 
 describe.skipIf(!hasUpstash)('Rate limiting — rotas públicas', () => {
   it.skipIf(!enforcing)('GET público: as 30 primeiras passam; a 31ª é 429 + Retry-After', async () => {

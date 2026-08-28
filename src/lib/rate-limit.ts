@@ -24,11 +24,15 @@ export function resolveClientIp(headers: Headers): { ip: string; candidates: Rec
     'x-forwarded-for': headers.get('x-forwarded-for'),
     'x-real-ip': headers.get('x-real-ip'),
   };
-  const ip =
-    candidates['x-nf-client-connection-ip'] ||
-    candidates['x-forwarded-for']?.split(',')[0]?.trim() ||
-    candidates['x-real-ip'] ||
-    'unknown';
+  // A Netlify ACRESCENTA o IP real da conexão ao FINAL do x-forwarded-for. As
+  // entradas anteriores PODEM ser forjadas pelo cliente; a ÚLTIMA não (foi a
+  // Netlify que a pôs, com base na conexão TCP). Por isso pegamos a ÚLTIMA — pegar
+  // a primeira deixaria a chave de rate limit falsificável (bypass trivial).
+  // (No proxy Node da Netlify o x-nf-client-connection-ip vem ausente; fica como
+  // 1ª opção só por segurança, caso um dia esteja presente e confiável.)
+  const xffParts = candidates['x-forwarded-for']?.split(',').map((s) => s.trim()).filter(Boolean);
+  const xffLast = xffParts && xffParts.length ? xffParts[xffParts.length - 1] : undefined;
+  const ip = candidates['x-nf-client-connection-ip'] || xffLast || candidates['x-real-ip'] || 'unknown';
   return { ip, candidates };
 }
 

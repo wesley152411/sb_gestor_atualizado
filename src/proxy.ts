@@ -50,15 +50,6 @@ export async function proxy(request: NextRequest) {
   // Log (Edge Functions logs na Netlify) + headers de diagnóstico na resposta.
   console.log(`[rate-limit] ${method} ${path} ip=${ip} ipsrc=${ipSource} redisMs=${redisMs} candidates=${JSON.stringify(candidates)}`);
   const diag: Record<string, string> = { 'x-ratelimit-ip': ip, 'x-ratelimit-ipsrc': ipSource, 'x-ratelimit-redis-ms': String(redisMs) };
-  // DEBUG TEMPORÁRIO (observe): mostra os headers de IP que a Netlify entrega ao
-  // proxy Node, para achar o valor CONFIÁVEL (o x-forwarded-for é falsificável).
-  // Remover depois de calibrar o IP.
-  if (rateLimitObserveOnly) {
-    const names = ['x-forwarded-for', 'x-real-ip', 'x-nf-client-connection-ip', 'x-nf-request-id', 'forwarded', 'cf-connecting-ip', 'true-client-ip', 'client-ip'];
-    const dump: Record<string, string | null> = {};
-    for (const n of names) dump[n] = request.headers.get(n);
-    diag['x-ratelimit-hdrs'] = JSON.stringify(dump);
-  }
 
   // OBSERVE: nunca bloqueia — só registra. Serve para validar o header do IP, a
   // latência e se algum tráfego legítimo bateria no limite.
