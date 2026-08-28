@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { Redis } from '@upstash/redis';
-import { api, post } from './helpers';
+import { api } from './helpers';
 import { checkPublicRateLimit, __resetLimitersForTest } from '../src/lib/rate-limit';
 
 // Rate limiting das rotas públicas. Roda no job de CI `rate-limit`, que sobe o
@@ -14,6 +14,17 @@ const enforcing =
   process.env.NEXT_PUBLIC_RATE_LIMIT_ENABLED === 'true' &&
   (process.env.RATE_LIMIT_MODE || '').toLowerCase() !== 'observe';
 
+// Chave ÚNICA por teste (e por execução) — o proxy usa o header
+// x-nf-client-connection-ip como identidade. Assim cada teste tem seu próprio
+// contador, sem interferência entre testes/execuções e sem tocar produção (o
+// valor não é um IP real). Sem flush frágil.
+const RUN = Date.now();
+const keyFor = (tag: string) => `rltest-${tag}-${RUN}`;
+const H = (key: string, extra: Record<string, string> = {}) => ({ 'x-nf-client-connection-ip': key, ...extra });
+const getWith = (key: string) => api('/api/public/decorator/x', null, { headers: H(key) });
+const postQuote = (key: string) =>
+  api('/api/public/quote/x', null, { method: 'POST', headers: H(key, { 'Content-Type': 'application/json' }), body: '{}' });
+
 // No job de CI `rate-limit` (RATE_LIMIT_JOB=1) as credenciais Upstash DEVEM existir.
 // Sem elas, FALHA (não pula) — silêncio verde aqui é pior que vermelho.
 it.runIf(process.env.RATE_LIMIT_JOB === '1')(
@@ -25,57 +36,47 @@ it.runIf(process.env.RATE_LIMIT_JOB === '1')(
 );
 
 describe.skipIf(!hasUpstash)('Rate limiting — rotas públicas', () => {
-  let redis: Redis;
-  beforeAll(() => {
-    redis = new Redis({ url: UP_URL!, token: UP_TOKEN! });
-  });
-
-  // Limpa SÓ os contadores da identidade de teste. Em CI, o servidor não recebe
-  // header de IP (localhost) e resolve para 'unknown'; usuários reais nunca são
-  // 'unknown', então isto NÃO toca os contadores de produção mesmo compartilhando
-  // o mesmo banco Upstash.
-  async function flushTestKeys() {
-    const keys = (await redis.keys('rl:*')).filter((k) => k.includes('unknown'));
-    if (keys.length) await redis.del(...keys);
-  }
-  beforeEach(flushTestKeys);
-
-  it.skipIf(!enforcing)('GET público: dentro do limite passa; o excedente retorna 429 + Retry-After', async () => {
-    // 30/min. As 30 primeiras passam (rota responde 404, não 429); a 31ª é 429.
+  it.skipIf(!enforcing)('GET público: as 30 primeiras passam; a 31ª é 429 + Retry-After', async () => {
+    const key = keyFor('get');
     for (let i = 0; i < 30; i++) {
-      const r = await api('/api/public/decorator/nao-existe', null);
+      const r = await getWith(key);
       expect(r.status, `req ${i} não deveria ser 429`).not.toBe(429);
     }
-    const blocked = await api('/api/public/decorator/nao-existe', null);
+    const blocked = await getWith(key);
     expect(blocked.status).toBe(429);
     expect(blocked.headers.get('retry-after')).toBeTruthy();
   });
 
   it.skipIf(!enforcing)('POST do formulário público: 3/min — o 4º envio é 429 + Retry-After', async () => {
+    const key = keyFor('post');
     for (let i = 0; i < 3; i++) {
-      const r = await post('/api/public/quote/nao-existe', null, {});
+      const r = await postQuote(key);
       expect(r.status, `post ${i} não deveria ser 429`).not.toBe(429);
     }
-    const blocked = await post('/api/public/quote/nao-existe', null, {});
+    const blocked = await postQuote(key);
     expect(blocked.status).toBe(429);
     expect(blocked.headers.get('retry-after')).toBeTruthy();
   });
 
-  it.skipIf(!enforcing)('a contagem zera após a janela expirar (simulada por limpeza dos contadores)', async () => {
-    // Estoura, confirma 429, limpa (equivale à expiração da janela) e confirma que
-    // volta a passar. O teste por relógio real (esperar 60s) fica atrás de
-    // RUN_SLOW_RL=1 para não atrasar o CI.
-    for (let i = 0; i < 31; i++) await api('/api/public/decorator/x', null);
-    expect((await api('/api/public/decorator/x', null)).status).toBe(429);
-    await flushTestKeys();
-    expect((await api('/api/public/decorator/x', null)).status).not.toBe(429);
+  it.skipIf(!enforcing)('a contagem zera após a janela expirar (simulada limpando os contadores da chave)', async () => {
+    const key = keyFor('reset');
+    for (let i = 0; i < 31; i++) await getWith(key);
+    expect((await getWith(key)).status).toBe(429);
+
+    // Limpa SÓ os contadores desta chave de teste (equivale à expiração da janela).
+    const redis = new Redis({ url: UP_URL!, token: UP_TOKEN! });
+    const keys = (await redis.keys('rl:*')).filter((k) => k.includes(key));
+    if (keys.length) await redis.del(...keys);
+
+    expect((await getWith(key)).status).not.toBe(429);
   });
 
   it.skipIf(process.env.RUN_SLOW_RL !== '1')('janela real: após 65s o GET volta a passar (lento — RUN_SLOW_RL=1)', async () => {
-    for (let i = 0; i < 31; i++) await api('/api/public/decorator/y', null);
-    expect((await api('/api/public/decorator/y', null)).status).toBe(429);
+    const key = keyFor('slow');
+    for (let i = 0; i < 31; i++) await getWith(key);
+    expect((await getWith(key)).status).toBe(429);
     await new Promise((r) => setTimeout(r, 65_000));
-    expect((await api('/api/public/decorator/y', null)).status).not.toBe(429);
+    expect((await getWith(key)).status).not.toBe(429);
   }, 90_000);
 
   it('fail-open: sem credencial Upstash, a decisão é PASSAR (nível da lib)', async () => {
