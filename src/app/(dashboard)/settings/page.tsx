@@ -1,15 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, Key, Camera, MapPin } from 'lucide-react';
+import { LogOut, Key, Camera, MapPin, Mail } from 'lucide-react';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { saveDecoratorProfile, signOut, resetPassword, uploadImage } from '@/services/api';
 import { detectCity } from '@/lib/geolocation';
 import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle, defaultPromoTemplate, fillPromoTemplate } from '@/lib/utils';
-import { promoWhatsappEnabled } from '@/lib/feature-flags';
+import { promoWhatsappEnabled, captchaEnabled } from '@/lib/feature-flags';
+import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Modal } from '@/components/ui/Modal';
 import type { Decorator } from '@/types';
 
 export default function SettingsPage() {
@@ -20,6 +23,14 @@ export default function SettingsPage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Modal de redefinição de senha (substitui o antigo prompt(), que não comporta
+  // o widget do captcha).
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [resetCaptcha, setResetCaptcha] = useState('');
+  const resetCaptchaRef = useRef<TurnstileInstance>(undefined);
 
   useEffect(() => {
     if (decorator) setProfile(decorator);
@@ -110,12 +121,34 @@ export default function SettingsPage() {
     }
   };
 
-  const handleResetPassword = async () => {
-    // In a real scenario, we'd need the user's email. For simplicity, we ask or assume it's linked to the session.
-    const email = prompt('Digite seu e-mail para receber o link de redefinição de senha:');
-    if (email) {
-      const res = await resetPassword(email);
-      addNotification(res.success ? 'Email Enviado' : 'Erro', res.message || '', !res.success);
+  // Abre o modal (o prompt() antigo não comportava o widget do captcha).
+  const openResetModal = () => {
+    setResetMsg(null);
+    setResetCaptcha('');
+    setResetOpen(true);
+  };
+
+  const handleSendReset = async () => {
+    if (!resetEmail.trim()) {
+      setResetMsg({ ok: false, text: 'Informe o e-mail da conta.' });
+      return;
+    }
+    if (captchaEnabled && !resetCaptcha) {
+      setResetMsg({ ok: false, text: 'Complete a verificação de segurança antes de continuar.' });
+      return;
+    }
+    setResetLoading(true);
+    setResetMsg(null);
+    const res = await resetPassword(resetEmail.trim(), resetCaptcha || undefined);
+    // Reset a CADA tentativa — o token do Turnstile é de uso único.
+    resetCaptchaRef.current?.reset();
+    setResetCaptcha('');
+    setResetLoading(false);
+    if (res.success) {
+      setResetOpen(false);
+      addNotification('Email Enviado', res.message || 'Link de redefinição enviado.', false);
+    } else {
+      setResetMsg({ ok: false, text: res.message || 'Não foi possível enviar.' });
     }
   };
 
@@ -280,7 +313,7 @@ export default function SettingsPage() {
                 <div className="settings-row-title">Alterar senha</div>
                 <div className="settings-row-desc">Enviaremos um link por e-mail.</div>
               </div>
-              <Button variant="secondary" icon={Key} onClick={handleResetPassword}>Redefinir</Button>
+              <Button variant="secondary" icon={Key} onClick={openResetModal}>Redefinir</Button>
             </div>
 
             <div className="settings-row">
@@ -295,6 +328,44 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de redefinição de senha — substitui o prompt(), comporta o captcha */}
+      <Modal
+        isOpen={resetOpen}
+        onClose={() => setResetOpen(false)}
+        title="Redefinir senha"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setResetOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSendReset} isLoading={resetLoading}>Enviar link</Button>
+          </>
+        }
+      >
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 0, marginBottom: 12 }}>
+          Enviaremos um link de redefinição para o e-mail informado.
+        </p>
+        <Input
+          label="E-mail da conta"
+          type="email"
+          icon={Mail}
+          placeholder="seuemail@empresa.com"
+          value={resetEmail}
+          onChange={e => setResetEmail(e.target.value)}
+        />
+        <CaptchaWidget
+          ref={resetCaptchaRef}
+          onToken={setResetCaptcha}
+          onExpire={() => setResetCaptcha('')}
+        />
+        {resetMsg && (
+          <div style={{
+            background: resetMsg.ok ? '#ecfdf5' : '#fef2f2',
+            border: `1px solid ${resetMsg.ok ? '#a7f3d0' : '#fecaca'}`,
+            color: resetMsg.ok ? '#047857' : '#dc2626',
+            borderRadius: 8, padding: '8px 12px', fontSize: 13, fontWeight: 600,
+          }}>{resetMsg.text}</div>
+        )}
+      </Modal>
     </div>
   );
 }

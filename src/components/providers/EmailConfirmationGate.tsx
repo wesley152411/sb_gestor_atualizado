@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { resendConfirmation, signOut } from '@/services/api';
+import { captchaEnabled } from '@/lib/feature-flags';
+import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Logo } from '@/components/ui/Logo';
 
 // Tela mostrada quando há sessão MAS o e-mail não foi confirmado. Bloqueia o
@@ -10,6 +13,8 @@ export function EmailConfirmationGate({ email }: { email: string }) {
   const [cooldown, setCooldown] = useState(0);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [sending, setSending] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaRef = useRef<TurnstileInstance>(undefined);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -19,9 +24,16 @@ export function EmailConfirmationGate({ email }: { email: string }) {
 
   async function handleResend() {
     if (cooldown > 0 || sending) return; // protege contra cliques repetidos
+    if (captchaEnabled && !captchaToken) {
+      setMsg({ ok: false, text: 'Complete a verificação de segurança antes de continuar.' });
+      return;
+    }
     setSending(true);
     setMsg(null);
-    const r = await resendConfirmation(email);
+    const r = await resendConfirmation(email, captchaToken || undefined);
+    // Reset a CADA tentativa — o token do Turnstile é de uso único.
+    captchaRef.current?.reset();
+    setCaptchaToken('');
     setMsg({ ok: !!r.success, text: r.message || (r.success ? 'Reenviado.' : 'Falhou.') });
     setSending(false);
     if (r.success) setCooldown(60);
@@ -72,6 +84,15 @@ export function EmailConfirmationGate({ email }: { email: string }) {
         >
           Já confirmei — atualizar
         </button>
+
+        {/* Widget do captcha para o reenvio (só aparece com a flag/chave). */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <CaptchaWidget
+            ref={captchaRef}
+            onToken={setCaptchaToken}
+            onExpire={() => setCaptchaToken('')}
+          />
+        </div>
 
         <button
           onClick={handleResend}

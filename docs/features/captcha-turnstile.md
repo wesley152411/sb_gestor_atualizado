@@ -49,13 +49,14 @@ rede de segurança (passo 3) justamente para isso.
   uso único — sem reset, a 2ª falharia com "token já usado").
 - **Mobile** (o managed pode desafiar mais em rede/navegador incomum).
 
-### ⚠️ Superfícies que ainda NÃO têm widget (verificar / decidir antes de depender)
-Estas também chamam endpoints que o CAPTCHA do Supabase protege, mas **não** têm
-widget (não estavam no escopo das 3 telas). Sob CAPTCHA ligado, podem falhar:
-- **Reenviar confirmação** (tela `EmailConfirmationGate`, conta não confirmada).
-- **Redefinir senha pelas Configurações** (usa um `prompt()`, sem widget).
-Teste as duas no passo 4. Se falharem com erro de captcha, elas precisam de widget
-próprio — me avise e eu adiciono.
+### Superfícies cobertas (todas as que chamam endpoints protegidos pelo captcha)
+Além das 3 telas de auth, as duas superfícies internas que também disparam e-mail/
+recover **ganharam widget** (senão quebrariam sob CAPTCHA ligado):
+- **Reenviar confirmação** (`EmailConfirmationGate`, conta não confirmada) — é onde
+  para quem não recebeu o e-mail; agora tem widget antes do reenvio.
+- **Redefinir senha pelas Configurações** — o antigo `prompt()` virou um **modal**
+  com campo de e-mail + widget.
+Ainda vale testar as duas no passo 4, mas já estão implementadas.
 
 ## Rollback
 - **Instantâneo:** desligar o CAPTCHA no painel do Supabase restaura o login na hora.

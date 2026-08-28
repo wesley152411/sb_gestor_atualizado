@@ -146,14 +146,14 @@ export async function updatePassword(newPassword: string): Promise<AuthResult> {
 }
 
 // Reenvia o e-mail de confirmação de cadastro para quem ficou sem receber.
-export async function resendConfirmation(email: string): Promise<AuthResult> {
+export async function resendConfirmation(email: string, captchaToken?: string): Promise<AuthResult> {
   // Mailer IMPLICIT: mesmo motivo do signUp — token_hash comum no e-mail reenviado.
   const mailer = getSupabaseMailerClient();
   if (!mailer) return { success: false, message: 'Serviço de autenticação indisponível.' };
   try {
     const emailRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/confirm?next=/` : undefined;
-    const { error } = await mailer.auth.resend({ type: 'signup', email, options: { emailRedirectTo } });
-    if (error) return { success: false, message: error.message };
+    const { error } = await mailer.auth.resend({ type: 'signup', email, options: { emailRedirectTo, captchaToken } });
+    if (error) return { success: false, message: mapAuthError(error.message) };
     return { success: true, message: 'E-mail de confirmação reenviado. Confira sua caixa de entrada e o spam.' };
   } catch {
     return { success: false, message: 'Não foi possível reenviar agora. Tente novamente em instantes.' };
