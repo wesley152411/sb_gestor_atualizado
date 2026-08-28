@@ -88,3 +88,7 @@ ALTER TABLE public.decorators DROP COLUMN IF EXISTS promo_message_template;
 - [ ] Coluna `decorators.promo_message_template` existe em prod.
 - [ ] `rls-auth-test.mjs` verde para as **11 tabelas** no banco alvo.
 - [ ] Só então ligar a flag na Netlify e validar o fluxo com uma conta real.
+      ⚠️ **`NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP` é flag de CLIENTE:** setar na Netlify
+      **e** fazer **"Clear cache and deploy site"** (não um redeploy simples), senão
+      ela vira `undefined` no bundle e a promo fica configurada-mas-inerte. Foi o que
+      aconteceu com o captcha — ver `docs/features/captcha-turnstile.md` (Lição do build).

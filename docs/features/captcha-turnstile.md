@@ -1,9 +1,37 @@
 # CAPTCHA no login (Cloudflare Turnstile)
 
+> **STATUS: ✅ LIGADO EM PRODUÇÃO em 2026-08-28.** Sequência de rollout completa
+> (Site Key na Netlify → flag ON + clear-cache deploy → verificação no navegador →
+> Secret Key no Supabase). Validado: aba logada não caiu, login novo funcionou.
+
 Protege o login/cadastro/recuperação contra brute-force e bots. Necessário porque
 o Supabase limita o endpoint de login (`/token`) a **1800/hora por IP e isso NÃO é
 ajustável** — o CAPTCHA é o único freio real de força bruta ali. Provedor:
 **Cloudflare Turnstile**, modo **managed** (a maioria das pessoas não vê desafio).
+
+## 🧠 Lição do build — variável `NEXT_PUBLIC_` precisa existir ANTES do build
+
+No rollout, o widget não apareceu mesmo com a flag e a chave criadas na Netlify.
+Causa: **`NEXT_PUBLIC_*` é inlinada como literal no bundle NO MOMENTO DO BUILD.**
+- Se a variável existe no build → vira literal (ex.: `captchaEnabled = "true"===..."` →
+  dobra para `true`). Funciona no navegador.
+- Se **não** existe no build → o compilador deixa um lookup `process.env.X` em
+  runtime, que no navegador é `undefined`. A flag fica **inerte** por mais que
+  esteja configurada no painel.
+
+Consequências práticas:
+1. **Ligar uma flag `NEXT_PUBLIC_` exige rebuild** — "**Clear cache and deploy site**"
+   (ou um novo commit/push), **não** um "redeploy" simples (que reusa o bundle antigo).
+2. **Cliente vs servidor:** isto vale só para código de **cliente** (React no
+   navegador). Flags de **servidor** (ex.: o rate limiting no proxy) leem `process.env`
+   em **runtime** na Netlify — funcionam sem inline. Foi por isso que o rate limiting
+   estava ativo e o captcha não.
+3. Como conferir sem navegador: baixar um chunk de `/_next/static/chunks/` e procurar
+   `env.NEXT_PUBLIC_CAPTCHA_ENABLED` — se ainda aparece como lookup, **não** inlinou.
+
+> **⚠️ Isto vai se repetir ao ligar a flag da promo** (`NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP`,
+> também de cliente): setar na Netlify **e** fazer "clear cache and deploy", senão a
+> promo fica configurada-mas-inerte igual o captcha ficou.
 
 ## ⚠️ Ordem de operação — NÃO INVERTER (quebra o login de todo mundo)
 
