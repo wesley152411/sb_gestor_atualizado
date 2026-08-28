@@ -91,3 +91,44 @@ jobs:
           echo "servidor não respondeu a tempo"; exit 1
       - name: Provar o 404 da rota promo com a flag desligada
         run: npm test -- -t 'reativação promocional'
+
+  # Rate limiting das rotas públicas: sobe o servidor com a flag LIGADA (enforce) e
+  # credenciais Upstash, e roda só tests/rate-limit.test.ts. Roda depois do
+  # isolation (needs) para não competir pelo banco. Requer os secrets UPSTASH_*.
+  rate-limit:
+    if: ${{ vars.HARNESS_ENABLED == 'true' }}
+    needs: isolation
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+      DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      TEST_BASE_URL: http://localhost:3000
+      HARNESS_ALLOW_TEST_DB: 'true'
+      # Rate limiting LIGADO em enforce para exercitar o 429.
+      NEXT_PUBLIC_RATE_LIMIT_ENABLED: 'true'
+      # URL pode estar como secret OU variável do repo (na Netlify você deixou como
+      # variável). Token é sempre secret.
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL || vars.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Subir o app (dev) em background
+        run: npm run dev &
+      - name: Esperar o servidor responder
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/login || true)
+            if [ "$code" = "200" ] || [ "$code" = "307" ]; then echo "servidor pronto"; exit 0; fi
+            sleep 3
+          done
+          echo "servidor não respondeu a tempo"; exit 1
+      - name: Rodar os testes de rate limiting
+        run: npx vitest run tests/rate-limit.test.ts

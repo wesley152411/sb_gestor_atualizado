@@ -13,16 +13,14 @@ export const promoWhatsappEnabled =
 export const PROMO_COMING_SOON =
   'Em breve! Estamos preparando o envio de mensagens promocionais direto pelo sistema. Aguarde a próxima atualização.';
 
-// Rate limiting das rotas públicas (proxy). Server-only (NÃO NEXT_PUBLIC): o proxy
-// roda no servidor e não precisa disto no bundle do cliente. Três estados, via
-// RATE_LIMIT_MODE, para permitir o rollout em fases:
-//   off     (default) — proxy não faz nada; nenhuma requisição é tocada.
-//   observe — loga o IP e a decisão QUE TOMARIA, mas NUNCA bloqueia (429). Use
-//             primeiro para confirmar qual header traz o IP real na Netlify.
-//   enforce — bloqueia de verdade (429 + Retry-After).
-// Assim dá para subir em 'observe', conferir o log do IP e só então 'enforce'.
-export type RateLimitMode = 'off' | 'observe' | 'enforce';
-export const rateLimitMode: RateLimitMode = (() => {
-  const v = (process.env.RATE_LIMIT_MODE || '').toLowerCase();
-  return v === 'observe' || v === 'enforce' ? v : 'off';
-})();
+// Rate limiting das rotas públicas (proxy). Flag no padrão da promo, MAS com uma
+// diferença deliberada: default DESLIGADO — NÃO liga sozinho em desenvolvimento.
+// (Se ligasse em dev como a promo, o harness e o dev local seriam limitados sem
+// querer, com as credenciais Upstash presentes.) Ligar = 'true' na Netlify.
+export const rateLimitEnabled = process.env.NEXT_PUBLIC_RATE_LIMIT_ENABLED === 'true';
+
+// Sub-modo do rollout — só vale quando rateLimitEnabled. RATE_LIMIT_MODE=observe
+// loga o IP, a latência do Redis e a decisão QUE TOMARIA, mas NUNCA bloqueia. Use
+// no 1º deploy para confirmar o header do IP real e a latência antes de bloquear.
+// Qualquer outro valor (ou ausente) = enforce (bloqueia de verdade).
+export const rateLimitObserveOnly = (process.env.RATE_LIMIT_MODE || '').toLowerCase() === 'observe';

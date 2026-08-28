@@ -37,6 +37,13 @@ export function resolveClientIp(headers: Headers): { ip: string; candidates: Rec
 // => fail-open. slidingWindow para a contagem zerar suavemente após a janela.
 let cached: { publicGet: Ratelimit; quotePostMin: Ratelimit; quotePostHour: Ratelimit } | null = null;
 
+// Somente para testes: zera o cache de limiters, para exercitar o fail-open (sem
+// credencial) no mesmo processo depois de já ter criado com credencial. Não usar
+// em produção.
+export function __resetLimitersForTest() {
+  cached = null;
+}
+
 function getLimiters() {
   if (cached) return cached;
   const url = process.env.UPSTASH_REDIS_REST_URL;
