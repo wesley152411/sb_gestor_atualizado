@@ -177,6 +177,36 @@ export function checkPasswordStrength(password: string): PasswordStrength {
   return 'strong';
 }
 
+// ==================== VALIDAÇÃO DE E-MAIL ====================
+
+// Formato prático (não RFC completo): um @, sem espaços, domínio com ponto e TLD
+// de 2+ letras. Barra lixo óbvio ("foo", "foo@bar"). NÃO valida se o e-mail
+// existe — isso só a confirmação por e-mail resolve (ver captcha-turnstile.md e a
+// limpeza de não confirmadas).
+export function isValidEmailFormat(email?: string | null): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((email || '').trim());
+}
+
+// Domínios de e-mail descartável/temporário conhecidos. Lista NÃO exaustiva (há
+// milhares) — cobre os mais comuns. Bloqueia cadastro de lixo em série que
+// consome o limite de e-mail do Supabase.
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  'mailinator.com', 'guerrillamail.com', 'guerrillamail.net', 'sharklasers.com', 'grr.la',
+  '10minutemail.com', '10minutemail.net', 'tempmail.com', 'temp-mail.org', 'tempmailo.com',
+  'yopmail.com', 'throwawaymail.com', 'getnada.com', 'nada.email', 'trashmail.com',
+  'maildrop.cc', 'dispostable.com', 'fakeinbox.com', 'mailnesia.com', 'mintemail.com',
+  'emailondeck.com', 'moakt.com', '33mail.com', 'mailcatch.com', 'spam4.me',
+  'tempr.email', 'discard.email', 'mailexpire.com', '1secmail.com', '1secmail.org',
+  '1secmail.net', 'inboxbear.com', 'tmail.ws', 'burnermail.io', 'mohmal.com',
+]);
+
+export function isDisposableEmailDomain(email?: string | null): boolean {
+  const clean = (email || '').trim().toLowerCase();
+  const at = clean.lastIndexOf('@');
+  if (at < 0) return false;
+  return DISPOSABLE_EMAIL_DOMAINS.has(clean.slice(at + 1));
+}
+
 // ==================== PLACEHOLDER DE IMAGEM ====================
 
 export function getPlaceholderImage(name: string): string {

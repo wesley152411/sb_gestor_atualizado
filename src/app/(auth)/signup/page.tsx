@@ -12,7 +12,7 @@ import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
-import { cnpjMask, checkPasswordStrength } from '@/lib/utils';
+import { cnpjMask, checkPasswordStrength, isValidEmailFormat, isDisposableEmailDomain } from '@/lib/utils';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -47,6 +47,15 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!isValidEmailFormat(form.email)) {
+      setError('Informe um e-mail válido (ex.: nome@empresa.com).');
+      return;
+    }
+    if (isDisposableEmailDomain(form.email)) {
+      setError('Use um e-mail permanente — e-mails descartáveis não são aceitos.');
+      return;
+    }
 
     if (form.password !== form.confirmPassword) {
       setError('As senhas não correspondem.');
