@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Building2, MapPin, User } from 'lucide-react';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { signUp } from '@/services/api';
 import { detectCity } from '@/lib/geolocation';
+import { captchaEnabled } from '@/lib/feature-flags';
+import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
@@ -19,6 +22,8 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaRef = useRef<TurnstileInstance>(undefined);
 
   const passwordStrength = checkPasswordStrength(form.password);
   const passwordsMatch = form.password === form.confirmPassword;
@@ -53,6 +58,11 @@ export default function SignupPage() {
       return;
     }
 
+    if (captchaEnabled && !captchaToken) {
+      setError('Complete a verificação de segurança antes de continuar.');
+      return;
+    }
+
     setIsLoading(true);
 
     const result = await signUp(form.email, form.password, {
@@ -60,7 +70,11 @@ export default function SignupPage() {
       company_name: form.company,
       cnpj: form.cnpj,
       location: form.location,
-    });
+    }, captchaToken || undefined);
+
+    // Reset a CADA tentativa — o token do Turnstile é de uso único.
+    captchaRef.current?.reset();
+    setCaptchaToken('');
 
     if (result.success) {
       if (result.needsEmailConfirmation) {
@@ -172,6 +186,12 @@ export default function SignupPage() {
               As senhas não correspondem.
             </span>
           )}
+
+          <CaptchaWidget
+            ref={captchaRef}
+            onToken={setCaptchaToken}
+            onExpire={() => setCaptchaToken('')}
+          />
 
           <Button type="submit" className="w-full" size="lg" isLoading={isLoading} style={{ marginTop: 8 }}>
             Criar Conta

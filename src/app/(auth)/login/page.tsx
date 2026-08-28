@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock } from 'lucide-react';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { signIn } from '@/services/api';
+import { captchaEnabled } from '@/lib/feature-flags';
+import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
@@ -15,6 +18,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaRef = useRef<TurnstileInstance>(undefined);
 
   // Mensagem clara quando o link de confirmação falhou (expirado / já usado /
   // aberto em outro navegador) — /auth/callback redireciona para cá com ?erro.
@@ -28,10 +33,18 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (captchaEnabled && !captchaToken) {
+      setError('Complete a verificação de segurança antes de continuar.');
+      return;
+    }
     setIsLoading(true);
 
-    const result = await signIn(email, password);
-    
+    const result = await signIn(email, password, captchaToken || undefined);
+
+    // Reset a CADA tentativa — o token do Turnstile é de uso único.
+    captchaRef.current?.reset();
+    setCaptchaToken('');
+
     if (result.success) {
       router.push('/analytics');
     } else {
@@ -99,6 +112,12 @@ export default function LoginPage() {
               Esqueci minha senha
             </Link>
           </div>
+
+          <CaptchaWidget
+            ref={captchaRef}
+            onToken={setCaptchaToken}
+            onExpire={() => setCaptchaToken('')}
+          />
 
           <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
             Entrar

@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Mail } from 'lucide-react';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { resetPassword } from '@/services/api';
+import { captchaEnabled } from '@/lib/feature-flags';
+import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
@@ -13,6 +16,8 @@ export default function ForgotPasswordPage() {
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaRef = useRef<TurnstileInstance>(undefined);
 
   // Quando /auth/confirm rejeita um link de recuperação (expirado/já usado), ele
   // manda para cá com ?erro=link — mostramos o motivo e o formulário pede outro.
@@ -26,10 +31,20 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setMessage('');
+    if (captchaEnabled && !captchaToken) {
+      setIsError(true);
+      setMessage('Complete a verificação de segurança antes de continuar.');
+      return;
+    }
+    setIsLoading(true);
 
-    const result = await resetPassword(email);
+    const result = await resetPassword(email, captchaToken || undefined);
+
+    // Reset a CADA tentativa — o token do Turnstile é de uso único.
+    captchaRef.current?.reset();
+    setCaptchaToken('');
+
     setMessage(result.message || '');
     setIsError(!result.success);
     setIsLoading(false);
@@ -86,6 +101,12 @@ export default function ForgotPasswordPage() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             required
+          />
+
+          <CaptchaWidget
+            ref={captchaRef}
+            onToken={setCaptchaToken}
+            onExpire={() => setCaptchaToken('')}
           />
 
           <Button type="submit" className="w-full" size="lg" isLoading={isLoading} style={{ marginTop: 8 }}>

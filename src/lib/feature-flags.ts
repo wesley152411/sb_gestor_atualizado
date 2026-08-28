@@ -24,3 +24,11 @@ export const rateLimitEnabled = process.env.NEXT_PUBLIC_RATE_LIMIT_ENABLED === '
 // no 1º deploy para confirmar o header do IP real e a latência antes de bloquear.
 // Qualquer outro valor (ou ausente) = enforce (bloqueia de verdade).
 export const rateLimitObserveOnly = (process.env.RATE_LIMIT_MODE || '').toLowerCase() === 'observe';
+
+// CAPTCHA (Cloudflare Turnstile) no login/signup/recuperação. Site key é pública
+// (front). captchaEnabled só é true com a flag ON *E* a site key presente — assim
+// uma flag ligada sem a chave NÃO quebra o login (fail-safe: sem chave, sem captcha).
+// Ordem de rollout crítica documentada em docs/features/captcha-turnstile.md.
+export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
+export const captchaEnabled =
+  process.env.NEXT_PUBLIC_CAPTCHA_ENABLED === 'true' && TURNSTILE_SITE_KEY.length > 0;

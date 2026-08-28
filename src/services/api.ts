@@ -30,7 +30,15 @@ function setLocal<T>(key: string, data: T): void {
 
 // ==================== AUTH ====================
 
-export async function signUp(email: string, password: string, metadata: SignupMetadata): Promise<AuthResult> {
+// Traduz o erro do Supabase. Uma falha de CAPTCHA NÃO pode virar "e-mail ou senha
+// inválidos" — a pessoa precisa saber que foi a verificação de segurança.
+function mapAuthError(msg?: string): string {
+  if (!msg) return '';
+  if (/captcha/i.test(msg)) return 'Verificação de segurança falhou. Recarregue a página e tente novamente.';
+  return msg;
+}
+
+export async function signUp(email: string, password: string, metadata: SignupMetadata, captchaToken?: string): Promise<AuthResult> {
   const sb = getSupabaseClient();
   // Cliente IMPLICIT só para o cadastro: garante que o e-mail saia com token_hash
   // comum (não "pkce_..."), que o /auth/confirm valida em qualquer dispositivo.
@@ -51,12 +59,13 @@ export async function signUp(email: string, password: string, metadata: SignupMe
       email, password,
       options: {
         emailRedirectTo,
+        captchaToken,
         data: { name: metadata.name, company_name: metadata.company_name, location: metadata.location, cnpj: metadata.cnpj },
       },
     });
     if (error) {
       if (error.message.includes('already registered')) return { success: false, message: 'Este e-mail já está cadastrado.' };
-      return { success: false, message: error.message };
+      return { success: false, message: mapAuthError(error.message) };
     }
     // O perfil da decoradora é criado de forma PREGUIÇOSA no primeiro login
     // (POST /api/decorators/me, semeado pelo metadata acima). Assim funciona
@@ -73,7 +82,7 @@ export async function signUp(email: string, password: string, metadata: SignupMe
   }
 }
 
-export async function signIn(email: string, password: string): Promise<AuthResult> {
+export async function signIn(email: string, password: string, captchaToken?: string): Promise<AuthResult> {
   const sb = getSupabaseClient();
   // SEGURANÇA: só login real do Supabase. Removido o "mock login" que logava
   // qualquer um como decorators[0] (impersonação) e não gerava sessão no servidor.
@@ -81,9 +90,9 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     return { success: false, message: 'Serviço de autenticação indisponível. Tente novamente em instantes.' };
   }
   try {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    const { data, error } = await sb.auth.signInWithPassword({ email, password, options: { captchaToken } });
     if (error || !data?.session) {
-      return { success: false, message: error?.message || 'E-mail ou senha inválidos.' };
+      return { success: false, message: mapAuthError(error?.message) || 'E-mail ou senha inválidos.' };
     }
     return { success: true, user: data.user, session: data.session };
   } catch {
@@ -111,7 +120,7 @@ export async function getSession() {
   } catch { return null; }
 }
 
-export async function resetPassword(email: string): Promise<AuthResult> {
+export async function resetPassword(email: string, captchaToken?: string): Promise<AuthResult> {
   // Mailer IMPLICIT: garante token_hash comum (não "pkce_...") no e-mail de recuperação.
   const mailer = getSupabaseMailerClient();
   if (!mailer) return { success: false, message: 'Erro ao conectar com o servidor.' };
@@ -119,8 +128,8 @@ export async function resetPassword(email: string): Promise<AuthResult> {
     // O link de recuperação é controlado pelo TEMPLATE (token_hash -> /auth/confirm
     // ?type=recovery&next=/reset-password). O redirectTo abaixo só cobre o fallback.
     const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined;
-    const { error } = await mailer.auth.resetPasswordForEmail(email, { redirectTo });
-    if (error) return { success: false, message: error.message };
+    const { error } = await mailer.auth.resetPasswordForEmail(email, { redirectTo, captchaToken });
+    if (error) return { success: false, message: mapAuthError(error.message) };
     return { success: true, message: 'E-mail de recuperação enviado! Confira sua caixa de entrada e o spam.' };
   } catch { return { success: false, message: 'Erro ao enviar e-mail de recuperação.' }; }
 }
