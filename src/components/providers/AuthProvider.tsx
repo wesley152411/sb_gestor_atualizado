@@ -21,31 +21,42 @@ function isConfirmed(u?: SessionUser): boolean {
   return Boolean(u?.email_confirmed_at || u?.confirmed_at);
 }
 
+// Estados de auth do wrapper das rotas autenticadas:
+//   loading   — ainda resolvendo a sessão (mostra o loader).
+//   authed    — sessão válida e confirmada (renderiza o app, mesmo se o perfil
+//               ainda não carregou — isso é problema de dados, não de sessão).
+//   gate      — sessão presente mas e-mail não confirmado (tela de confirmação).
+//   nosession — SEM sessão válida: NÃO renderiza a casca; manda para o /login.
+type AuthStatus = 'loading' | 'authed' | 'gate' | 'nosession';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setDecorator, setLoading } = useAuthStore();
-  const [initialized, setInitialized] = useState(false);
-  // E-mail da sessão não confirmada => trava o app na tela de confirmação.
+  const [status, setStatus] = useState<AuthStatus>('loading');
   const [gateEmail, setGateEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    // Resolve o estado a partir da sessão: confirmado => carrega perfil;
-    // não confirmado => mostra o gate; sem sessão => nada.
+    // Resolve o estado a partir da sessão. A distinção que importa para o bug:
+    // "sem sessão" (=> /login) é diferente de "sessão ok, perfil não carregou"
+    // (=> segue autenticado; as páginas lidam com decorator null).
     async function resolveSession(session: SessionLike) {
       const user = session?.user;
-      if (user) {
-        if (!isConfirmed(user)) {
-          setGateEmail(user.email || '');
-          setDecorator(null);
-          return;
-        }
-        setGateEmail(null);
-        let profile = await withTimeout(getMyProfile(), 15000, null);
-        if (!profile) profile = await withTimeout(ensureMyProfile(), 15000, null);
-        setDecorator(profile || null);
-      } else {
+      if (!user) {
         setGateEmail(null);
         setDecorator(null);
+        setStatus('nosession');
+        return;
       }
+      if (!isConfirmed(user)) {
+        setGateEmail(user.email || '');
+        setDecorator(null);
+        setStatus('gate');
+        return;
+      }
+      setGateEmail(null);
+      let profile = await withTimeout(getMyProfile(), 15000, null);
+      if (!profile) profile = await withTimeout(ensureMyProfile(), 15000, null);
+      setDecorator(profile || null);
+      setStatus('authed');
     }
 
     async function initAuth() {
@@ -53,20 +64,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const session = await withTimeout(getSession(), 15000, null);
         await resolveSession(session as SessionLike);
       } catch {
+        // Não conseguimos confirmar a sessão => tratamos como não autenticado e
+        // mandamos para o login, em vez de renderizar a casca vazia (o bug).
         setGateEmail(null);
         setDecorator(null);
+        setStatus('nosession');
       } finally {
         setLoading(false);
-        setInitialized(true);
       }
     }
 
     initAuth();
 
     const subscription = onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') {
+      // Sessão perdida durante o uso (logout, storage limpo, token expirado):
+      // vai para o login em vez de deixar a casca sem sessão.
+      if (event === 'SIGNED_OUT' || !session) {
         setGateEmail(null);
         setDecorator(null);
+        setStatus('nosession');
       } else {
         await resolveSession(session as SessionLike);
       }
@@ -77,7 +93,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [setDecorator, setLoading]);
 
-  if (!initialized) {
+  // Sem sessão válida: redireciona para o login ANTES de renderizar qualquer
+  // parte do app. replace() para não deixar a tela quebrada no histórico (voltar
+  // não retorna à casca vazia). Enquanto navega, mostra o loader — nunca a casca.
+  useEffect(() => {
+    if (status === 'nosession' && typeof window !== 'undefined') {
+      window.location.replace('/login');
+    }
+  }, [status]);
+
+  if (status === 'gate' && gateEmail !== null) {
+    return <EmailConfirmationGate email={gateEmail} />;
+  }
+
+  // loading e nosession mostram o loader (nosession está redirecionando).
+  if (status !== 'authed') {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -91,10 +121,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
-  }
-
-  if (gateEmail !== null) {
-    return <EmailConfirmationGate email={gateEmail} />;
   }
 
   return <>{children}</>;
