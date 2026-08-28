@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { Redis } from '@upstash/redis';
+import { describe, it, expect } from 'vitest';
 import { api } from './helpers';
 import { checkPublicRateLimit, __resetLimitersForTest } from '../src/lib/rate-limit';
 
@@ -16,8 +15,8 @@ const enforcing =
 
 // Chave ÚNICA por teste (e por execução) — o proxy usa o header
 // x-nf-client-connection-ip como identidade. Assim cada teste tem seu próprio
-// contador, sem interferência entre testes/execuções e sem tocar produção (o
-// valor não é um IP real). Sem flush frágil.
+// contador, sem interferência entre testes/execuções e sem tocar produção (o valor
+// não é um IP real).
 const RUN = Date.now();
 const keyFor = (tag: string) => `rltest-${tag}-${RUN}`;
 const H = (key: string, extra: Record<string, string> = {}) => ({ 'x-nf-client-connection-ip': key, ...extra });
@@ -58,26 +57,16 @@ describe.skipIf(!hasUpstash)('Rate limiting — rotas públicas', () => {
     expect(blocked.headers.get('retry-after')).toBeTruthy();
   });
 
-  it.skipIf(!enforcing)('a contagem zera após a janela expirar (simulada limpando os contadores da chave)', async () => {
+  // Teste REAL da janela: estoura, confirma 429, espera a janela de 1 min passar e
+  // confirma que volta a passar. É o teste honesto de "zera após a janela" — sem
+  // depender do formato interno de chave do @upstash/ratelimit. ~65s.
+  it.skipIf(!enforcing)('a contagem zera após a janela de 1 min expirar', async () => {
     const key = keyFor('reset');
-    for (let i = 0; i < 31; i++) await getWith(key);
-    expect((await getWith(key)).status).toBe(429);
-
-    // Limpa SÓ os contadores desta chave de teste (equivale à expiração da janela).
-    const redis = new Redis({ url: UP_URL!, token: UP_TOKEN! });
-    const keys = (await redis.keys('rl:*')).filter((k) => k.includes(key));
-    if (keys.length) await redis.del(...keys);
-
-    expect((await getWith(key)).status).not.toBe(429);
-  });
-
-  it.skipIf(process.env.RUN_SLOW_RL !== '1')('janela real: após 65s o GET volta a passar (lento — RUN_SLOW_RL=1)', async () => {
-    const key = keyFor('slow');
     for (let i = 0; i < 31; i++) await getWith(key);
     expect((await getWith(key)).status).toBe(429);
     await new Promise((r) => setTimeout(r, 65_000));
     expect((await getWith(key)).status).not.toBe(429);
-  }, 90_000);
+  }, 85_000);
 
   it('fail-open: sem credencial Upstash, a decisão é PASSAR (nível da lib)', async () => {
     const url = process.env.UPSTASH_REDIS_REST_URL;
