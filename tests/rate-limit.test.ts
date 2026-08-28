@@ -14,6 +14,16 @@ const enforcing =
   process.env.NEXT_PUBLIC_RATE_LIMIT_ENABLED === 'true' &&
   (process.env.RATE_LIMIT_MODE || '').toLowerCase() !== 'observe';
 
+// No job de CI `rate-limit` (RATE_LIMIT_JOB=1) as credenciais Upstash DEVEM existir.
+// Sem elas, FALHA (não pula) — silêncio verde aqui é pior que vermelho.
+it.runIf(process.env.RATE_LIMIT_JOB === '1')(
+  'pré-condição: o job rate-limit tem credenciais Upstash e enforce ligado',
+  () => {
+    expect(hasUpstash, 'UPSTASH_REDIS_REST_URL/TOKEN ausentes no job rate-limit — configure os secrets').toBe(true);
+    expect(enforcing, 'rate limiting não está em enforce no job rate-limit').toBe(true);
+  }
+);
+
 describe.skipIf(!hasUpstash)('Rate limiting — rotas públicas', () => {
   let redis: Redis;
   beforeAll(() => {

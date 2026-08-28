@@ -108,6 +108,8 @@ jobs:
       HARNESS_ALLOW_TEST_DB: 'true'
       # Rate limiting LIGADO em enforce para exercitar o 429.
       NEXT_PUBLIC_RATE_LIMIT_ENABLED: 'true'
+      # Marca o job para a pré-condição falhar (não pular) se faltar credencial.
+      RATE_LIMIT_JOB: '1'
       # URL pode estar como secret OU variável do repo (na Netlify você deixou como
       # variável). Token é sempre secret.
       UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL || vars.UPSTASH_REDIS_REST_URL }}
