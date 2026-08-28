@@ -65,7 +65,12 @@ function getLimiters() {
 }
 
 // rl.limit() com timeout: se o Redis demorar, não seguramos a resposta — fail-open.
-async function limitWithTimeout(rl: Ratelimit, key: string, ms = 800) {
+// O teto é configurável (RATE_LIMIT_TIMEOUT_MS, default 800ms). Em prod, Netlify→
+// Upstash foi 8–42ms, então 800 sobra. Ambientes distantes do Upstash (ex.: runner
+// de CI nos EUA → banco em São Paulo) precisam de mais folga, senão o fail-open
+// dispara à toa e sub-conta o limite.
+async function limitWithTimeout(rl: Ratelimit, key: string) {
+  const ms = Number(process.env.RATE_LIMIT_TIMEOUT_MS) || 800;
   try {
     return await Promise.race([
       rl.limit(key),

@@ -110,6 +110,10 @@ jobs:
       NEXT_PUBLIC_RATE_LIMIT_ENABLED: 'true'
       # Marca o job para a pré-condição falhar (não pular) se faltar credencial.
       RATE_LIMIT_JOB: '1'
+      # Runner do CI (EUA) → Upstash em São Paulo tem latência bem maior que o
+      # Netlify→Upstash de prod (8–42ms). Folga o timeout para o fail-open não
+      # disparar à toa e sub-contar o limite (senão o teste de fronteira flakeia).
+      RATE_LIMIT_TIMEOUT_MS: '3000'
       # URL pode estar como secret OU variável do repo (na Netlify você deixou como
       # variável). Token é sempre secret.
       UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL || vars.UPSTASH_REDIS_REST_URL }}
