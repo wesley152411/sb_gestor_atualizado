@@ -333,3 +333,94 @@ describe('Isolamento — reativação promocional (/api/promo-messages)', () => 
     expect(r.status).toBe(404);
   });
 });
+
+// Locação B2B: A = locadora (dona da peça), B = locatária, C = terceira.
+describe('Locação B2B — pedido, disponibilidade, devolução, cancelamento', () => {
+  const rnd = () => Math.random().toString(36).slice(2, 7);
+  const future = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+
+  async function makeItem(stock: number, name = 'Peça B2B'): Promise<string> {
+    const id = `inv_b2b_${Date.now()}_${rnd()}`;
+    await post('/api/inventory', A.cookie, { id, name, status: 'Público', stock_quantity: stock, rental_price: 50 });
+    return id;
+  }
+  // Locatária `who` aluga a peça de A. Devolve a Response.
+  function rent(who: TestAccount, itemId: string, qty: number, pickup: string, ret: string) {
+    return post('/api/orders', who.cookie, {
+      id: `ord_${Date.now()}_${rnd()}`, owner_id: A.id, pickup_date: pickup, return_date: ret,
+      total_value: 50 * qty, items: [{ name: 'Peça B2B', quantity: qty, price: 50, item_id: itemId }],
+    });
+  }
+
+  it('locatária vê a locação; locadora vê; terceira NÃO vê', async () => {
+    const itemId = await makeItem(5);
+    const created = await rent(B, itemId, 1, future(5), future(8));
+    expect(created.status).toBe(200);
+    const orderId = (await created.json()).id;
+    expect((await (await api('/api/orders', B.cookie)).json()).some((o: any) => o.id === orderId)).toBe(true);
+    expect((await (await api('/api/orders', A.cookie)).json()).some((o: any) => o.id === orderId)).toBe(true);
+    expect((await (await api('/api/orders', C.cookie)).json()).some((o: any) => o.id === orderId)).toBe(false);
+  });
+
+  it('só a locadora marca devolvido (locatária 403); depois a peça volta ao acervo', async () => {
+    const itemId = await makeItem(2);
+    const orderId = (await (await rent(B, itemId, 2, future(5), future(8))).json()).id;
+    // locatária tenta devolver → 403
+    expect((await api(`/api/orders/${orderId}/return`, B.cookie, { method: 'POST' })).status).toBe(403);
+    // 2/2 reservadas → mais 1 sobreposto é recusado
+    expect((await rent(C, itemId, 1, future(6), future(7))).status).toBe(409);
+    // locadora devolve → 200
+    expect((await api(`/api/orders/${orderId}/return`, A.cookie, { method: 'POST' })).status).toBe(200);
+    // peça voltou: 2 sobrepostos passam
+    expect((await rent(C, itemId, 2, future(6), future(7))).status).toBe(200);
+  });
+
+  it('locação acima do disponível no período é recusada com mensagem clara', async () => {
+    const itemId = await makeItem(3);
+    expect((await rent(B, itemId, 3, future(5), future(8))).status).toBe(200);
+    const over = await rent(C, itemId, 1, future(6), future(7));
+    expect(over.status).toBe(409);
+    expect((await over.json()).error).toMatch(/dispon|restam|nenhuma/i);
+  });
+
+  it('duas locações simultâneas da mesma peça não estouram o estoque', async () => {
+    const itemId = await makeItem(1); // só 1 unidade
+    const [r1, r2] = await Promise.all([
+      rent(B, itemId, 1, future(5), future(8)),
+      rent(C, itemId, 1, future(5), future(8)),
+    ]);
+    expect([r1.status, r2.status].sort()).toEqual([200, 409]); // exatamente uma passa
+  });
+
+  it('alugar kit bloqueia todos os itens dele', async () => {
+    const itemId = await makeItem(1, 'Item do Kit');
+    const kitId = `kit_b2b_${Date.now()}_${rnd()}`;
+    await post('/api/kits', A.cookie, { id: kitId, name: 'Kit B2B', status: 'Público', value: 100, items: [{ id: itemId, name: 'Item do Kit', quantity: 1 }] });
+    const rk = await post('/api/orders', B.cookie, {
+      id: `ord_${Date.now()}_${rnd()}`, owner_id: A.id, pickup_date: future(5), return_date: future(8),
+      total_value: 100, items: [{ name: 'Kit B2B', quantity: 1, price: 100, kit_id: kitId }],
+    });
+    expect(rk.status).toBe(200);
+    // o item individual sobreposto agora está reservado pelo kit → 409
+    expect((await rent(C, itemId, 1, future(6), future(7))).status).toBe(409);
+  });
+
+  it('cancelamento: locatária cancela FUTURA; locadora cancela; retirada passada só a locadora encerra', async () => {
+    const itemId = await makeItem(3);
+    // locatária cancela locação com retirada futura → 200
+    const id1 = (await (await rent(B, itemId, 1, future(5), future(8))).json()).id;
+    expect((await api(`/api/orders/${id1}/cancel`, B.cookie, { method: 'POST' })).status).toBe(200);
+    // locadora cancela a qualquer momento → 200
+    const id2 = (await (await rent(B, itemId, 1, future(5), future(8))).json()).id;
+    expect((await api(`/api/orders/${id2}/cancel`, A.cookie, { method: 'POST' })).status).toBe(200);
+    // retirada PASSADA (inserida direto — a API não deixa criar no passado):
+    const pastId = `ord_past_${Date.now()}_${rnd()}`;
+    await prisma.rentalOrder.create({ data: {
+      id: pastId, owner_id: A.id, renter_id: B.id, status: 'ativo', total_value: 50,
+      pickup_date: new Date(Date.now() - 2 * 86400000), return_date: new Date(Date.now() + 2 * 86400000),
+    } });
+    expect((await api(`/api/orders/${pastId}/cancel`, B.cookie, { method: 'POST' })).status).toBe(403); // locatária não cancela passada
+    expect((await api(`/api/orders/${pastId}/return`, B.cookie, { method: 'POST' })).status).toBe(403); // locatária não devolve
+    expect((await api(`/api/orders/${pastId}/return`, A.cookie, { method: 'POST' })).status).toBe(200); // locadora encerra
+  });
+});
