@@ -9,14 +9,16 @@
 ALTER TABLE public.decorators ADD COLUMN IF NOT EXISTS cnpj         text;
 ALTER TABLE public.decorators ADD COLUMN IF NOT EXISTS company_name text;
 
--- 2) Backfill: copia do metadata do Auth o que ainda não estiver preenchido.
---    decorators.id é TEXT; auth.users.id é UUID → cast. NULLIF evita gravar ''.
+-- 2) Backfill do company_name (string, seguro). CNPJ NÃO é backfillado de
+--    propósito: auditoria em 2026-08-29 mostrou que os 3 CNPJs no metadata são
+--    TODOS inválidos (dígito verificador/sequência repetida). Copiar valor inválido
+--    é pior que nulo — parece confiável e não é. Cada conta preenche um CNPJ VÁLIDO
+--    via cadastro (novas) ou Configurações (existentes). decorators.id text; auth uuid → cast.
 UPDATE public.decorators d
-SET cnpj         = COALESCE(d.cnpj,         NULLIF(u.raw_user_meta_data->>'cnpj', '')),
-    company_name = COALESCE(d.company_name, NULLIF(u.raw_user_meta_data->>'company_name', ''))
+SET company_name = COALESCE(d.company_name, NULLIF(u.raw_user_meta_data->>'company_name', ''))
 FROM auth.users u
 WHERE u.id = d.id::uuid
-  AND (d.cnpj IS NULL OR d.company_name IS NULL);
+  AND d.company_name IS NULL;
 
 -- ============================================================================
 -- ROLLBACK (comentado — apply-sql.cjs ignora linhas `--`, então não roda daqui;
