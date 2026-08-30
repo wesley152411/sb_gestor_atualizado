@@ -17,8 +17,22 @@
 //   (o Storage exige SUPABASE_SERVICE_ROLE_KEY no ambiente — pegue em
 //    Supabase → Settings → API; não commite essa chave.)
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const { createClient } = require('@supabase/supabase-js');
+
+// Comprovante da exclusão — gravado FORA do repo, junto dos backups
+// (~/sbgestor-backups/deletions/). Prova, se alguém questionar depois, o que foi
+// apagado em cada camada, com data/hora. Só é escrito em --apply (exclusão real).
+function writeReceipt(receipt) {
+  const dir = path.join(os.homedir(), 'sbgestor-backups', 'deletions');
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = receipt.timestamp.replace(/[:.]/g, '-');
+  const file = path.join(dir, `delete_${receipt.target.id}_${stamp}.json`);
+  fs.writeFileSync(file, JSON.stringify(receipt, null, 2), 'utf8');
+  return file;
+}
 
 const args = process.argv.slice(2);
 const get = (k) => { const a = args.find((x) => x.startsWith(`--${k}=`)); return a ? a.split('=').slice(1).join('=') : undefined; };
@@ -109,21 +123,44 @@ async function listStorage(admin, id) {
     if (!apply) { console.log('\n(dry-run) nada foi apagado. Rode de novo com --apply para excluir.'); return; }
     if (!admin) { console.error('\n🛑 --apply abortado: sem service role, a exclusão do Storage ficaria incompleta. Forneça SUPABASE_SERVICE_ROLE_KEY.'); process.exitCode = 1; return; }
 
-    // 1) Storage
-    for (const b of BUCKETS) {
-      const paths = storage[b];
-      if (Array.isArray(paths) && paths.length) {
-        const { error } = await admin.storage.from(b).remove(paths);
-        console.log(`  Storage ${b}: ${error ? 'ERRO ' + error.message : `removidos ${paths.length}`}`);
-      }
-    }
-    // 2) tabelas (cascata) — apaga a decoradora; o FK leva o resto.
-    if (dec) { await p.decorator.delete({ where: { id } }); console.log('  decorators: removida (cascata aplicada)'); }
-    // 3) login (e-mail, senha, metadata com CNPJ)
-    const delAuth = await p.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1::uuid`, id);
-    console.log(`  auth.users: ${delAuth} removida`);
+    // Comprovante — preenchido conforme cada camada é apagada; escrito no fim.
+    const receipt = {
+      script: 'delete-decorator.cjs', status: 'em andamento',
+      timestamp: new Date().toISOString(), timestampLocal: new Date().toString(),
+      env: envMode, target: { id, email: auth ? auth.email : null, name: dec ? dec.name : null, cnpj: (auth && auth.raw_user_meta_data ? auth.raw_user_meta_data.cnpj : null) || null },
+      layers: { storage: {}, tables: { decorators_removed: false, cascade: counts }, auth: { deleted: 0 } },
+    };
 
-    console.log('\n✅ exclusão total concluída. (Logs de terceiros — Netlify/Supabase/Upstash — expiram por retenção própria; ver docs/legal/data-inventory.md §4.)');
+    try {
+      // 1) Storage
+      for (const b of BUCKETS) {
+        const paths = storage[b];
+        const n = Array.isArray(paths) ? paths.length : 0;
+        if (n) {
+          const { error } = await admin.storage.from(b).remove(paths);
+          if (error) throw new Error(`Storage ${b}: ${error.message}`);
+        }
+        receipt.layers.storage[b] = { removed: n, paths: Array.isArray(paths) ? paths : [] };
+        console.log(`  Storage ${b}: removidos ${n}`);
+      }
+      // 2) tabelas (cascata) — apaga a decoradora; o FK leva o resto.
+      if (dec) { await p.decorator.delete({ where: { id } }); receipt.layers.tables.decorators_removed = true; console.log('  decorators: removida (cascata aplicada)'); }
+      // 3) login (e-mail, senha, metadata com CNPJ)
+      const delAuth = await p.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1::uuid`, id);
+      receipt.layers.auth.deleted = Number(delAuth);
+      console.log(`  auth.users: ${delAuth} removida`);
+      receipt.status = 'OK';
+    } catch (stepErr) {
+      receipt.status = 'FALHA';
+      receipt.error = String(stepErr && stepErr.message ? stepErr.message : stepErr).split('\n')[0];
+      const rf = writeReceipt(receipt);
+      console.error(`\n🛑 exclusão INCOMPLETA — comprovante (parcial) em: ${rf}`);
+      throw stepErr;
+    }
+
+    const rf = writeReceipt(receipt);
+    console.log(`\n✅ exclusão total concluída. Comprovante: ${rf}`);
+    console.log('   (Logs de terceiros — Netlify/Supabase/Upstash — expiram por retenção própria; ver docs/legal/data-inventory.md §4b.)');
   } catch (e) {
     const msg = String(e && e.message ? e.message : e).trim();
     console.error('ERRO:', msg.split('\n').filter(Boolean).slice(0, 3).join(' | '));
