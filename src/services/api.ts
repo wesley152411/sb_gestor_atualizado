@@ -461,6 +461,30 @@ export async function saveRentalOrder(order: Partial<RentalOrder>): Promise<Rent
   return newOrder;
 }
 
+// Criação de locação B2B — SEM fallback de localStorage: erros do servidor
+// (datas inválidas 400, conflito de disponibilidade 409) PRECISAM chegar ao modal
+// com a mensagem específica. O saveRentalOrder legado (acima) engolia o erro.
+export async function createRentalOrder(order: {
+  renter_id: string;
+  owner_id: string;
+  pickup_date: string;
+  return_date: string;
+  observation?: string;
+  total_value: number;
+  items: { name: string; quantity: number; price: number; item_id?: string; kit_id?: string }[];
+}): Promise<RentalOrder> {
+  const res = await fetch('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: generateId('ord'), status: 'ativo', ...order }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Não foi possível enviar a solicitação. Tente novamente.');
+  }
+  return res.json();
+}
+
 // ==================== CLIENTS ====================
 
 export async function getClients(decoratorId?: string): Promise<Client[]> {

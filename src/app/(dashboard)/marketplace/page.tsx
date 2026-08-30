@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, List, Store, ExternalLink, Search, Trash2, Package, Minus, Plus } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useCartStore } from '@/stores/cart-store';
 import { useNotificationStore } from '@/stores/notification-store';
-import { fetchPartnerPublicAcervo, fetchPartnerDecoratorsList, saveRentalOrder } from '@/services/api';
+import { fetchPartnerPublicAcervo, fetchPartnerDecoratorsList, createRentalOrder } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -34,17 +34,75 @@ export default function MarketplacePage() {
   const [activeChip, setActiveChip] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Cart Modal
+  // Cart Modal — locação B2B com retirada/devolução.
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [eventDate, setEventDate] = useState('');
+  const [pickupDate, setPickupDate] = useState('');
+  const [returnDate, setReturnDate] = useState('');
   const [observation, setObservation] = useState('');
-  const [showDateError, setShowDateError] = useState(false);
+  const [dateError, setDateError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  // Disponível por peça NO PERÍODO (null = desconhecido/erro). Preenchido só quando
+  // as duas datas estão completas — "X de Y" sem intervalo não significa nada.
+  const [availByCartId, setAvailByCartId] = useState<Record<string, number | null>>({});
+  const [adjustedIds, setAdjustedIds] = useState<Set<string>>(new Set());
+  const [isCheckingAvail, setIsCheckingAvail] = useState(false);
+  const pickupRef = useRef<HTMLInputElement>(null);
+  const returnRef = useRef<HTMLInputElement>(null);
   const todayStr = new Date().toISOString().slice(0, 10); // bloqueia datas passadas
-  const canSubmit = cartItems.length > 0 && !!eventDate && eventDate >= todayStr;
 
-  // Stepper: mínimo 1 (para remover usa-se a lixeira); máximo = estoque disponível.
+  const fmtBr = (iso: string) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '');
+  function validateDates(pu: string, rt: string): string {
+    if (!pu || !rt) return ''; // incompleto ainda → sem erro
+    if (pu < todayStr) return 'A data de retirada não pode ser no passado.';
+    if (rt < pu) return 'A data de devolução não pode ser anterior à retirada.';
+    return '';
+  }
+  const datesComplete = !!pickupDate && !!returnDate && !validateDates(pickupDate, returnDate);
+  // Máx do stepper: com datas = disponível no período; sem datas = capacidade (acervo).
+  const maxFor = (itemId: string, stock: number) =>
+    datesComplete ? (availByCartId[itemId] ?? stock) : stock;
+  const anyUnavailable = datesComplete && cartItems.some((c) => availByCartId[c.item.id] === 0);
+  const canSubmit = cartItems.length > 0 && datesComplete && !anyUnavailable && !isCheckingAvail;
+
+  // Stepper: mínimo 1 (para remover usa-se a lixeira); máximo = disponível no período.
   const decQty = (idx: number, qty: number) => updateQuantity(idx, Math.max(1, qty - 1));
   const incQty = (idx: number, qty: number, max: number) => updateQuantity(idx, Math.min(max || qty + 1, qty + 1));
+
+  // Ao completar/alterar as datas: busca disponibilidade por peça e AJUSTA o stepper
+  // se a quantidade escolhida passou do disponível no novo período — com sinal visível
+  // (adjustedIds), nunca mostrando um número que seria recusado no envio nem caindo
+  // em silêncio.
+  useEffect(() => {
+    setSubmitError('');
+    if (!datesComplete || cartItems.length === 0) { setAvailByCartId({}); setAdjustedIds(new Set()); return; }
+    let cancelled = false;
+    setIsCheckingAvail(true);
+    (async () => {
+      const entries = await Promise.all(cartItems.map(async (c) => {
+        const raw = c.item as InventoryItem & { isKit?: boolean };
+        const qs = new URLSearchParams({ pickup: pickupDate, return: returnDate });
+        if (raw.isKit) qs.set('kitId', raw.id); else qs.set('itemId', raw.id);
+        try {
+          const res = await fetch(`/api/orders/availability?${qs.toString()}`);
+          const data = res.ok ? await res.json() : {};
+          return [raw.id, typeof data.available === 'number' ? data.available : null] as const;
+        } catch { return [raw.id, null] as const; }
+      }));
+      if (cancelled) return;
+      const map: Record<string, number | null> = {};
+      entries.forEach(([id, a]) => { map[id] = a; });
+      setAvailByCartId(map);
+      const adjusted = new Set<string>();
+      cartItems.forEach((c, idx) => {
+        const a = map[c.item.id];
+        if (typeof a === 'number' && a >= 1 && c.quantity > a) { updateQuantity(idx, a); adjusted.add(c.item.id); }
+      });
+      setAdjustedIds(adjusted);
+      setIsCheckingAvail(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupDate, returnDate, cartItems.length]);
 
   useEffect(() => {
     async function loadMarketplace() {
@@ -108,11 +166,15 @@ export default function MarketplacePage() {
   };
 
   const handleCheckout = async () => {
+    setSubmitError('');
     if (cartItems.length === 0) return;
-    if (!eventDate || eventDate < todayStr) {
-      setShowDateError(true);
-      return;
-    }
+    // Validação das datas: mensagem específica + foco no campo (bloqueia o envio).
+    if (!pickupDate) { setDateError('Informe a data de retirada.'); pickupRef.current?.focus(); return; }
+    if (!returnDate) { setDateError('Informe a data de devolução.'); returnRef.current?.focus(); return; }
+    const de = validateDates(pickupDate, returnDate);
+    if (de) { setDateError(de); (de.includes('devolução') ? returnRef : pickupRef).current?.focus(); return; }
+    setDateError('');
+    if (anyUnavailable) { setSubmitError('Há item indisponível nessas datas. Ajuste as datas ou remova o item do carrinho.'); return; }
     if (!decorator) return;
 
     const ownerId = cartItems[0].item.decorator_id;
@@ -127,20 +189,39 @@ export default function MarketplacePage() {
       };
     });
 
-    await saveRentalOrder({
-      renter_id: decorator.id,
-      owner_id: ownerId,
-      event_date: eventDate,
-      observation,
-      total_value: totalPrice(),
-      items: orderItems,
-    });
-
-    addNotification('Pedido Enviado!', 'A parceira receberá sua solicitação em breve.');
-    clear();
-    setEventDate('');
-    setObservation('');
-    setIsCartOpen(false);
+    try {
+      await createRentalOrder({
+        renter_id: decorator.id,
+        owner_id: ownerId,
+        pickup_date: pickupDate,
+        return_date: returnDate,
+        observation,
+        total_value: totalPrice(),
+        items: orderItems,
+      });
+      addNotification('Locação confirmada!', 'A parceira já vê o pedido no calendário dela.');
+      clear();
+      setPickupDate(''); setReturnDate(''); setObservation('');
+      setAvailByCartId({}); setAdjustedIds(new Set());
+      setIsCartOpen(false);
+    } catch (e: any) {
+      // 409 da corrida (peça levada enquanto preenchia) ou 400 de data → mensagem
+      // ESPECÍFICA do servidor. E refaz a checagem para o "X de Y" refletir o novo cenário.
+      setSubmitError(e?.message || 'Não foi possível enviar a solicitação. Tente novamente.');
+      // Refaz a checagem de disponibilidade para o "X de Y" refletir o novo cenário.
+      if (datesComplete) {
+        const refetch = new URLSearchParams({ pickup: pickupDate, return: returnDate });
+        const map: Record<string, number | null> = {};
+        await Promise.all(cartItems.map(async (c) => {
+          const raw = c.item as InventoryItem & { isKit?: boolean };
+          const qs = new URLSearchParams(refetch);
+          if (raw.isKit) qs.set('kitId', raw.id); else qs.set('itemId', raw.id);
+          try { const r = await fetch(`/api/orders/availability?${qs.toString()}`); const dj = r.ok ? await r.json() : {}; map[raw.id] = typeof dj.available === 'number' ? dj.available : null; }
+          catch { map[raw.id] = null; }
+        }));
+        setAvailByCartId(map);
+      }
+    }
   };
 
   if (isLoading) return <div className="p-8 text-center text-slate-500">Carregando catálogo B2B...</div>;
@@ -252,7 +333,7 @@ export default function MarketplacePage() {
 
                   <div className="mkt-card-stats">
                     <div>
-                      <span className="mkt-stat-label">{item.isKit ? 'Itens do Kit' : 'Disponível'}</span>
+                      <span className="mkt-stat-label">{item.isKit ? 'Itens do Kit' : 'No acervo'}</span>
                       <span className="mkt-stat-val">{item.isKit ? `${item.kitItemCount ?? 0} un` : `${item.availableQuantity} un`}</span>
                     </div>
                     <div className="text-right">
@@ -294,7 +375,9 @@ export default function MarketplacePage() {
 
             <div className="checkout-list">
               {cartItems.map((c, idx) => {
-                const max = c.item.stock_quantity || 0;
+                const stock = c.item.stock_quantity || 0;
+                const max = maxFor(c.item.id, stock);
+                const avail = availByCartId[c.item.id];
                 const subtotal = c.item.rental_price * c.quantity;
                 return (
                   <div key={c.item.id} className="checkout-item">
@@ -309,6 +392,18 @@ export default function MarketplacePage() {
                     <div className="checkout-item-info">
                       <span className="checkout-item-name">{c.item.name}</span>
                       <span className="checkout-item-unit">{formatCurrency(c.item.rental_price)} / unidade</span>
+                      {datesComplete && (
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, marginTop: 2,
+                          color: avail === 0 ? 'var(--danger)' : adjustedIds.has(c.item.id) ? 'var(--warning)' : 'var(--text-secondary)',
+                        }}>
+                          {isCheckingAvail ? 'verificando disponibilidade…'
+                            : avail == null ? '—'
+                            : avail === 0 ? 'Indisponível nessas datas'
+                            : `${avail} de ${stock} disponíveis`}
+                          {adjustedIds.has(c.item.id) && avail !== 0 ? ` · ajustado para ${c.quantity}` : ''}
+                        </span>
+                      )}
                     </div>
 
                     <div className="checkout-stepper">
@@ -353,20 +448,35 @@ export default function MarketplacePage() {
             </div>
 
             <div className="checkout-fields">
-              <div>
+              <div className="quote-grid-2">
                 <Input
+                  ref={pickupRef}
                   type="date"
-                  label="Data do Evento (Obrigatório)"
+                  label="Data de retirada (obrigatório)"
                   min={todayStr}
-                  value={eventDate}
-                  onChange={e => { setEventDate(e.target.value); setShowDateError(false); }}
+                  value={pickupDate}
+                  onChange={e => { setPickupDate(e.target.value); setDateError(''); }}
                 />
-                {showDateError && (
-                  <span className="checkout-error">Selecione uma data de evento válida (não pode ser no passado).</span>
-                )}
+                <Input
+                  ref={returnRef}
+                  type="date"
+                  label="Data de devolução (obrigatório)"
+                  min={pickupDate || todayStr}
+                  value={returnDate}
+                  onChange={e => { setReturnDate(e.target.value); setDateError(''); }}
+                />
               </div>
+              {dateError && <span className="checkout-error">{dateError}</span>}
+              {datesComplete && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  Disponibilidade para <strong>{fmtBr(pickupDate)} → {fmtBr(returnDate)}</strong>
+                  {isCheckingAvail ? ' · verificando…' : ''}
+                </div>
+              )}
               <div className="form-group">
-                <label className="form-label">Observações Logísticas</label>
+                <label className="form-label">
+                  Observações Logísticas <span style={{ color: 'var(--text-light)', fontWeight: 500 }}>(opcional)</span>
+                </label>
                 <textarea
                   className="form-input"
                   rows={3}
@@ -375,6 +485,7 @@ export default function MarketplacePage() {
                   onChange={e => setObservation(e.target.value)}
                 />
               </div>
+              {submitError && <span className="checkout-error">{submitError}</span>}
             </div>
           </div>
         ) : (
