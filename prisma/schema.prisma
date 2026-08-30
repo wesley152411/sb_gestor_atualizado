@@ -28,6 +28,10 @@ model Decorator {
   positive_reviews                                    Int?            @default(0)
   // Template da mensagem promocional (reativação por WhatsApp). Variável: {nome}.
   promo_message_template                              String?
+  // CNPJ (14 dígitos, sem máscara) e razão/nome da empresa. Movidos do metadata do
+  // Auth para ficarem queryáveis (cobrança/NF) e cobertos pela cascata de exclusão.
+  cnpj                                                String?
+  company_name                                        String?
   // Conta interna de teste: apenas OCULTA das listagens públicas (vitrine do
   // Marketplace e contatos do Chat). NUNCA é exceção de isolamento — a conta
   // continua sujeita a 401/403 como qualquer outra. Definível SÓ no banco.

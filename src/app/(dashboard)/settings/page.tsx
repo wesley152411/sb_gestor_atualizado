@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { saveDecoratorProfile, signOut, resetPassword, uploadImage } from '@/services/api';
 import { detectCity } from '@/lib/geolocation';
-import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle, defaultPromoTemplate, fillPromoTemplate } from '@/lib/utils';
+import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle, defaultPromoTemplate, fillPromoTemplate, cnpjMask, sanitizeCnpjDigits, isValidCnpj } from '@/lib/utils';
 import { promoWhatsappEnabled, captchaEnabled } from '@/lib/feature-flags';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const { addNotification } = useNotificationStore();
   const [profile, setProfile] = useState<Partial<Decorator>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [cnpjError, setCnpjError] = useState('');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +39,15 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     if (!profile.id) return;
+    // CNPJ é validado-SE-preenchido: vazio pode salvar (conta antiga corrige quando
+    // quiser); um valor inválido, não. Não trava a edição de outros campos por um
+    // CNPJ em branco — só bloqueia salvar um CNPJ errado.
+    const cnpjDigits = sanitizeCnpjDigits(profile.cnpj);
+    if (cnpjDigits && !isValidCnpj(cnpjDigits)) {
+      setCnpjError('CNPJ inválido, verifique os números');
+      return;
+    }
+    setCnpjError('');
     setIsLoading(true);
     // Sanitiza os campos de contato ANTES de gravar (armazenamento limpo):
     // - about: trim; - whatsapp: só dígitos (DDI/DDD); - instagram: handle sem @.
@@ -45,6 +55,7 @@ export default function SettingsPage() {
     // chave vem no corpo; enviar null garante que LIMPAR o campo realmente grava.
     const sanitized = {
       ...profile,
+      cnpj: cnpjDigits || null,
       about: profile.about?.trim() || null,
       whatsapp: sanitizePhoneDigits(profile.whatsapp) || null,
       instagram: sanitizeInstagramHandle(profile.instagram) || null,
@@ -217,6 +228,14 @@ export default function SettingsPage() {
               label="Nome da Empresa"
               value={profile.name || ''}
               onChange={e => setProfile({ ...profile, name: e.target.value })}
+            />
+            <Input
+              label="CNPJ"
+              placeholder="00.000.000/0000-00"
+              inputMode="numeric"
+              value={cnpjMask(profile.cnpj || '')}
+              onChange={e => { if (cnpjError) setCnpjError(''); setProfile({ ...profile, cnpj: sanitizeCnpjDigits(e.target.value) }); }}
+              error={cnpjError}
             />
             <div style={{ position: 'relative' }}>
               <Input

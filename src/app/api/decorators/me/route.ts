@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { isValidCnpj, sanitizeCnpjDigits } from '@/lib/utils';
 
 // Perfil COMPLETO da decoradora logada — identidade pela sessão do servidor.
 // É por aqui que Configurações e Minha Página leem/gravam os campos privados
@@ -44,7 +45,18 @@ export async function POST(request: Request) {
   const pick = <T,>(key: string, fallback: T): T =>
     (body[key] !== undefined ? (body[key] as T) : ((existing as Record<string, unknown>)?.[key] as T) ?? fallback);
 
+  // CNPJ: normaliza para 14 dígitos e valida NO SERVIDOR (vira dado fiscal — a
+  // trava não pode viver só no cliente). Vazio é permitido: contas antigas
+  // preenchem depois pelas Configurações; novas já vêm validadas do cadastro.
+  const rawCnpj = body.cnpj !== undefined ? body.cnpj : (existing?.cnpj ?? meta.cnpj ?? null);
+  const cnpj = rawCnpj ? sanitizeCnpjDigits(String(rawCnpj)) : null;
+  if (cnpj && !isValidCnpj(cnpj)) {
+    return NextResponse.json({ error: 'CNPJ inválido, verifique os números.' }, { status: 400 });
+  }
+
   const data = {
+    cnpj,
+    company_name: pick<string | null>('company_name', meta.company_name || null),
     name: pick<string>('name', meta.company_name || meta.name || 'Decoradora'),
     location: pick<string>('location', meta.location || ''),
     avatar_url: pick<string>('avatar_url', ''),

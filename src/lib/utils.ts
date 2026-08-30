@@ -154,6 +154,33 @@ export function cnpjMask(value: string): string {
     : match[1] + '.' + match[2] + (match[3] ? '.' + match[3] : '') + (match[4] ? '/' + match[4] : '') + (match[5] ? '-' + match[5] : '');
 }
 
+// Só os 14 dígitos do CNPJ (forma normalizada de armazenamento).
+export function sanitizeCnpjDigits(value?: string | null): string {
+  return String(value || '').replace(/\D/g, '').slice(0, 14);
+}
+
+// Validação LOCAL do CNPJ pelo dígito verificador — pega erro de digitação sem
+// depender de serviço externo. Rejeita também as sequências repetidas
+// (00000000000000, 11111111111111…), que passam no cálculo mas não são reais.
+export function isValidCnpj(value?: string | null): boolean {
+  const c = sanitizeCnpjDigits(value);
+  if (c.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(c)) return false;
+  const dv = (base: string): number => {
+    let pos = base.length - 7;
+    let sum = 0;
+    for (let i = 0; i < base.length; i++) {
+      sum += Number(base[i]) * pos--;
+      if (pos < 2) pos = 9;
+    }
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  if (dv(c.slice(0, 12)) !== Number(c[12])) return false;
+  if (dv(c.slice(0, 13)) !== Number(c[13])) return false;
+  return true;
+}
+
 export function phoneMask(value: string): string {
   const digits = value.replace(/\D/g, '');
   if (digits.length <= 10) {

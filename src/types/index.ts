@@ -17,6 +17,8 @@ export interface Decorator {
   contact_rate?: number;
   positive_reviews?: number;
   promo_message_template?: string; // template da mensagem promocional; variável {nome}
+  cnpj?: string | null;            // 14 dígitos, sem máscara
+  company_name?: string | null;    // razão/nome da empresa
 }
 
 // Registro de mensagem promocional ABERTA no WhatsApp (histórico completo).

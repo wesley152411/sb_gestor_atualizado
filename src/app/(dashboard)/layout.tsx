@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { CnpjBanner } from '@/components/layout/CnpjBanner';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 
 export default function DashboardLayout({
@@ -14,6 +15,7 @@ export default function DashboardLayout({
         <main className="main-area">
           <Header />
           <div className="main-content">
+            <CnpjBanner />
             {children}
           </div>
         </main>

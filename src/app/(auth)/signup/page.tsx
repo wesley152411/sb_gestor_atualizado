@@ -12,7 +12,7 @@ import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
-import { cnpjMask, checkPasswordStrength, isValidEmailFormat, isDisposableEmailDomain } from '@/lib/utils';
+import { cnpjMask, checkPasswordStrength, isValidEmailFormat, isDisposableEmailDomain, isValidCnpj, sanitizeCnpjDigits } from '@/lib/utils';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -24,11 +24,14 @@ export default function SignupPage() {
   const [isLocating, setIsLocating] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
   const captchaRef = useRef<TurnstileInstance>(undefined);
+  const [cnpjError, setCnpjError] = useState('');
+  const cnpjRef = useRef<HTMLInputElement>(null);
 
   const passwordStrength = checkPasswordStrength(form.password);
   const passwordsMatch = form.password === form.confirmPassword;
 
   const handleCnpjChange = (value: string) => {
+    if (cnpjError) setCnpjError('');
     setForm({ ...form, cnpj: cnpjMask(value) });
   };
 
@@ -67,6 +70,13 @@ export default function SignupPage() {
       return;
     }
 
+    // CNPJ obrigatório + validado (dígito verificador). Campo vermelho + foco.
+    if (!isValidCnpj(form.cnpj)) {
+      setCnpjError('CNPJ inválido, verifique os números');
+      cnpjRef.current?.focus();
+      return;
+    }
+
     if (captchaEnabled && !captchaToken) {
       setError('Complete a verificação de segurança antes de continuar.');
       return;
@@ -77,7 +87,7 @@ export default function SignupPage() {
     const result = await signUp(form.email, form.password, {
       name: form.name,
       company_name: form.company,
-      cnpj: form.cnpj,
+      cnpj: sanitizeCnpjDigits(form.cnpj), // salva normalizado (14 dígitos, sem máscara)
       location: form.location,
     }, captchaToken || undefined);
 
@@ -151,7 +161,7 @@ export default function SignupPage() {
             <Input label="Nome da Empresa" icon={Building2} placeholder="Bella Fest Ltda" value={form.company} onChange={e => setForm({...form, company: e.target.value})} required />
           </div>
 
-          <Input label="CNPJ" placeholder="00.000.000/0000-00" value={form.cnpj} onChange={e => handleCnpjChange(e.target.value)} />
+          <Input ref={cnpjRef} label="CNPJ" icon={Building2} placeholder="00.000.000/0000-00" inputMode="numeric" value={form.cnpj} onChange={e => handleCnpjChange(e.target.value)} error={cnpjError} required />
           
           <div style={{ position: 'relative' }}>
             <Input label="Cidade / Estado" icon={MapPin} placeholder="São Paulo - SP" value={form.location} onChange={e => setForm({...form, location: e.target.value})} />
