@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Plus, Search, SlidersHorizontal, Package, LayoutGrid,
   DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, ShoppingCart, Check
@@ -28,6 +28,46 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState('items');
   const { items, isLoading: isItemsLoading, mutate: mutateItems } = useInventory(decorator?.id);
   const { kits, isLoading: isKitsLoading, mutate: mutateKits } = useKits(decorator?.id);
+
+  // Peças BLOQUEADAS por locação B2B ativa (como locadora): peça -> locações que a
+  // reservam, com datas. Expande kits usando os kits carregados. Um clique leva ao
+  // DIA certo no calendário (ou à lista, se houver mais de uma).
+  type BlockRow = { orderId: string; pickup: string; ret: string; renter: string };
+  const [rentalsByItem, setRentalsByItem] = useState<Record<string, BlockRow[]>>({});
+  const [blockedModal, setBlockedModal] = useState<{ itemName: string; rentals: BlockRow[] } | null>(null);
+  const toDay = (d?: string | null) => (d ? String(d).slice(0, 10) : '');
+  const fmtBr = (d: string) => (d ? d.split('-').reverse().join('/') : '');
+
+  useEffect(() => {
+    if (!decorator?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/orders');
+        if (!res.ok) return;
+        const orders = await res.json();
+        const map: Record<string, BlockRow[]> = {};
+        const add = (itemId: string, o: any) => {
+          (map[itemId] ||= []).push({ orderId: o.id, pickup: toDay(o.pickup_date), ret: toDay(o.return_date), renter: o.renter?.name || 'parceira' });
+        };
+        for (const o of orders) {
+          if (o.status !== 'ativo' || o.owner_id !== decorator.id) continue;
+          for (const it of (o.items || [])) {
+            if (it.item_id) add(it.item_id, o);
+            else if (it.kit_id) (kits.find((k) => k.id === it.kit_id)?.items || []).forEach((c) => add(c.id, o));
+          }
+        }
+        if (!cancelled) setRentalsByItem(map);
+      } catch { /* silencioso — o acervo funciona sem o indicador */ }
+    })();
+    return () => { cancelled = true; };
+  }, [decorator?.id, kits, items]);
+
+  const openBlocked = (item: InventoryItem) => {
+    const rentals = rentalsByItem[item.id] || [];
+    if (rentals.length === 1) router.push(`/calendar?date=${rentals[0].pickup || rentals[0].ret}`);
+    else if (rentals.length > 1) setBlockedModal({ itemName: item.name, rentals });
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [addedItemIds, setAddedItemIds] = useState<Set<string>>(new Set());
@@ -564,6 +604,22 @@ export default function InventoryPage() {
                       </div>
                     </div>
 
+                    {/* Peça bloqueada por locação B2B ativa → um clique para o calendário */}
+                    {(rentalsByItem[item.id]?.length ?? 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openBlocked(item)}
+                        title="Ver a(s) locação(ões) no calendário"
+                        style={{
+                          width: '100%', marginTop: 10, display: 'inline-flex', alignItems: 'center',
+                          justifyContent: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#b45309',
+                          background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '7px 10px', cursor: 'pointer',
+                        }}
+                      >
+                        🔒 {rentalsByItem[item.id].length} emprestada{rentalsByItem[item.id].length > 1 ? 's' : ''} · ver no calendário
+                      </button>
+                    )}
+
                     {/* Adicionar ao Formulário Button */}
                     <button
                       type="button"
@@ -977,6 +1033,35 @@ export default function InventoryPage() {
             </div>
 
           </div>
+        </div>
+      </Modal>
+
+      {/* Lista de locações sobre a MESMA peça (>1) — não escolhemos o dia por ela;
+          cada linha leva ao dia certo no calendário. */}
+      <Modal
+        isOpen={!!blockedModal}
+        onClose={() => setBlockedModal(null)}
+        title={blockedModal ? `"${blockedModal.itemName}" — locações ativas` : ''}
+        footer={<Button variant="secondary" onClick={() => setBlockedModal(null)}>Fechar</Button>}
+      >
+        <div className="detail-list">
+          {blockedModal?.rentals.map((r) => (
+            <button
+              key={r.orderId}
+              type="button"
+              onClick={() => { setBlockedModal(null); router.push(`/calendar?date=${r.pickup || r.ret}`); }}
+              style={{
+                display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                padding: '12px 14px', marginBottom: 8, borderRadius: 10, border: '1px solid var(--border)',
+                background: 'var(--bg-input)', cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                {fmtBr(r.pickup)} → {fmtBr(r.ret)}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Alugada por {r.renter}</span>
+            </button>
+          ))}
         </div>
       </Modal>
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft, ChevronRight, Package, Phone, Download, Plus,
@@ -19,9 +19,31 @@ import type { RentalOrder, PartyEvent } from '@/types';
 
 type ViewMode = 'month' | 'week' | 'day';
 
+// Cada locação vira DOIS compromissos: retirada (no pickup_date) e devolução (no
+// return_date), cada um com texto próprio por lado (locadora/locatária).
+interface RentalCommitment {
+  order: RentalOrder;
+  kind: 'pickup' | 'return';
+}
 interface DayBucket {
-  rentalOrders: RentalOrder[];
+  rentals: RentalCommitment[];
   partyEvents: PartyEvent[];
+}
+
+// Texto INEQUÍVOCO: diz o que fazer no dia sem abrir nada. Nomeia a contraparte.
+function commitmentText(r: RentalCommitment, decoratorId?: string): { eyebrow: string; title: string } {
+  const o = r.order;
+  const isOwner = o.owner_id === decoratorId;
+  const piece = o.items?.[0]?.name || 'peça';
+  const other = isOwner ? (o.renter_name || 'a locatária') : (o.owner_name || 'a locadora');
+  if (r.kind === 'pickup') {
+    return isOwner
+      ? { eyebrow: 'Retirada', title: `${other} retira ${piece}` }
+      : { eyebrow: 'Retirada', title: `Retirar ${piece} de ${other}` };
+  }
+  return isOwner
+    ? { eyebrow: 'Devolução', title: `${other} devolve ${piece}` }
+    : { eyebrow: 'Devolução', title: `Devolver ${piece} para ${other}` };
 }
 
 const WEEKDAY_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
@@ -60,8 +82,9 @@ type StatusKey = 'success' | 'warning' | 'neutral';
 
 function statusMeta(status?: string): { key: StatusKey; Icon: LucideIcon; label: string } {
   if (status === EVENT_STATUS.CONFIRMADO) return { key: 'success', Icon: CheckCircle2, label: status };
+  if (status === 'Devolvido') return { key: 'success', Icon: CheckCircle2, label: 'Devolvido' };
   if (status === EVENT_STATUS.AGUARDANDO_CONFIRMACAO) return { key: 'warning', Icon: Clock, label: status };
-  return { key: 'neutral', Icon: Clock, label: status || '—' }; // Finalizado / Cancelado / etc.
+  return { key: 'neutral', Icon: Clock, label: status || '—' }; // Finalizado / Cancelado / A retirar / etc.
 }
 
 // Give each item a more meaningful glyph than a generic box, inferred from its
@@ -84,6 +107,37 @@ export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [returningId, setReturningId] = useState<string | null>(null);
+
+  // Vindo do acervo (peça bloqueada): /calendario?date=YYYY-MM-DD abre o DIA certo,
+  // não só o mês. Ajusta o mês âncora e abre o modal daquele dia. Lê do
+  // window.location (client-only) — evita a exigência de Suspense do useSearchParams.
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get('date');
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [y, m, day] = d.split('-').map(Number);
+      setAnchorDate(new Date(y, m - 1, day));
+      setSelectedDay(d);
+    }
+  }, []);
+
+  // Marcar devolvido (só a locadora vê o botão). Atualiza os 3 meses em cache.
+  const handleMarkReturned = async (orderId: string) => {
+    setReturningId(orderId);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/return`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Não foi possível confirmar a devolução.');
+      }
+      addNotification('Devolução confirmada', 'A peça voltou ao seu acervo.');
+      current.mutate(); prev.mutate(); next.mutate();
+    } catch (e: any) {
+      addNotification('Erro', e.message || 'Não foi possível confirmar a devolução.', true);
+    } finally {
+      setReturningId(null);
+    }
+  };
 
   // Fetch the anchor month plus neighbors, so week/day views never miss data
   // when they straddle a month boundary. Each call is independently SWR-cached.
@@ -101,15 +155,25 @@ export default function CalendarPage() {
     const getBucket = (key: string) => {
       let bucket = map.get(key);
       if (!bucket) {
-        bucket = { rentalOrders: [], partyEvents: [] };
+        bucket = { rentals: [], partyEvents: [] };
         map.set(key, bucket);
       }
       return bucket;
     };
+    // Dedupe: a mesma locação vem em vários fetches de mês (quando cruza a virada).
+    const seenCommit = new Set<string>();
     [current, prev, next].forEach(({ rentalOrders, partyEvents }) => {
       rentalOrders.forEach((o) => {
-        const key = toDateKey(o.event_date);
-        if (key) getBucket(key).rentalOrders.push(o);
+        const pushCommit = (dateStr: string | undefined, kind: 'pickup' | 'return') => {
+          const key = toDateKey(dateStr);
+          if (!key) return;
+          const sig = `${o.id}:${kind}`;
+          if (seenCommit.has(sig)) return;
+          seenCommit.add(sig);
+          getBucket(key).rentals.push({ order: o, kind });
+        };
+        pushCommit(o.pickup_date, 'pickup');
+        pushCommit(o.return_date, 'return');
       });
       partyEvents.forEach((e) => {
         // Fora do Calendário: rascunho de link (sem data) e cancelado.
@@ -219,6 +283,8 @@ export default function CalendarPage() {
             bucket={eventsByDay.get(dateKey(anchorDate))}
             decoratorId={decorator?.id}
             onDownloadPDF={handleDownloadPDF}
+            onMarkReturned={handleMarkReturned}
+            returningId={returningId}
           />
         ) : (
           <>
@@ -233,10 +299,10 @@ export default function CalendarPage() {
                 const bucket = eventsByDay.get(key);
                 const outside = date.getMonth() !== anchorDate.getMonth();
                 const isToday = isSameDay(date, today);
-                const events: { label: string; variant: 'marketplace' | 'internal' }[] = [
-                  ...(bucket?.rentalOrders.map((o) => ({
-                    label: `Marketplace · ${o.items?.[0]?.name || 'Locação'}`,
-                    variant: 'marketplace' as const,
+                const events: { label: string; variant: 'pickup' | 'return' | 'internal' }[] = [
+                  ...(bucket?.rentals.map((r) => ({
+                    label: `${r.kind === 'pickup' ? 'Retirar' : 'Devolver'} · ${r.order.items?.[0]?.name || 'peça'}`,
+                    variant: r.kind,
                   })) || []),
                   ...(bucket?.partyEvents.map((e) => ({
                     label: e.theme || e.client_name || 'Evento',
@@ -269,9 +335,9 @@ export default function CalendarPage() {
         )}
 
         <div className="calendar-legend">
-          <span className="calendar-legend-item"><span className="calendar-legend-dot marketplace" />Marketplace</span>
-          <span className="calendar-legend-item"><span className="calendar-legend-dot internal" />Eventos Internos</span>
-          <span className="calendar-legend-item"><span className="calendar-legend-dot alert" />Atenção/Atraso</span>
+          <span className="calendar-legend-item"><span className="calendar-legend-dot pickup" />Retirada (locação)</span>
+          <span className="calendar-legend-item"><span className="calendar-legend-dot return" />Devolução (locação)</span>
+          <span className="calendar-legend-item"><span className="calendar-legend-dot internal" />Eventos internos</span>
         </div>
       </div>
 
@@ -281,7 +347,7 @@ export default function CalendarPage() {
         title={selectedDay ? formatFullDate(selectedDay) : ''}
         footer={<Button onClick={() => setSelectedDay(null)}>Fechar Visualização</Button>}
       >
-        <DayDetails bucket={selectedBucket} decoratorId={decorator?.id} onDownloadPDF={handleDownloadPDF} />
+        <DayDetails bucket={selectedBucket} decoratorId={decorator?.id} onDownloadPDF={handleDownloadPDF} onMarkReturned={handleMarkReturned} returningId={returningId} />
       </Modal>
     </div>
   );
@@ -292,43 +358,55 @@ function formatFullDate(key: string): string {
   return `${d} de ${MONTH_LABELS[m - 1]}, ${y}`;
 }
 
-function DayAgenda({ date, bucket, decoratorId, onDownloadPDF }: {
+function DayAgenda({ date, bucket, decoratorId, onDownloadPDF, onMarkReturned, returningId }: {
   date: Date;
   bucket?: DayBucket;
   decoratorId?: string;
   onDownloadPDF: (event: PartyEvent) => void;
+  onMarkReturned: (orderId: string) => void;
+  returningId: string | null;
 }) {
   return (
     <div className="calendar-day-agenda">
       <h3 className="calendar-day-agenda-title">
         {date.getDate()} de {MONTH_LABELS[date.getMonth()]}, {date.getFullYear()}
       </h3>
-      <DayDetails bucket={bucket} decoratorId={decoratorId} onDownloadPDF={onDownloadPDF} />
+      <DayDetails bucket={bucket} decoratorId={decoratorId} onDownloadPDF={onDownloadPDF} onMarkReturned={onMarkReturned} returningId={returningId} />
     </div>
   );
 }
 
-function DayDetails({ bucket, decoratorId, onDownloadPDF }: {
+function DayDetails({ bucket, decoratorId, onDownloadPDF, onMarkReturned, returningId }: {
   bucket?: DayBucket;
   decoratorId?: string;
   onDownloadPDF: (event: PartyEvent) => void;
+  onMarkReturned: (orderId: string) => void;
+  returningId: string | null;
 }) {
-  const isEmpty = !bucket?.rentalOrders.length && !bucket?.partyEvents.length;
+  const isEmpty = !bucket?.rentals.length && !bucket?.partyEvents.length;
 
   return (
     <div className="detail-list">
-      {bucket?.rentalOrders.map((order) => {
-        // ISOLAMENTO: numa locação entre parceiras o calendário mostra apenas a
-        // INDISPONIBILIDADE da peça — nunca nome/telefone da contraparte nem valor.
+      {bucket?.rentals.map((r) => {
+        const order = r.order;
         const isOwner = order.owner_id === decoratorId;
+        const { eyebrow, title } = commitmentText(r, decoratorId);
+        const isReturned = order.status === 'devolvido';
+        // "Devolvido" SÓ na locadora, no compromisso de DEVOLUÇÃO, enquanto ativo.
+        const showReturnBtn = isOwner && r.kind === 'return' && order.status === 'ativo';
         return (
           <DetailCard
-            key={order.id}
-            eyebrow={isOwner ? 'Marketplace · Sua peça alugada' : 'Marketplace · Você alugou'}
-            title={order.items?.[0]?.name || 'Peça comprometida'}
-            status={order.status}
+            key={`${order.id}:${r.kind}`}
+            eyebrow={`Marketplace · ${eyebrow}`}
+            title={title}
+            status={isReturned ? 'Devolvido' : r.kind === 'return' ? 'A devolver' : 'A retirar'}
             items={order.items}
             amount={order.total_value}
+            action={showReturnBtn ? (
+              <Button size="sm" icon={CheckCircle2} onClick={() => onMarkReturned(order.id)} isLoading={returningId === order.id}>
+                Devolvido
+              </Button>
+            ) : undefined}
           />
         );
       })}

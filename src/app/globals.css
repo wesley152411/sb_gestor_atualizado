@@ -3041,6 +3041,17 @@ img { max-width: 100%; display: block; }
   border: 1px solid rgba(79, 70, 229, 0.2);
 }
 
+/* Locação B2B: retirada (entrada, teal) e devolução (saída, âmbar) — distintas
+   entre si e dos eventos de festa. */
+.calendar-pill-pickup {
+  background: var(--lp-primary);
+  color: white;
+}
+.calendar-pill-return {
+  background: var(--warning);
+  color: #3b2a06;
+}
+
 .calendar-pill-more {
   font-size: 10.5px;
   font-weight: 600;
@@ -3087,6 +3098,8 @@ img { max-width: 100%; display: block; }
 .calendar-legend-dot.marketplace { background: var(--primary); }
 .calendar-legend-dot.internal { background: var(--primary-light); border: 1px solid var(--primary); }
 .calendar-legend-dot.alert { background: var(--danger); }
+.calendar-legend-dot.pickup { background: var(--lp-primary); }
+.calendar-legend-dot.return { background: var(--warning); }
 
 /* Day details cards (calendar modal + day agenda) */
 .detail-list {

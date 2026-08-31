@@ -99,6 +99,13 @@ export interface RentalOrder {
   items?: RentalOrderItem[];
   owner?: RentalOrderContact;
   renter?: RentalOrderContact;
+  // Locação B2B: retirada/devolução + confirmação da devolução, e o NOME da
+  // decoradora contraparte (parceira de negócio) para o texto do calendário.
+  pickup_date?: string;
+  return_date?: string;
+  returned_at?: string | null;
+  owner_name?: string;
+  renter_name?: string;
 }
 
 export interface RentalOrderContact {
