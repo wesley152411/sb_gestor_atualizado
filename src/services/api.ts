@@ -38,7 +38,7 @@ function mapAuthError(msg?: string): string {
   return msg;
 }
 
-export async function signUp(email: string, password: string, metadata: SignupMetadata, captchaToken?: string): Promise<AuthResult> {
+export async function signUp(email: string, password: string, metadata: SignupMetadata, legalConsent: { privacyVersion: string; termsVersion: string; acceptedAt: string }, captchaToken?: string): Promise<AuthResult> {
   const sb = getSupabaseClient();
   // Cliente IMPLICIT só para o cadastro: garante que o e-mail saia com token_hash
   // comum (não "pkce_..."), que o /auth/confirm valida em qualquer dispositivo.
@@ -60,7 +60,11 @@ export async function signUp(email: string, password: string, metadata: SignupMe
       options: {
         emailRedirectTo,
         captchaToken,
-        data: { name: metadata.name, company_name: metadata.company_name, location: metadata.location, cnpj: metadata.cnpj },
+        data: {
+          name: metadata.name, company_name: metadata.company_name, location: metadata.location, cnpj: metadata.cnpj,
+          privacy_version: legalConsent.privacyVersion, terms_version: legalConsent.termsVersion,
+          legal_consent_at: legalConsent.acceptedAt,
+        },
       },
     });
     if (error) {
@@ -198,6 +202,20 @@ export async function ensureMyProfile(): Promise<Decorator | null> {
     if (res.ok) return await res.json();
   } catch { /* sem sessão */ }
   return null;
+}
+
+export async function getLegalAcceptanceStatus(): Promise<{ accepted: boolean }> {
+  const res = await fetch('/api/legal/acceptances');
+  if (!res.ok) throw new Error('Não foi possível verificar os documentos legais.');
+  return res.json();
+}
+
+export async function acceptCurrentLegalDocuments(): Promise<void> {
+  const res = await fetch('/api/legal/acceptances', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accept: true }) });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Não foi possível registrar o aceite.');
+  }
 }
 
 export async function saveDecoratorProfile(profile: Partial<Decorator>): Promise<Decorator> {

@@ -8,8 +8,8 @@
 // dados de produção) -> REVOGA o grant (restaura o estado fechado) -> limpa.
 //
 // Rodar da raiz do projeto:  node docs/security/rls-auth-test.mjs
-// Cobre as 11 tabelas com RLS. Requer o RLS já aplicado (ver rls-enable.sql; a
-// client_promo_messages traz o RLS na própria migração de criação).
+// Cobre as 12 tabelas com RLS. Requer o RLS já aplicado (ver rls-enable.sql;
+// client_promo_messages e legal_acceptances trazem o RLS nas próprias migrations).
 import { readFileSync } from 'fs';
 import { PrismaClient } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
@@ -54,7 +54,7 @@ const sb = createClient(URL, ANON, { auth: { persistSession: false } });
 const admin = createClient(URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const TABLES = ['clients','party_events','rental_orders','rental_order_items','chat_messages',
                 'decorators','inventory_items','kits','consumables','forum_posts',
-                'client_promo_messages'];
+                'client_promo_messages','legal_acceptances'];
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('   OK  ', m); } else { fail++; console.log('   FALHA', m); } };
 
@@ -93,6 +93,7 @@ try {
   // client_promo_messages: cada linha aponta para o cliente da própria decoradora
   // (FK client_id -> clients, já semeados acima). Isola por decorator_id.
   await ex(`INSERT INTO public.client_promo_messages (id,client_id,decorator_id,phone,message) VALUES ('${ID.client_promo_messages.A}','${ID.clients.A}','${A.id}','x','m'),('${ID.client_promo_messages.B}','${ID.clients.B}','${B.id}','x','m')`);
+  await ex(`INSERT INTO public.legal_acceptances (id,decorator_id,document,version,content_hash) VALUES ('${ID.legal_acceptances.A}','${A.id}','privacy','test','hash-a'),('${ID.legal_acceptances.B}','${B.id}','privacy','test','hash-b')`);
 
   const pre = await restGet('decorators', A.token);
   ok(pre.status===401||pre.status===403, `sem GRANT: authenticated barrado -> HTTP ${pre.status}`);

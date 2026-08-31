@@ -46,6 +46,19 @@ function jarToHeader(jar: Jar): string {
 
 export type TestAccount = { id: string; email: string; cookie: string };
 
+// Senha única de todas as contas do harness. Exportada porque os testes de
+// imutabilidade precisam de um token de acesso REAL (PostgREST), não do cookie.
+export const HARNESS_PASSWORD = 'Harness12345!';
+
+// Cliente PostgREST autenticado como a conta de teste — exercita as políticas de
+// RLS/grants do jeito que um navegador com a anon key faria.
+export async function restClientFor(email: string) {
+  const client = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { error } = await client.auth.signInWithPassword({ email, password: HARNESS_PASSWORD });
+  if (error) throw new Error(`🛑 Pré-condição do harness — login PostgREST falhou (${email}): ${error.message}`);
+  return client;
+}
+
 // Cliente Supabase com a SERVICE ROLE (Admin API). Só no harness/CI.
 function adminClient() {
   if (!SERVICE_KEY) {
@@ -64,9 +77,9 @@ function adminClient() {
 // email" do painel do projeto de teste, nem esbarra no limite do mailer embutido
 // (que, com a confirmação ligada, derruba o signUp quando se cria várias contas).
 // Cada throw abaixo nomeia a pré-condição exata, para o log do CI ser autoexplicativo.
-export async function createTestAccount(label: string): Promise<TestAccount> {
+export async function createTestAccount(label: string, opts: { acceptLegal?: boolean } = {}): Promise<TestAccount> {
   const email = `harness_${label}_${Date.now()}@sbgestor-test.local`;
-  const password = 'Harness12345!';
+  const password = HARNESS_PASSWORD;
 
   // 1) Cria o usuário confirmado via Admin API (não envia e-mail).
   const { data: created, error: createErr } = await adminClient().auth.admin.createUser({
@@ -112,6 +125,25 @@ export async function createTestAccount(label: string): Promise<TestAccount> {
       `🛑 Pré-condição do harness — criar perfil falhou (${label}): HTTP ${res.status} ${body.slice(0, 200)}. ` +
       `O servidor Next respondeu; verifique DATABASE_URL do projeto de teste (caminho Prisma).`
     );
+  }
+
+  // 4) Aceite dos documentos legais. SEM isto o gate do servidor devolve 403 em
+  //    toda rota de dados — é o mesmo caminho que a decoradora percorre na tela.
+  //    `acceptLegal: false` deixa a conta no estado "nunca aceitou", que é o
+  //    cenário do teste do gate.
+  if (opts.acceptLegal !== false) {
+    const legal = await fetch(`${BASE_URL}/api/legal/acceptances`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ accept: true }),
+    });
+    if (!legal.ok) {
+      const body = await legal.text().catch(() => '');
+      throw new Error(
+        `🛑 Pré-condição do harness — aceite legal falhou (${label}): HTTP ${legal.status} ${body.slice(0, 200)}. ` +
+        `Confira se a migration 20260830140000_legal_acceptances.sql foi aplicada no banco de TESTE.`
+      );
+    }
   }
 
   // Conta de teste NUNCA aparece na vitrine/contatos, nem durante a execução:

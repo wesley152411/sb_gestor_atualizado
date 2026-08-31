@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
-import { getSession, getMyProfile, ensureMyProfile, onAuthStateChange } from '@/services/api';
+import { getSession, getMyProfile, ensureMyProfile, onAuthStateChange, getLegalAcceptanceStatus, acceptCurrentLegalDocuments } from '@/services/api';
 import { Logo } from '@/components/ui/Logo';
 import { EmailConfirmationGate } from '@/components/providers/EmailConfirmationGate';
+import { onLegalAcceptanceRequired } from '@/lib/legal-gate-signal';
+import { LegalAcceptanceGate } from '@/components/providers/LegalAcceptanceGate';
 
 // Helper: race a promise against a timeout
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -27,7 +29,7 @@ function isConfirmed(u?: SessionUser): boolean {
 //               ainda não carregou — isso é problema de dados, não de sessão).
 //   gate      — sessão presente mas e-mail não confirmado (tela de confirmação).
 //   nosession — SEM sessão válida: NÃO renderiza a casca; manda para o /login.
-type AuthStatus = 'loading' | 'authed' | 'gate' | 'nosession';
+type AuthStatus = 'loading' | 'authed' | 'gate' | 'legal' | 'nosession';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setDecorator, setLoading } = useAuthStore();
@@ -56,7 +58,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let profile = await withTimeout(getMyProfile(), 15000, null);
       if (!profile) profile = await withTimeout(ensureMyProfile(), 15000, null);
       setDecorator(profile || null);
-      setStatus('authed');
+      try {
+        const legal = await getLegalAcceptanceStatus();
+        setStatus(legal.accepted ? 'authed' : 'legal');
+      } catch {
+        setStatus('legal');
+      }
     }
 
     async function initAuth() {
@@ -93,6 +100,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [setDecorator, setLoading]);
 
+  // Documentos versionados no meio da sessão: o servidor passa a devolver 403 em
+  // toda rota de dados, mas a aba já aberta não remonta o provider e continuaria
+  // mostrando tela vazia. Ao primeiro 403 do gate, CONFIRMA com o servidor antes
+  // de trocar de estado — sem essa confirmação, um 403 atrasado chegando logo
+  // depois do aceite jogaria a decoradora de volta ao gate sem motivo.
+  useEffect(() => {
+    let verificando = false;
+    return onLegalAcceptanceRequired(async () => {
+      if (verificando) return;
+      verificando = true;
+      try {
+        const legal = await getLegalAcceptanceStatus();
+        if (!legal.accepted) setStatus((atual) => (atual === 'authed' ? 'legal' : atual));
+      } catch {
+        // Sem resposta confiável, não tira a decoradora do app na marra.
+      } finally {
+        verificando = false;
+      }
+    });
+  }, []);
+
   // Sem sessão válida: redireciona para o login ANTES de renderizar qualquer
   // parte do app. replace() para não deixar a tela quebrada no histórico (voltar
   // não retorna à casca vazia). Enquanto navega, mostra o loader — nunca a casca.
@@ -104,6 +132,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   if (status === 'gate' && gateEmail !== null) {
     return <EmailConfirmationGate email={gateEmail} />;
+  }
+
+  if (status === 'legal') {
+    return <LegalAcceptanceGate onAccepted={async () => { await acceptCurrentLegalDocuments(); setStatus('authed'); }} />;
   }
 
   // loading e nosession mostram o loader (nosession está redirecionando).

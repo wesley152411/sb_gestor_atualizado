@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Building2, MapPin, User } from 'lucide-react';
@@ -12,6 +12,7 @@ import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
+import { PublicLegalFooter } from '@/components/legal/PublicLegalFooter';
 import { cnpjMask, checkPasswordStrength, isValidEmailFormat, isDisposableEmailDomain, isValidCnpj, sanitizeCnpjDigits } from '@/lib/utils';
 
 export default function SignupPage() {
@@ -26,6 +27,20 @@ export default function SignupPage() {
   const captchaRef = useRef<TurnstileInstance>(undefined);
   const [cnpjError, setCnpjError] = useState('');
   const cnpjRef = useRef<HTMLInputElement>(null);
+  // Aceite obrigatorio dos documentos legais. As VERSOES vem do servidor
+  // (/api/legal/documents le a frontmatter dos .md) — nunca hardcoded aqui, senao
+  // um bump de versao no arquivo deixaria de refletir no rastro do cadastro.
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [legalVersions, setLegalVersions] = useState<{ privacy: string; terms: string } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/legal/documents')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (alive && data?.privacy && data?.terms) setLegalVersions(data); })
+      .catch(() => { /* sem versoes o submit e bloqueado abaixo */ });
+    return () => { alive = false; };
+  }, []);
 
   const passwordStrength = checkPasswordStrength(form.password);
   const passwordsMatch = form.password === form.confirmPassword;
@@ -82,6 +97,15 @@ export default function SignupPage() {
       return;
     }
 
+    if (!acceptedLegal) {
+      setError('Para criar a conta, confirme que leu e concorda com a Política de Privacidade e com os Termos de Uso.');
+      return;
+    }
+    if (!legalVersions) {
+      setError('Não foi possível carregar a versão atual dos documentos legais. Recarregue a página e tente novamente.');
+      return;
+    }
+
     setIsLoading(true);
 
     const result = await signUp(form.email, form.password, {
@@ -89,6 +113,10 @@ export default function SignupPage() {
       company_name: form.company,
       cnpj: sanitizeCnpjDigits(form.cnpj), // salva normalizado (14 dígitos, sem máscara)
       location: form.location,
+    }, {
+      privacyVersion: legalVersions.privacy,
+      termsVersion: legalVersions.terms,
+      acceptedAt: new Date().toISOString(),
     }, captchaToken || undefined);
 
     // Reset a CADA tentativa — o token do Turnstile é de uso único.
@@ -212,7 +240,28 @@ export default function SignupPage() {
             onExpire={() => setCaptchaToken('')}
           />
 
-          <Button type="submit" className="w-full" size="lg" isLoading={isLoading} style={{ marginTop: 8 }}>
+          {/* Aceite: obrigatorio, ANTES do botao, citando os dois documentos pelo
+              nome. target="_blank" abre em nova aba — o formulario preenchido fica
+              intacto. O estado marcado vai para o user_metadata do signUp (rastro
+              do clique); o registro autoritativo e gravado no servidor depois da
+              confirmacao de e-mail. */}
+          <label className="signup-consent">
+            <input
+              type="checkbox"
+              checked={acceptedLegal}
+              onChange={(e) => { setAcceptedLegal(e.target.checked); if (e.target.checked && error) setError(''); }}
+              aria-describedby="signup-consent-text"
+            />
+            <span id="signup-consent-text">
+              Li e concordo com a{' '}
+              <Link href="/privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</Link>
+              {' '}e com os{' '}
+              <Link href="/termos" target="_blank" rel="noopener noreferrer">Termos de Uso</Link>
+              {' '}do SB Gestor.
+            </span>
+          </label>
+
+          <Button type="submit" className="w-full" size="lg" isLoading={isLoading} disabled={!acceptedLegal} style={{ marginTop: 8 }}>
             Criar Conta
           </Button>
         </form>
@@ -221,6 +270,8 @@ export default function SignupPage() {
           Já possui uma conta?{' '}
           <Link href="/login" style={{ color: '#4f46e5', fontWeight: 700 }}>Entrar</Link>
         </p>
+
+        <PublicLegalFooter compact />
       </div>
     </div>
   );

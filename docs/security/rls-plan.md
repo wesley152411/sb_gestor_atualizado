@@ -17,6 +17,12 @@ O `rls-auth-test.mjs` já cobre as **11 tabelas**. A feature está atrás da fla
 `NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP` (off em prod). A migração precisa estar aplicada e a
 policy ativa ANTES de ligar a flag (ver `docs/features/promo-whatsapp.md`).
 
+**Atualização (2026-08-30): 12ª tabela — `legal_acceptances`.** Os registros
+imutáveis de aceite dos documentos legais nascem com RLS e políticas separadas de
+`SELECT`/`INSERT` para a própria decoradora, sem policy de `UPDATE` ou `DELETE`.
+A migration `20260830140000_legal_acceptances.sql` também revoga os grants padrão
+de `anon`/`authenticated`. O `rls-auth-test.mjs` cobre as 12 tabelas.
+
 > **Achado (2026-08-27): grants default em tabela nova.** Toda tabela criada em `public`
 > nasce com os grants DEFAULT do Supabase (`ALTER DEFAULT PRIVILEGES` concede tudo a
 > `anon`/`authenticated`). As 10 tabelas antigas foram endurecidas (sem esses grants), mas

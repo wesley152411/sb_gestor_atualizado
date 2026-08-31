@@ -8,6 +8,7 @@ import { getSession, updatePassword } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
+import { PublicLegalFooter } from '@/components/legal/PublicLegalFooter';
 import { checkPasswordStrength } from '@/lib/utils';
 
 // Tela de definir a NOVA senha. Só é alcançada depois que /auth/confirm validou
@@ -113,6 +114,8 @@ export default function ResetPasswordPage() {
             </form>
           </>
         )}
+
+        <PublicLegalFooter compact />
       </div>
     </div>
   );

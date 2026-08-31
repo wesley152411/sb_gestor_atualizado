@@ -36,6 +36,9 @@ model Decorator {
   // Marketplace e contatos do Chat). NUNCA é exceção de isolamento — a conta
   // continua sujeita a 401/403 como qualquer outra. Definível SÓ no banco.
   is_internal                                         Boolean         @default(false)
+  // Pedido explícito no gate de documentos legais. A exclusão é manual e feita
+  // pelo script de exclusão total; este timestamp apenas põe a conta na fila.
+  deletion_requested_at                               DateTime?       @db.Timestamptz(6)
   chat_messages_chat_messages_receiver_idTodecorators ChatMessage[]   @relation("chat_messages_receiver_idTodecorators")
   chat_messages_chat_messages_sender_idTodecorators   ChatMessage[]   @relation("chat_messages_sender_idTodecorators")
   clients                                             Client[]
@@ -45,10 +48,29 @@ model Decorator {
   kits                                                Kit[]
   party_events                                        PartyEvent[]
   client_promo_messages                               ClientPromoMessage[]
+  legal_acceptances                                   LegalAcceptance[]
   rental_orders_rental_orders_owner_idTodecorators    RentalOrder[]   @relation("rental_orders_owner_idTodecorators")
   rental_orders_rental_orders_renter_idTodecorators   RentalOrder[]   @relation("rental_orders_renter_idTodecorators")
 
   @@map("decorators")
+}
+
+// Registro imutável de aceite dos documentos legais. Não há endpoint de edição
+// ou exclusão; a tabela só desaparece na exclusão total da decoradora.
+model LegalAcceptance {
+  id           String    @id @default(uuid())
+  decorator_id String
+  document     String
+  version      String
+  content_hash String
+  accepted_at  DateTime  @default(dbgenerated("now()")) @db.Timestamptz(6)
+  ip           String?
+  user_agent   String?
+  context      String    @default("signup")
+  decorators   Decorator @relation(fields: [decorator_id], references: [id], onDelete: Cascade)
+
+  @@index([decorator_id, document, version], map: "idx_legal_acc_lookup")
+  @@map("legal_acceptances")
 }
 
 model InventoryItem {

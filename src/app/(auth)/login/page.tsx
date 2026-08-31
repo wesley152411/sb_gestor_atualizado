@@ -11,6 +11,7 @@ import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
+import { PublicLegalFooter } from '@/components/legal/PublicLegalFooter';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -130,6 +131,8 @@ export default function LoginPage() {
             Criar conta grátis
           </Link>
         </p>
+
+        <PublicLegalFooter compact />
       </div>
     </div>
   );

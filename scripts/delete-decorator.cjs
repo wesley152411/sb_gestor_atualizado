@@ -14,6 +14,7 @@
 // Uso:
 //   node scripts/delete-decorator.cjs --id=<uuid> --env=prod --expect-ref=<ref> [--apply]
 //   node scripts/delete-decorator.cjs --email=<email> --env=prod --expect-ref=<ref> [--apply]
+//   node scripts/delete-decorator.cjs --id=<uuid> --storage-only --env=prod --expect-ref=<ref> [--apply]
 //   (o Storage exige SUPABASE_SERVICE_ROLE_KEY no ambiente — pegue em
 //    Supabase → Settings → API; não commite essa chave.)
 const fs = require('fs');
@@ -41,6 +42,7 @@ const expectRef = get('expect-ref');
 const idArg = get('id');
 const emailArg = get('email');
 const apply = args.includes('--apply');
+const storageOnly = args.includes('--storage-only');
 
 const ENV_SETS = { test: ['.env', '.env.local', '.env.test', '.env.test.local'], prod: ['.env', '.env.local'] };
 if (!(envMode in ENV_SETS)) { console.error(`🛑 --env inválido: "${envMode}". Use test | prod.`); process.exit(1); }
@@ -85,7 +87,7 @@ async function listStorage(admin, id) {
     console.log(`alvo: ${new URL(url).hostname}  (--env=${envMode})`);
     console.log(`decorator: id=${id} name=${dec ? dec.name : '(sem linha em decorators)'}`);
     console.log(`auth.users: ${auth ? `email=${auth.email} cnpj=${(auth.raw_user_meta_data || {}).cnpj || '-'}` : '(sem linha em auth.users)'}\n`);
-    if (!dec && !auth) { console.error('🛑 nada encontrado com esse id/e-mail.'); return; }
+    if (!dec && !auth && !storageOnly) { console.error('🛑 nada encontrado com esse id/e-mail.'); return; }
 
     // Preview da cascata (contagens).
     const c = async (sql) => Number((await p.$queryRawUnsafe(sql, id))[0].n);
@@ -122,6 +124,13 @@ async function listStorage(admin, id) {
 
     if (!apply) { console.log('\n(dry-run) nada foi apagado. Rode de novo com --apply para excluir.'); return; }
     if (!admin) { console.error('\n🛑 --apply abortado: sem service role, a exclusão do Storage ficaria incompleta. Forneça SUPABASE_SERVICE_ROLE_KEY.'); process.exitCode = 1; return; }
+    for (const bucket of BUCKETS) {
+      if (storage[bucket]?.error) {
+        console.error(`\n🛑 --apply abortado: não foi possível listar Storage (${bucket}: ${storage[bucket].error}). Nada foi apagado.`);
+        process.exitCode = 1;
+        return;
+      }
+    }
 
     // Comprovante — preenchido conforme cada camada é apagada; escrito no fim.
     const receipt = {
@@ -143,12 +152,14 @@ async function listStorage(admin, id) {
         receipt.layers.storage[b] = { removed: n, paths: Array.isArray(paths) ? paths : [] };
         console.log(`  Storage ${b}: removidos ${n}`);
       }
-      // 2) tabelas (cascata) — apaga a decoradora; o FK leva o resto.
-      if (dec) { await p.decorator.delete({ where: { id } }); receipt.layers.tables.decorators_removed = true; console.log('  decorators: removida (cascata aplicada)'); }
-      // 3) login (e-mail, senha, metadata com CNPJ)
-      const delAuth = await p.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1::uuid`, id);
-      receipt.layers.auth.deleted = Number(delAuth);
-      console.log(`  auth.users: ${delAuth} removida`);
+      if (!storageOnly) {
+        // 2) tabelas (cascata) — apaga a decoradora; o FK leva o resto.
+        if (dec) { await p.decorator.delete({ where: { id } }); receipt.layers.tables.decorators_removed = true; console.log('  decorators: removida (cascata aplicada)'); }
+        // 3) login (e-mail, senha, metadata com CNPJ)
+        const delAuth = await p.$executeRawUnsafe(`DELETE FROM auth.users WHERE id = $1::uuid`, id);
+        receipt.layers.auth.deleted = Number(delAuth);
+        console.log(`  auth.users: ${delAuth} removida`);
+      }
       receipt.status = 'OK';
     } catch (stepErr) {
       receipt.status = 'FALHA';
@@ -159,8 +170,12 @@ async function listStorage(admin, id) {
     }
 
     const rf = writeReceipt(receipt);
-    console.log(`\n✅ exclusão total concluída. Comprovante: ${rf}`);
-    console.log('   (Logs de terceiros — Netlify/Supabase/Upstash — expiram por retenção própria; ver docs/legal/data-inventory.md §4b.)');
+    if (storageOnly) {
+      console.log(`\n✅ limpeza de Storage concluída. Comprovante: ${rf}`);
+    } else {
+      console.log(`\n✅ exclusão total concluída. Comprovante: ${rf}`);
+      console.log('   (Logs de terceiros — Netlify/Supabase/Upstash — expiram por retenção própria; ver docs/legal/data-inventory.md §4b.)');
+    }
   } catch (e) {
     const msg = String(e && e.message ? e.message : e).trim();
     console.error('ERRO:', msg.split('\n').filter(Boolean).slice(0, 3).join(' | '));

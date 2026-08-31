@@ -3,86 +3,62 @@
 > Arquivo gerado para você copiar o conteúdo. Pode apagar depois (`CONTEXTO-COMPACT.md`).
 
 ## 1. Projeto e intenção
-"SB Gestor" — Next.js 16.2.9 (Turbopack, App Router), React 19, Prisma 6.19.3 (Supabase Postgres), Zustand, SWR. Marketplace B2B multi-tenant de locação para decoradoras de festa. Deploy no Netlify (sbgestor.netlify.app), branch `fix/inventory-modal-e-calendario-ui`, remote https://github.com/wesley152411/sb_gestor_atualizado.git (deploy = merge para `main`).
+"SB Gestor" — Next.js 16.2.9 (Turbopack, App Router), React 19, Prisma 6.19.3 (Supabase Postgres). **NÃO usa Tailwind** — CSS custom + variáveis em `src/app/globals.css` (embora classes utilitárias tipo `w-4 h-4`, `bg-slate-100` apareçam e funcionem). Marketplace B2B multi-tenant de locação para decoradoras de festa. Deploy = push para `main` → build automático no Netlify; produção https://sbgestor.com. Supabase prod ref `urvbkfyyvbsahdnkkwed`.
 
-**CRÍTICO: o projeto NÃO usa Tailwind** — todo estilo é CSS custom + variáveis em `src/app/globals.css`.
+## 2. Pedidos entregues nesta sessão
+1. **Link de confirmação quebrado (`token_hash=pkce_...`)** — em qualquer navegador/dispositivo a conta devia confirmar e entrar.
+2. **Meu Acervo — foto de capa do kit sendo replicada em todas as peças** — capa só do kit; peças nascem sem imagem (placeholder); editar capa não propaga; apagar kit não apaga peças.
+3. **Meu Acervo — miniatura no modal mostrava capa + estoque/preço inventados** — miniatura = foto própria ou placeholder; peça nasce com estoque/preço vazios ("A definir"); seletor de quantidade do modal = composição do kit (não estoque); valor do kit obrigatório; bloquear "Adicionar ao formulário" sem preço.
+4. **Semear estoque** — quantidade do modal semeia estoque inicial só para peças NOVAS.
+5. **Trava de preço no backend** — peça sem preço = rascunho, não publica, não entra em pedido/formulário, validado no servidor (não só no `disabled`).
+6. **Mensagem de erro do valor do kit** — validação on-submit; texto curto "Informe o valor do kit".
+7. **Página pública da parceira (Marketplace)** — Foto de perfil (avatar_url), Sobre, Localização, WhatsApp (wa.me clicável), Instagram (clicável); campos vazios omitidos; contas is_internal excluídas; links externos `target="_blank" rel="noopener noreferrer"`.
+8. **Ciclo de vida do orçamento (5 status)** — Aguardando preenchimento / Aguardando confirmação / Confirmado / Finalizado / Cancelado; helper único; front+back; confirmar irreversível também na API; PDF gerado na confirmação; token novo a cada clique; auto-finaliza por data (America/Sao_Paulo, sem cron).
+9. **CI harness na main + projeto Supabase de teste** — workflow em PR+push; var de ambiente do banco de teste; guarda contra rodar em produção; keepalive p/ free-tier; réplica de schema (RLS, constraints, triggers, buckets); sem dados reais; segredos no GitHub Secrets.
+10. **Limpeza de rascunhos** — 26 rascunhos "(link não preenchido)" apagados; rascunhos escondidos por padrão (atrás de filtro).
+11. **claude-seo instalado** (github.com/AgriciDaniel/claude-seo).
+12. **Reativação promocional por WhatsApp** — botão de mensagem na coluna Ações de Clientes; elegível quando eventDate+1mês < hoje; desabilitado sem telefone válido; modal com telefone editável + template {nome} + wa.me; tabela `client_promo_messages` com RLS; badge "aberto" com data; template configurável em Configurações. **Com feature flag** (ativa só em dev, "Em breve" em produção, checada no servidor) e **máscara de telefone + validação de DDD** (11-99, 10/11 dígitos).
+13. **emilkowalski/skills instalado** (12 skills de design/animação) — em `.agents/skills/`, gitignorado.
 
-**P0 SEGURANÇA (intenção dominante):** uma conta nova viu dados de Clientes/Agenda da SB GESTOR. Remediação de isolamento multi-tenant, prioridade estrita:
-- **Item 1 = identidade por sessão no servidor (TOPO, entregue primeiro)**
-- **Item 2 = RLS (segundo)**
-- **Item 3 = testes de isolamento (terceiro)**
-- **Item 4 = regra do calendário do Marketplace**
+## 3. Conceitos técnicos-chave
+- `@supabase/ssr` `createBrowserClient` FORÇA `flowType:"pkce"` (não dá pra sobrescrever) → `{{ .TokenHash }}` vira `pkce_...` que `verifyOtp` não processa. **Solução:** client `@supabase/supabase-js` separado com `flowType:'implicit'` só para chamadas que disparam e-mail.
+- Colunas Decimal do Prisma chegam como STRING via API (ex. "0.00"); `!value`/`=== 0` falham → usar `Number(x) > 0` (helper `hasPrice`).
+- RLS: `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY <t>_own ON public.<t> TO authenticated USING ((decorator_id = (auth.uid())::text))`. Prisma (owner role) ignora RLS; policy protege caminho PostgREST anon/authenticated. Todos os ids são `text` → `auth.uid()::text`.
+- PartyEvent.status é `String?` (não enum) com CHECK `party_events_status_check`. Orçamento = uma linha PartyEvent (public_token UUID v4).
+- Finalização derivada na leitura (sem cron): Confirmado + event_date passado → Finalizado. America/Sao_Paulo fixo -03:00.
+- Netlify: `NEXT_PUBLIC_*` inlined no build; `NODE_ENV=production` em prod. Flag: `process.env.NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP === 'true' || (!== 'false' && NODE_ENV === 'development')` — funciona client e server.
+- Supabase direct connection é IPv6-only (inacessível do Docker IPv4) → usar session pooler `aws-0-us-east-2.pooler.supabase.com:5432` user `postgres.<ref>`. Projeto de teste em us-east-2.
 
-Pedido mais recente: priorizar **harness de testes (item 7/3) ANTES do RLS (item 6/2)** — harness que autentica programaticamente contra o Supabase para validar o caminho logado, em branch separada. Mais 3 itens novos: base64→Storage, verificar contas seed antes de reabrir, sanitização de texto no servidor.
+## 4. Arquivos principais tocados
+- `src/lib/supabase/client.ts`: `getSupabaseMailerClient()` (implicit).
+- `src/lib/event-status.ts` (NOVO): `EVENT_STATUS`, helpers (`effectiveStatus`, `isDraftLink`, `countsAsRevenue`, `showsInCalendar`, `blocksStock`, `reservesStock`, `isLinkOpenForClient`, `statusBadge`).
+- `src/lib/utils.ts`: `hasPrice`, `formatPriceLabel`, `sanitizePhoneDigits`, `sanitizeInstagramHandle`, `whatsappUrl`, `instagramUrl`, `promoWhatsappUrl`, `defaultPromoTemplate`, `fillPromoTemplate`, `formatPhoneMask`, `isValidBrPhone`.
+- `src/lib/feature-flags.ts` (NOVO): `promoWhatsappEnabled`, `PROMO_COMING_SOON`.
+- `src/components/ui/PhoneInput.tsx` (NOVO): input mascarado, guarda só dígitos.
+- `src/app/(dashboard)/inventory/page.tsx`, `marketplace/my-page/page.tsx`, `clients/page.tsx`, `settings/page.tsx`, `calendar/page.tsx`, `analytics/page.tsx`, `party-form/page.tsx`, `components/layout/Header.tsx`.
+- `src/app/orcamento/[token]/page.tsx`: telas read-only de agradecimento/cancelado; PhoneInput + validação.
+- APIs: `quote-links/route.ts`, `public/quote/[token]/route.ts`, `party-events/[id]/route.ts` (NOVO: confirm/cancel/discard), `promo-messages/route.ts` (NOVO, flagGuard 404), `decorators/me/route.ts`.
+- `prisma/schema.prisma`: PartyEvent `submitted_at`; Decorator `promo_message_template`; modelo `ClientPromoMessage`.
+- Migrations: `docs/migrations/party-event-status.sql`, `supabase/migrations/20260823211705_baseline.sql`, `.../20260824000100_client_promo_messages.sql`.
+- CI: `.github/workflows/harness.yml`, `keepalive-test-db.yml`, `tests/guard.ts` (aborta se apontar p/ prod `urvbkfyyvbsahdnkkwed`, exige `HARNESS_ALLOW_TEST_DB=true`), `tests/setup.ts`, `.env.test.example`, `docs/testing/harness-ci.md`.
+- `.gitignore`: `.agents/` e `skills-lock.json`.
 
-## 2. Conceitos técnicos
-- Prisma conecta com role privilegiada → **RLS do Supabase é ignorado no caminho Prisma**; isolamento dependia do `where` de cada query.
-- Identidade por sessão: `@supabase/ssr` `createServerClient` + `next/headers` cookies() (async no Next 16) + `auth.getUser()` (valida JWT). `decorator.id === auth user.id`.
-- Cookies de sessão: `createBrowserClient` grava sessão em cookies (legíveis no servidor). Signup auto-confirma (confirmação de e-mail OFF). Sem `service_role` (só anon key + DATABASE_URL no .env.local).
-- Harness: Vitest 4.1.10, padrão cookie-jar (client `@supabase/ssr` com Map, signUp/signIn grava cookies, serializa para header `Cookie:`, fetch no server Next → round-trip real de cookie).
+## 5. Estado / verificações
+- Todas as features deployadas e verificadas (fingerprint de bundle nas páginas públicas).
+- Ciclo de orçamento com migração aplicada em prod E teste.
+- Harness verde (15/15, 1 skip) contra banco de teste us-east-2. Projeto de teste provisionado (10 tabelas, 10 RLS, bucket festora, ledger de migração).
+- 26 rascunhos órfãos apagados da prod.
+- Promo com flag: "Em breve" em produção.
+- Skills instaladas e gitignoradas.
 
-## 3. Arquivos principais
-- `src/lib/supabase/server.ts` (NOVO): `createSupabaseServerClient()` e `getSessionDecoratorId()`.
-- `src/app/api/whoami/route.ts` (NOVO, diagnóstico temporário): retorna `{ decoratorId, authenticated }`. **Remover após você terminar os testes da Etapa 3.**
-- `src/app/api/clients/route.ts` (Etapa 1): GET/POST por sessão, 401 sem sessão, carimba `decorator_id`, 403 ao editar de outro.
-- `src/app/api/party-events/route.ts` (Etapa 1): mesmo padrão.
-- `src/app/api/calendar/route.ts` (Etapa 1 + Item 4): sessão; payload de locação = `{ id, event_date, status, owner_id, renter_id, total_value (B2B, PERMITIDO), items:[{name,quantity}] }` — sem nome/telefone da contraparte.
-- `src/app/api/quote-links/route.ts` (Etapa 1): POST por sessão; checa dono do item/kit (403).
-- `src/app/api/inventory/route.ts` e `src/app/api/kits/route.ts` (Etapa 2): `wantsOwn = searchParams.has('decoratorId')` → acervo próprio vs feed público de terceiros; POST carimba dono + 403.
-- `src/app/api/inventory/[id]/route.ts` e `src/app/api/kits/[id]/route.ts` (Etapa 2): DELETE **não tinha auth** — agora sessão + dono (401/403/404).
-- `src/app/api/orders/route.ts` (Etapa 2): GET por sessão (dono OU locatário); POST checa participante.
-- `src/app/api/chats/route.ts` (Etapa 2, crítico): GET conversa exige `sessionId === decoratorA || decoratorB` senão 403; POST força `sender_id: sessionId`.
-- `src/app/(dashboard)/chat/page.tsx`: removida auto-resposta falsa.
-- `src/app/(dashboard)/calendar/page.tsx`: DetailCard com `amount?` mostrando "Locação B2B"; globals.css `.detail-amount-line`.
-- `src/app/api/decorators/route.ts` (Etapa 3): GET com `select` mínimo (id, name, avatar_url, logo_url, location, membership_level); POST authz (id === sessão senão 403).
-- `src/app/api/decorators/me/route.ts` (NOVO, Etapa 3): GET perfil próprio completo (404 se não existe); POST upsert com criação preguiçosa (semeia name/location do user_metadata). Stats e membership_level não setáveis pelo cliente.
-- `src/services/api.ts`: removido `createDecoratorFromAuth`; mocks localStorage removidos; adicionados `getMyProfile()`, `ensureMyProfile()`, `saveDecoratorProfile()` → POST `/api/decorators/me`.
-- `src/components/providers/AuthProvider.tsx`: usa `getMyProfile()` + `ensureMyProfile()` (sem impersonação getDecorators/decorators[0]).
-- `SECURITY-AUDIT.md` (NOVO): causa raiz, timeline (vazamento em 2026-06-27 commit 2f49483), tabela de rotas.
-- Harness (branch `test/isolation-harness`): `tests/helpers.ts`, `tests/isolation.test.ts` (7 testes), `vitest.config.mts`, `tests/README.md`, `"test": "vitest run"` no package.json (só nessa branch).
+## 6. Segurança (intenção preservada)
+- Nunca gravar segredos em arquivos/repo — ler do GitHub Secrets.
+- Você colou service_role key de teste e senha do banco `WeSlEy1-@3f4` no chat → **recomendei rotacionar após o setup**.
+- Guarda do harness aborta se apontar para prod. Sem dados reais no banco de teste. Não rodar `supabase db pull`/`migration repair` contra produção.
 
-## 4. Erros e correções
-- Calendário "ainda mostra SB GESTOR": era locação B2B legítima do Mosaico (Mosaico=locatário, SB GESTOR=dono de "Fazendinha rosa", R$1025). Não era vazamento.
-- Eu inicialmente ESCONDI o valor B2B do calendário — você refinou o Item 4: valor B2B PODE aparecer dos dois lados, só dado do cliente final nunca pode. Re-adicionei `total_value`.
-- DELETE sem autenticação (Etapa 2) — você chamou de "mais grave que o vazamento original". Corrigido.
-- Criação preguiçosa de perfil resolvida no AuthProvider (/me), sem depender de sessão no signup.
+## 7. Pendências / itens oferecidos (não aprovados)
+- Nenhuma tarefa explícita pendente.
+- Oferecido (aguardando ok): rodar monitor de deploy; adicionar teste de regressão RLS da tabela promo ao harness; você rotacionar a service_role key + senha do banco de teste.
 
-## 5. Verificações feitas
-- Isolamento ao vivo (deslogado): rotas sensíveis 401; `?decoratorId=<id SB GESTOR>` forjado → 401.
-- Harness provou o caminho LOGADO: **7/7 testes passaram** (~36s); limpeza verificada (4 decoradoras reais, 0 linhas de teste).
-- Sem vazamento via PostgREST anon-key (`GET /rest/v1/clients` → 401 permission denied) → RLS é defesa em profundidade, não buraco ativo.
-- Token do link público = `crypto.randomUUID()` (UUIDv4, seguro).
-- 4 contas reais (não seed); avatares Unsplash são default antigo do signup.
-
-## 6. Contas em produção (item 2 — falta sua decisão)
-| id | nome | cidade | observação |
-|---|---|---|---|
-| 6bdc87d3 | SB GESTOR | Vespasiano - MG | avatar base64, conta principal |
-| 0568c034 | Mosaico | Vespasiano - MG | avatar Unsplash antigo |
-| 9d1b572b | Bella Fest | "SSao Paulo - SP" | Unsplash + typo na cidade |
-| 398eab4e | " SB Festas" | Vespasiano - MG | nome com espaço à frente, avatar vazio |
-
-Todas são contas reais (Auth UUID), NÃO a massa seed (dec-1/2/3, já removida). **Você precisa dizer quais manter e quais apagar antes de reabrir.**
-
-## 7. Commits
-- 97b4bff (P0 branch), 7ced242 (main P0)
-- 6831471 (Etapas 1+2 branch), d94a0b5 (main Etapas 1+2)
-- 5d3b23f (Etapa 3 branch — AINDA NÃO em main)
-- Harness commitado e enviado em `test/isolation-harness`
-
-## 8. Sequência para reabrir cadastros
-1. Você valida Etapas 2 e 3 (agora com `npm test`)
-2. Eu faço merge da Etapa 3 em main + removo `/api/whoami`
-3. Resolver item 2 (contas fictícias)
-4. Você repete os testes em produção
-5. Você reabre cadastros
-
-## 9. Pendências (sem mudar prioridade)
-- Entregue: harness (item 7), 7/7 passando.
-- Falta (se sobrar tempo): **Item 6 — script de RLS para revisão** (deny-by-default + plano de rollback + validação do feed público do Marketplace), NÃO aplicado em produção.
-- Depois: Item 1 (base64→Supabase Storage + migração, bloquear data: URI, validar/redimensionar upload jpg/png/webp max 2MB ~400x400) e Item 3 (trim/sanitização no servidor de nome/cidade/sobre/whatsapp/instagram + corrigir registros existentes com espaços/typos).
-
-## 10. Perguntas em aberto para você
-1. Quais das 4 contas manter vs apagar antes de reabrir?
-2. Confirmado: o harness cria a própria conta C para o teste do chat — você NÃO precisa criar manualmente.
-3. Próximo passo meu deve ser o **script de RLS para revisão** (com rollback + validação do Marketplace)?
+## 8. Nota sobre as skills recém-instaladas
+As 12 skills do emilkowalski (`emil-design-eng`, `animate`, `review-animations`, `improve-animations`, `find-animation-opportunities`, `animation-vocabulary`, `apple-design`, `write-swift`, `pick-ui-library`, `prototype`, `ask-sonner`, `animate-expo`) e as do claude-seo só ficam invocáveis **após reiniciar o Claude Code** (a lista de skills é fixada no início da sessão).

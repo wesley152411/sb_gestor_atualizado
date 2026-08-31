@@ -204,6 +204,11 @@ export function LandingFooter() {
           <Link href="/login">Entrar</Link>
           <Link href="/signup">Criar conta grátis</Link>
         </div>
+        <div className="lp-footer-col">
+          <h5>Legal</h5>
+          <Link href="/privacidade">Política de Privacidade</Link>
+          <Link href="/termos">Termos de Uso</Link>
+        </div>
       </div>
       <div className="lp-footer-bottom">
         © {new Date().getFullYear()} SB Gestor — Todos os direitos reservados.
