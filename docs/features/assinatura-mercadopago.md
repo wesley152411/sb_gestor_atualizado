@@ -318,6 +318,43 @@ RLS em todas: `subscriptions` com SELECT do próprio; as outras duas **sem polic
 nenhuma** (não têm dono na aplicação). `REVOKE ALL` de `anon`/`authenticated` nas
 três, seguindo o baseline. Isso leva o `rls-auth-test.mjs` de 12 para 15 tabelas.
 
+### 3.1 Como ficou (etapa 3)
+
+Mesmo padrão da etapa 2 — núcleo puro separado do IO, porque `server-only` não
+resolve no vitest e função que decide acesso precisa de teste de verdade.
+
+`src/lib/assinatura-estado.ts` (puro) — `calcularEstado(mp, anterior, agora)`
+traduz o estado remoto para o nosso, e `concedeAcesso()` é a pergunta que o gate
+faz. Duas invariantes que valem mais que o resto:
+
+- **O período já concedido nunca encurta.** Se o MP devolver uma data anterior à
+  gravada, vale a gravada.
+- **Cancelar não apaga o período.** O MP zera `next_payment_date` ao cancelar;
+  sobrescrever com `null` cortaria acesso já pago (Termos 6.2).
+
+`src/lib/beneficios-hash.ts` (puro) — HMAC das âncoras, pepper por parâmetro.
+Recusa gerar hash sem pepper, em vez de produzir um hash reversível.
+
+`src/lib/assinatura.ts` (`server-only`) — o IO: relê com `GET /preapproval/{id}`,
+calcula, e grava **numa transação** que rebaixa a vigente anterior antes de
+promover a nova. Registra o consumo do teste grátis no momento em que ele começa,
+com `skipDuplicates` — reexecução não é erro, é o esperado.
+
+`jaUsouTesteGratis()` **falha fechada**: sem pepper, nega o teste. Conceder por
+engano é prejuízo recorrente; negar por engano é um suporte pontual.
+
+| Regressão encenada | Pegou |
+|---|---|
+| Cancelar apagando o período pago | ✅ |
+| Inadimplente perdendo o acesso do mês já pago | ✅ |
+| Truncar centavos em vez de arredondar | ✅ *(só depois de corrigir o teste — ver abaixo)* |
+
+> **O teste de dinheiro nasceu vazio.** A primeira versão checava só
+> `reaisParaCentavos(149.9) === 14990`, e `Math.trunc` acerta esse caso por sorte
+> (`14990.000000000002`). Passou com a regressão introduzida. Agora usa valores
+> que caem para BAIXO do inteiro — `1.15 * 100 = 114.99999999999999` — onde
+> truncar dá 114 e arredondar dá 115.
+
 ---
 
 ## 4. Webhook
@@ -580,7 +617,7 @@ e-mail se perde, o app você abre.
 | 0 | ~~Validar em sandbox~~ **concluído** — ver 1.5 | — |
 | 1 | Migration no banco de **teste** + modelos Prisma | revisão deste documento |
 | 2 | ~~`src/lib/mercadopago.ts` + provas estáticas das chaves~~ **concluída** | 1 |
-| 3 | `aplicarEstadoDaAssinatura()` — o coração idempotente | 2 |
+| 3 | ~~`aplicarEstadoDaAssinatura()` — o coração idempotente~~ **concluída** | 2 |
 | 4 | `POST /api/billing/subscribe` + tela `/assinatura` + retorno com polling | 3 |
 | 5 | Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho | 3 |
 | 6 | `requireAssinaturaAtiva` + classificação das rotas em 3 camadas + teste estático | 3 |
