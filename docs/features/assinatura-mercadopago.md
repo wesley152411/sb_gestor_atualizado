@@ -410,6 +410,46 @@ Em ordem de valor:
 4. Túnel local (ngrok/cloudflared) apontando uma **URL de webhook separada**, com
    **secret próprio** — cada URL cadastrada no painel tem o seu.
 
+### 4.1 Como ficou (etapa 4) — e duas descobertas
+
+Rotas: `POST /api/billing/subscribe`, `POST /api/billing/sync`,
+`GET /api/billing/estado`. Telas: `/assinatura` e `/assinatura/retorno`.
+
+**O `server-only` é barreira de verdade, não só prova estática.** Com um
+componente cliente importando `@/lib/mercadopago`, o build de produção falha:
+
+```
+Build error occurred
+Error: Turbopack build failed with 2 errors:
+'server-only' cannot be imported from a Client Component module
+exit code 1
+```
+
+As duas camadas têm papéis distintos: a prova estática falha em ~400ms com
+mensagem clara no job rápido do PR; o build é a rede final.
+
+**O Mercado Pago recusa `back_url` que não seja HTTPS pública.** Descoberto ao
+rodar o fluxo real: `Invalid value for back_url, must be a valid URL` com
+`http://localhost:3100`. Consequência: **desenvolvimento local exige túnel** — o
+mesmo que o webhook vai precisar. `MP_BACK_URL_BASE` sobrescreve a origem da
+requisição; sem HTTPS a rota recusa com 503 e log explicando, em vez de deixar o
+MP devolver um 400 opaco.
+
+Provas em `tests/billing-fluxo.test.ts` (8), contra o sandbox de verdade, com
+guarda de credencial e `skipIf` quando não há chave (o CI não tem):
+
+- cria a preapproval e devolve `init_point`;
+- a linha nasce `pendente` e **não vigente** — nada de acesso antes da autorização;
+- `sync` não libera acesso enquanto o MP não autorizar;
+- `sync` é idempotente;
+- **B não sincroniza a assinatura de A**, mesmo sabendo o id (404);
+- `preapproval_id` ausente é 400, não 500;
+- quem nunca assinou recebe a oferta de teste grátis.
+
+A recusa de assinatura órfã agora deixa rastro: etiqueta `[ASSINATURA-ORFA]` com
+o id, o status no MP e o `external_reference`. A faixa do dashboard consome isso
+na etapa 5, junto do batimento do job.
+
 ---
 
 ## 5. Gate de acesso
@@ -618,7 +658,7 @@ e-mail se perde, o app você abre.
 | 1 | Migration no banco de **teste** + modelos Prisma | revisão deste documento |
 | 2 | ~~`src/lib/mercadopago.ts` + provas estáticas das chaves~~ **concluída** | 1 |
 | 3 | ~~`aplicarEstadoDaAssinatura()` — o coração idempotente~~ **concluída** | 2 |
-| 4 | `POST /api/billing/subscribe` + tela `/assinatura` + retorno com polling | 3 |
+| 4 | ~~`POST /api/billing/subscribe` + tela `/assinatura` + retorno com polling~~ **concluída** | 3 |
 | 5 | Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho | 3 |
 | 6 | `requireAssinaturaAtiva` + classificação das rotas em 3 camadas + teste estático | 3 |
 | 7 | Cancelamento + oferta de retenção + volta ao valor cheio | 0, 3 |

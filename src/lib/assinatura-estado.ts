@@ -3,6 +3,15 @@
 // banco e sem rede — para poder ser testado de verdade, que é o que importa numa
 // função que decide se alguém tem acesso e até quando.
 
+// Valores do plano, em centavos. Fonte única: Termos 5.2 e 6.1.
+export const VALOR_MENSAL_CENTAVOS = 14990;   // R$ 149,90
+export const VALOR_RETENCAO_CENTAVOS = 9990;  // R$ 99,90 na oferta de permanência
+export const COBRANCAS_DA_RETENCAO = 3;       // depois, volta ao valor cheio
+
+// Tentativa de checkout abandonada vira lixo depois disto — nunca reaproveitamos
+// uma preapproval pendente velha, porque o estado dela no MP é desconhecido.
+export const HORAS_PARA_EXPIRAR_PENDENTE = 24;
+
 export type StatusLocal =
   | 'pendente'
   | 'em_teste'

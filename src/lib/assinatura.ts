@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { mpFetch, resumoParaLog } from '@/lib/mercadopago';
 import {
   calcularEstado,
+  centavosParaReais,
+  concedeAcesso,
+  HORAS_PARA_EXPIRAR_PENDENTE,
+  VALOR_MENSAL_CENTAVOS,
   type NovoEstado,
   type PreapprovalMP,
   type StatusLocal,
@@ -37,9 +41,16 @@ export async function aplicarEstadoDaAssinatura(preapprovalId: string): Promise<
 
   const atual = await prisma.subscription.findUnique({ where: { mp_preapproval_id: preapprovalId } });
   if (!atual) {
-    // Não criamos linha a partir de aviso externo: a assinatura nasce em
-    // /api/billing/subscribe, que é quem sabe de qual decoradora ela é. Se isto
-    // aparecer, é assinatura órfã e o job de reconciliação registra para análise.
+    // NÃO auto-curamos. Criar a linha a partir de aviso externo transformaria um
+    // sintoma em silêncio: preapproval sem linha local significa que algo criou
+    // cobrança fora do nosso fluxo, e isso precisa ser VISTO. Daí a etiqueta
+    // própria — é ela que a faixa do dashboard e a busca nos logs procuram.
+    const ref = (resposta.body as { external_reference?: string })?.external_reference ?? '(sem external_reference)';
+    console.error(
+      `[ASSINATURA-ORFA] preapproval=${preapprovalId} status_mp=${resposta.body?.status} ` +
+      `external_reference=${ref} — existe no Mercado Pago e NÃO tem linha local. ` +
+      `Nada foi criado de propósito: investigue quem criou esta cobrança.`,
+    );
     return { ok: false, motivo: 'nao_conhecemos', detalhe: `preapproval ${preapprovalId} sem linha local` };
   }
 
@@ -157,3 +168,97 @@ export async function jaUsouTesteGratis(cnpj: string | null, payerId?: string | 
 }
 
 export type { NovoEstado };
+
+// ---------------------------------------------------------------------------
+// Criação da assinatura (Checkout Pro). Decide teste grátis e reativação.
+// ---------------------------------------------------------------------------
+
+export type ResultadoCriacao =
+  | { ok: true; initPoint: string; assinaturaId: string; comTeste: boolean; reativacao: boolean }
+  | { ok: false; motivo: 'ja_tem_assinatura' | 'sem_perfil' | 'erro_mp'; detalhe: string };
+
+export async function criarAssinatura(
+  decoratorId: string,
+  payerEmail: string,
+  baseUrl: string,
+): Promise<ResultadoCriacao> {
+  const decoradora = await prisma.decorator.findUnique({
+    where: { id: decoratorId },
+    select: { id: true, cnpj: true, company_name: true },
+  });
+  if (!decoradora) return { ok: false, motivo: 'sem_perfil', detalhe: 'decoradora sem linha de perfil' };
+
+  const agora = new Date();
+  const vigente = await prisma.subscription.findFirst({
+    where: { decorator_id: decoratorId, vigente: true },
+  });
+
+  // Já tem assinatura viva que não está cancelada: não cria outra.
+  if (vigente && vigente.status !== 'cancelada' && concedeAcesso({ status: vigente.status as StatusLocal, periodo_fim: vigente.periodo_fim }, agora)) {
+    return { ok: false, motivo: 'ja_tem_assinatura', detalhe: `assinatura ${vigente.status} em vigor` };
+  }
+
+  // REATIVAÇÃO: cancelada mas com período pago ainda correndo. A cobrança nova só
+  // pode começar no fim desse período, senão ela paga o MESMO MÊS duas vezes.
+  // start_date validado em sandbox: o MP respeita a data e devolve next_payment_date igual.
+  const reativacao = Boolean(
+    vigente && vigente.status === 'cancelada' && vigente.periodo_fim && vigente.periodo_fim.getTime() > agora.getTime(),
+  );
+  const inicio = reativacao ? vigente!.periodo_fim! : null;
+
+  // Teste grátis: uma vez por âncora, e NUNCA na reativação (Termos 6.3).
+  const comTeste = !reativacao && !(await jaUsouTesteGratis(decoradora.cnpj));
+
+  // Tentativas abandonadas no checkout viram lixo: nunca reaproveitadas.
+  const limite = new Date(agora.getTime() - HORAS_PARA_EXPIRAR_PENDENTE * 3600 * 1000);
+  await prisma.subscription.updateMany({
+    where: { decorator_id: decoratorId, status: 'pendente', criada_em: { lt: limite } },
+    data: { status: 'expirada', atualizada_em: agora },
+  });
+
+  const corpo = {
+    reason: 'SB Gestor — assinatura mensal',
+    external_reference: decoratorId,
+    payer_email: payerEmail,
+    back_url: `${baseUrl}/assinatura/retorno`,
+    auto_recurring: {
+      frequency: 1,
+      frequency_type: 'months',
+      transaction_amount: centavosParaReais(VALOR_MENSAL_CENTAVOS),
+      currency_id: 'BRL',
+      ...(inicio ? { start_date: inicio.toISOString() } : {}),
+      ...(comTeste ? { free_trial: { frequency: 1, frequency_type: 'months' } } : {}),
+    },
+  };
+
+  const resposta = await mpFetch<{ id?: string; init_point?: string }>('/preapproval', {
+    method: 'POST',
+    body: corpo,
+    // Duas submissões do mesmo clique não podem virar duas preapprovals.
+    idempotencia: `sub-${decoratorId}-${Math.floor(agora.getTime() / 60000)}`,
+  });
+
+  if (resposta.status >= 300 || !resposta.body?.id || !resposta.body?.init_point) {
+    return { ok: false, motivo: 'erro_mp', detalhe: resumoParaLog('/preapproval', resposta) };
+  }
+
+  const criada = await prisma.subscription.create({
+    data: {
+      decorator_id: decoratorId,
+      mp_preapproval_id: resposta.body.id,
+      status: 'pendente',
+      vigente: false, // só vira vigente quando o MP confirmar
+      plano: 'mensal',
+      valor_centavos: VALOR_MENSAL_CENTAVOS,
+      // Reativação herda o período já pago: ela não perde os dias que comprou.
+      periodo_fim: reativacao ? vigente!.periodo_fim : null,
+    },
+  });
+
+  return { ok: true, initPoint: resposta.body.init_point, assinaturaId: criada.id, comTeste, reativacao };
+}
+
+/** Estado da assinatura vigente, para a tela e para o gate. */
+export async function assinaturaVigente(decoratorId: string) {
+  return prisma.subscription.findFirst({ where: { decorator_id: decoratorId, vigente: true } });
+}
