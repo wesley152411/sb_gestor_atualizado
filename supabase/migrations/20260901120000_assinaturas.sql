@@ -34,7 +34,19 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   status                text NOT NULL DEFAULT 'pendente',
   -- 'mensal' (149,90) | 'retencao' (99,90 por 3 cobranças, depois volta a mensal)
   plano                 text NOT NULL DEFAULT 'mensal',
+
+  -- DESEJADO vs CONFIRMADO. Não é preciosismo: medido em sandbox, o PUT que
+  -- altera transaction_amount de uma preapproval é ASSINCRONO E PERDÍVEL — em
+  -- 4 de 5 tentativas com dois PUTs seguidos o valor voltou sozinho ao original,
+  -- com HTTP 200 nos dois. Logo, "eu mandei" não é "está valendo".
+  --   valor_centavos     = o que a regra de negócio quer cobrar (nossa verdade)
+  --   valor_centavos_mp  = o que a API do MP confirmou na última leitura
+  -- Divergência entre os dois é trabalho para o job de reconciliação, que
+  -- reaplica UM PUT por ciclo até convergir. Alerta se não convergir.
   valor_centavos        integer NOT NULL,
+  valor_centavos_mp     integer,
+  sincronizado_em       timestamptz,
+  tentativas_sync       integer NOT NULL DEFAULT 0,
 
   -- Fim do teste grátis (NULL = não teve teste).
   teste_fim             timestamptz,
@@ -74,6 +86,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_viva
   WHERE status IN ('em_teste', 'ativa', 'inadimplente', 'cancelada', 'suspensa');
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_decorator ON public.subscriptions (decorator_id);
+-- Fila do job: assinaturas cujo valor no MP ainda não é o valor desejado.
+CREATE INDEX IF NOT EXISTS idx_subscriptions_divergentes
+  ON public.subscriptions (sincronizado_em)
+  WHERE valor_centavos_mp IS DISTINCT FROM valor_centavos;
 -- Varredura do job de reconciliação (vencer período, suspender, expirar).
 CREATE INDEX IF NOT EXISTS idx_subscriptions_periodo ON public.subscriptions (periodo_fim)
   WHERE status IN ('em_teste', 'ativa', 'inadimplente', 'cancelada');

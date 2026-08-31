@@ -128,12 +128,63 @@ otimização, não uma dependência.
 Depois de 3 cobranças no plano `retencao`, o job devolve o valor a R$ 149,90 via
 `PUT /preapproval/{id}`.
 
-> **Risco a validar em sandbox ANTES de codar isto.** Não tenho certeza de que o
-> MP aceita **aumentar** `transaction_amount` de uma preapproval já autorizada
-> sem nova autorização da pagadora. Se não aceitar, o plano B é cancelar e criar
-> uma preapproval nova ao fim dos 3 meses — o que exige a decoradora autorizar de
-> novo, e isso muda a experiência (e provavelmente os Termos). **É o primeiro
-> item do plano de implementação.**
+**Item 0 — RESOLVIDO em sandbox (31/08/2026).** Ver seção 1.5: o MP aceita
+aumentar o valor, mas o `PUT` é perdível e isso muda como a atualização é escrita.
+
+### 1.5 O que o sandbox mostrou (item 0)
+
+Rodado contra o vendedor de teste `TESTUSER961973879958029343`, com preapprovals
+autorizadas de verdade (via `card_token` + `status: authorized`, Visa de teste).
+
+**A pergunta original: sim, dá.** `PUT /preapproval/{id}` altera
+`auto_recurring.transaction_amount` numa assinatura `authorized`, para baixo e
+para cima, **inclusive acima do valor original**, mantendo `status: authorized` e
+sem exigir nova autorização da pagadora. A oferta de retenção com volta a R$
+149,90 sobrevive como desenhada, e **nenhuma mudança nos Termos é necessária**.
+
+**Mas o teste achou coisa pior do que procurava.** O `PUT` de valor é assíncrono
+e silenciosamente perdível:
+
+| Cenário | Resultado |
+|---|---|
+| Dois `PUT` de valor em rajada, sem pausa | **4 de 5 erraram** — o valor voltou sozinho ao ORIGINAL, com HTTP 200 nos dois |
+| Mesmos valores, relendo entre os `PUT` | 0 de 3 erraram |
+| `PUT` isolado, conferido após 8s e 25s | persistiu nas 3 mudanças |
+
+Em duas das três execuções sequenciais, o valor intermediário **ainda não estava
+visível 6 segundos depois** — ou seja, nem um read-after-write curto confirma.
+
+**O cancelamento, esse, é confiável:** `PUT { status: 'cancelled' }` grudou em
+**5 de 5**, inclusive disparado logo após outro `PUT`. É o resultado que mais
+importa, porque cancelamento que não gruda é cobrança em quem cancelou. A perda
+atinge só o `transaction_amount`.
+
+Também confirmado de passagem: `free_trial` é nativo e volta como
+`first_invoice_offset: 30` — o mês grátis não precisa ser simulado por nós.
+
+**Consequências no desenho** (já refletidas no DDL):
+
+1. `subscriptions` separa **desejado** (`valor_centavos`) de **confirmado**
+   (`valor_centavos_mp`, `sincronizado_em`). "Eu mandei o PUT" não é "está
+   valendo", e o banco tem que saber a diferença.
+2. **Nunca dois `PUT` na mesma preapproval no mesmo ciclo de requisição.** O
+   fluxo de aceitar a oferta faz UM `PUT` e termina.
+3. O job de reconciliação é quem **converge**: lê o MP, e se o valor confirmado
+   difere do desejado, reaplica um único `PUT` e confere no ciclo seguinte.
+   `tentativas_sync` cresce; passando de um limite, **alerta** — divergência
+   persistente é dinheiro errado.
+4. Temos ~30 dias de folga entre a mudança e a próxima cobrança, então
+   convergência eventual é aceitável **desde que o job realmente rode**.
+5. A interface não promete o novo preço como fato consumado: mostra a oferta
+   aplicada e o valor vigente confirmado.
+
+**Ressalvas honestas.** As assinaturas do teste foram autorizadas via
+`card_token`, não pelo redirect do Checkout Pro — mesmo recurso e mesmo status,
+mas o caminho de autorização foi outro. A amostra é pequena (5 rajadas, 3
+sequenciais, 5 cancelamentos). E **não verifiquei que a cobrança seguinte sai
+pelo novo valor** — isso exigiria esperar um ciclo real de faturamento; o que
+foi medido é o campo, não a fatura. O job de reconciliação cobre justamente a
+diferença entre as duas coisas.
 
 ---
 
@@ -375,7 +426,7 @@ Netlify, a de teste no `.env.local`.
 
 | # | Etapa | Depende de |
 |---|---|---|
-| 0 | **Validar em sandbox** se `PUT /preapproval` aceita mudar `transaction_amount` para mais | — |
+| 0 | ~~Validar em sandbox~~ **concluído** — ver 1.5 | — |
 | 1 | Migration no banco de **teste** + modelos Prisma | revisão deste documento |
 | 2 | `src/lib/mercadopago.ts` (`mpFetch`, redação de log) + provas estáticas das chaves | 1 |
 | 3 | `aplicarEstadoDaAssinatura()` — o coração idempotente | 2 |
@@ -383,7 +434,7 @@ Netlify, a de teste no `.env.local`.
 | 5 | Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho | 3 |
 | 6 | `requireAssinaturaAtiva` + classificação das rotas em 3 camadas + teste estático | 3 |
 | 7 | Cancelamento + oferta de retenção + volta ao valor cheio | 0, 3 |
-| 8 | Job de reconciliação (vencer, suspender, expirar, voltar valor) | 3 |
+| 8 | Job de reconciliação (vencer, suspender, expirar, **convergir valor**) + alerta de divergência | 3 |
 | 9 | Migration em **produção** (após dump) e deploy | tudo verde |
 
 Reembolso do primeiro mês (Termos 6.4) fica **manual via painel do MP** na
