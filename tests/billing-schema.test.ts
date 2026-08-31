@@ -65,12 +65,52 @@ describe('subscriptions', () => {
     await prisma.subscription.deleteMany({ where: { id: { in: [a.id, b.id] } } });
   });
 
-  it('proíbe DUAS assinaturas vivas para a mesma decoradora (índice único parcial)', async () => {
-    const viva = await novaAssinatura({ status: 'ativa' });
-    await expect(novaAssinatura({ status: 'ativa' })).rejects.toThrow();
-    // E uma pendente ainda pode nascer ao lado da viva.
-    const pend = await novaAssinatura({ status: 'pendente' });
-    await prisma.subscription.deleteMany({ where: { id: { in: [viva.id, pend.id] } } });
+  it('proíbe DUAS linhas vigentes para a mesma decoradora (índice único parcial)', async () => {
+    const viva = await novaAssinatura({ status: 'ativa', vigente: true });
+    await expect(novaAssinatura({ status: 'ativa', vigente: true })).rejects.toThrow();
+    // Linha não-vigente pode nascer ao lado: é a tentativa nova, ainda no checkout.
+    const nova = await novaAssinatura({ status: 'pendente' });
+    expect(nova.vigente).toBe(false);
+    await prisma.subscription.deleteMany({ where: { id: { in: [viva.id, nova.id] } } });
+  });
+
+  it('CANCELAR E REATIVAR dentro do período pago não colide nem perde acesso', async () => {
+    // Este é o caso que quebrava o desenho anterior: com o índice preso ao status,
+    // a antiga em 'cancelada' e a nova virando 'ativa' davam violação de unicidade
+    // DEPOIS de a decoradora já ter pago no Mercado Pago.
+    const fimDoPeriodo = new Date(Date.now() + 20 * 24 * 3600 * 1000);
+
+    // 1) assinatura ativa, depois cancelada: segue vigente, com o período intacto.
+    const antiga = await novaAssinatura({ status: 'ativa', vigente: true, periodo_fim: fimDoPeriodo });
+    await prisma.subscription.update({
+      where: { id: antiga.id },
+      data: { status: 'cancelada', cancelada_em: new Date() },
+    });
+
+    // 2) reativa antes do fim: a linha nova nasce não-vigente, sem colidir.
+    const nova = await novaAssinatura({ status: 'pendente' });
+
+    // 3) o Mercado Pago confirma: troca de vigente numa TRANSAÇÃO só, com o
+    //    periodo_fim herdado — ela não perde os dias que já pagou.
+    await prisma.$transaction([
+      prisma.subscription.update({ where: { id: antiga.id }, data: { vigente: false } }),
+      prisma.subscription.update({
+        where: { id: nova.id },
+        data: { vigente: true, status: 'ativa', periodo_fim: antiga.periodo_fim },
+      }),
+    ]);
+
+    const vigentes = await prisma.subscription.findMany({ where: { decorator_id: ID_DEC, vigente: true } });
+    expect(vigentes, 'exatamente uma vigente após a troca').toHaveLength(1);
+    expect(vigentes[0].id).toBe(nova.id);
+    expect(vigentes[0].periodo_fim?.getTime(), 'o período pago tem de ser herdado').toBe(fimDoPeriodo.getTime());
+
+    // A antiga continua no banco, em 'cancelada': linha de cobrança não se apaga.
+    const guardada = await prisma.subscription.findUnique({ where: { id: antiga.id } });
+    expect(guardada?.status).toBe('cancelada');
+    expect(guardada?.vigente).toBe(false);
+
+    await prisma.subscription.deleteMany({ where: { id: { in: [antiga.id, nova.id] } } });
   });
 
   it('mp_preapproval_id é único: a mesma preapproval nunca vira duas linhas', async () => {

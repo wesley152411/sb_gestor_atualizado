@@ -131,6 +131,42 @@ Depois de 3 cobranças no plano `retencao`, o job devolve o valor a R$ 149,90 vi
 **Item 0 — RESOLVIDO em sandbox (31/08/2026).** Ver seção 1.5: o MP aceita
 aumentar o valor, mas o `PUT` é perdível e isso muda como a atualização é escrita.
 
+### 1.4b Cancelar e reativar dentro dos 90 dias
+
+O `status` estava fazendo dois trabalhos — descrever a vida no Mercado Pago **e**
+dizer qual linha o gate lê. Com o índice único preso à lista de status, este
+caminho quebrava:
+
+> Cancela no dia 10 de um período que vai até o dia 30. A linha fica `cancelada`,
+> que estava **dentro** do índice porque ela ainda tem acesso. No dia 15 reativa:
+> a linha nova nasce `pendente` (fora do índice), o INSERT passa, ela autoriza no
+> MP — e ao marcar a nova como `ativa` são duas no índice. **Violação de
+> unicidade, 500, depois de ela já ter pago.**
+
+A coluna `vigente` separa as duas perguntas. O índice passa a ser
+`UNIQUE (decorator_id) WHERE vigente`, e:
+
+| | |
+|---|---|
+| Status da antiga | `cancelada`, com `periodo_fim` intacto. O status nunca mente sobre o MP |
+| Linha nova ou reuso | **Sempre nova.** Uma preapproval cancelada não volta a valer, e sobrescrever linha de cobrança destrói o rastro de auditoria |
+| A transição | Troca de `vigente` numa **única transação**: nunca há duas vigentes nem nenhuma |
+| O período pago | A nova **herda o `periodo_fim`** se ainda estiver no futuro — ela não perde dias já pagos |
+
+**E a cobrança não pode sair duas vezes no mesmo mês.** Reativando antes do
+`periodo_fim`, a preapproval nova é criada com `start_date = periodo_fim`.
+Validado em sandbox, no caminho real do Checkout Pro:
+
+```
+start_date daqui a 20 dias → aceito 2026-09-20 | next_payment_date 2026-09-20  ✓
+start_date daqui a 45 dias → aceito 2026-10-15 | next_payment_date 2026-10-15  ✓
+controle sem start_date    → next_payment_date = hoje
+start_date + free_trial    → start 09-10, trial offset 30, next 09-30
+```
+
+A reativação segue pelo valor cheio e sem novo teste (Termos 6.3) — isso é
+`beneficios_consumidos`, que nada disto toca.
+
 ### 1.5 O que o sandbox mostrou (item 0)
 
 Rodado contra o vendedor de teste `TESTUSER961973879958029343`, com preapprovals
@@ -196,6 +232,20 @@ diferença entre as duas coisas.
 | `MP_WEBHOOK_SECRET` | só servidor: validação do `x-signature` | idem |
 | `MP_PUBLIC_KEY` | **não usada** com Checkout Pro | — |
 | `BENEFICIOS_PEPPER` | **novo**, só servidor: HMAC das âncoras | banco, log, repositório |
+
+**Guarda de sandbox obrigatória em todo script que escreve no Mercado Pago.**
+Existem DOIS jeitos legítimos de estar em teste, e checar só um dá falso alarme:
+
+| Modo | Token | `/users/me` |
+|---|---|---|
+| Credenciais de teste da própria aplicação | começa com `TEST-` | conta **real** (elas pertencem a ela, mas operam em teste) |
+| Credenciais de um usuário de teste | `APP_USR-` | traz a tag `test_user` |
+| **Produção** | `APP_USR-` | **sem** a tag → **abortar** |
+
+Consequência prática que custou uma rodada de testes: com credenciais `TEST-` o
+coletor é a conta real, então o **pagador não pode ser um usuário de teste** —
+o MP recusa com *"Both payer and collector must be real or test users"*. Com
+credenciais de usuário de teste, o pagador precisa ser outro usuário de teste.
 
 **Explícito no código, não implícito** — três mecanismos:
 

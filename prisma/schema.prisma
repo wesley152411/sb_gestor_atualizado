@@ -77,8 +77,8 @@ model LegalAcceptance {
 // Assinatura recorrente no Mercado Pago (Preapproval). Espelho LOCAL: a verdade
 // é sempre relida com GET /preapproval/{id}, nunca do corpo do webhook.
 //
-// ATENÇÃO: o banco tem um índice ÚNICO PARCIAL (idx_subscriptions_viva) que
-// garante uma assinatura viva por decoradora. Prisma não sabe expressar índice
+// ATENÇÃO: o banco tem um índice ÚNICO PARCIAL (idx_subscriptions_vigente) que
+// garante uma linha vigente por decoradora. Prisma não sabe expressar índice
 // parcial, então ele NÃO aparece aqui — a violação chega como erro cru do
 // Postgres, não como erro tipado. Não remova o índice achando que é resíduo.
 model Subscription {
@@ -86,6 +86,9 @@ model Subscription {
   decorator_id         String
   mp_preapproval_id    String    @unique
   mp_payer_id          String?
+  // vigente = a linha que o gate lê; status = o que o MP diz. Perguntas diferentes:
+  // juntá-las quebrava o cancelar-e-reativar dentro do período já pago.
+  vigente              Boolean   @default(false)
   status               String    @default("pendente")
   plano                String    @default("mensal")
   // DESEJADO vs CONFIRMADO — o PUT de valor no MP é assíncrono e perdível

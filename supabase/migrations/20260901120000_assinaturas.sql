@@ -31,6 +31,14 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   -- id do pagador no MP. Vira âncora de benefício (tabela 3) quando conhecido.
   mp_payer_id           text,
 
+  -- VIGENTE separa duas perguntas que o `status` estava respondendo ao mesmo tempo:
+  --   status  = o que o Mercado Pago diz da vida desta assinatura (e nunca mente);
+  --   vigente = esta é a linha que o gate lê para liberar acesso.
+  -- Sem essa separação, quem cancelasse e reativasse ANTES do fim do período pago
+  -- teria a linha antiga em 'cancelada' (ainda com acesso) e a nova virando 'ativa'
+  -- — duas linhas no índice, violação de unicidade, 500 DEPOIS de a decoradora já
+  -- ter pago no Mercado Pago. A troca de vigente acontece numa transação só.
+  vigente               boolean NOT NULL DEFAULT false,
   status                text NOT NULL DEFAULT 'pendente',
   -- 'mensal' (149,90) | 'retencao' (99,90 por 3 cobranças, depois volta a mensal)
   plano                 text NOT NULL DEFAULT 'mensal',
@@ -79,11 +87,12 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   CONSTRAINT subscriptions_valor_check CHECK (valor_centavos > 0)
 );
 
--- UMA assinatura viva por decoradora. 'pendente' fica FORA do índice de propósito:
--- tentativas abandonadas no checkout do MP acumulam sem travar uma nova tentativa.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_viva
+-- UMA linha vigente por decoradora. Tentativas abandonadas no checkout nascem com
+-- vigente=false e acumulam sem travar nada; o histórico de assinaturas antigas
+-- também fica, porque linha de cobrança não se sobrescreve (rastro de auditoria).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_vigente
   ON public.subscriptions (decorator_id)
-  WHERE status IN ('em_teste', 'ativa', 'inadimplente', 'cancelada', 'suspensa');
+  WHERE vigente;
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_decorator ON public.subscriptions (decorator_id);
 -- Fila do job: assinaturas cujo valor no MP ainda não é o valor desejado.
@@ -154,6 +163,7 @@ REVOKE ALL ON public.beneficios_consumidos FROM anon, authenticated;
 
 -- ============================================================================
 -- ROLLBACK (comentado — apply-sql ignora linhas iniciadas por dois traços):
+--   DROP INDEX IF EXISTS idx_subscriptions_vigente;
 --   DROP POLICY IF EXISTS subs_select_own ON public.subscriptions;
 --   DROP TABLE IF EXISTS public.billing_events;
 --   DROP TABLE IF EXISTS public.beneficios_consumidos;
