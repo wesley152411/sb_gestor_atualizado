@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 import { promoWhatsappEnabled } from '@/lib/feature-flags';
 
 // Guarda de feature flag NO SERVIDOR: esconder só o botão deixaria o endpoint
@@ -15,8 +15,9 @@ export async function GET() {
   try {
     const blocked = flagGuard();
     if (blocked) return blocked;
-    const decoratorId = await getSessionDecoratorId();
-    if (!decoratorId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const decoratorId = acesso.decoratorId;
 
     const rows = await prisma.clientPromoMessage.findMany({
       where: { decorator_id: decoratorId },
@@ -34,8 +35,9 @@ export async function POST(request: Request) {
   try {
     const blocked = flagGuard();
     if (blocked) return blocked;
-    const decoratorId = await getSessionDecoratorId();
-    if (!decoratorId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const decoratorId = acesso.decoratorId;
 
     const { clientId, phone, message } = await request.json();
     if (!clientId || !phone || !message) {

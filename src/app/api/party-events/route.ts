@@ -1,15 +1,14 @@
 import { prisma } from '@/lib/prisma';
 import { toDbDate, hasPrice } from '@/lib/utils';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 
 export async function GET() {
   try {
     // Identidade SEMPRE da sessão do servidor — ignora qualquer ?decoratorId= do cliente.
-    const decoratorId = await getSessionDecoratorId();
-    if (!decoratorId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const decoratorId = acesso.decoratorId;
     const events = await prisma.partyEvent.findMany({
       where: { decorator_id: decoratorId },
       orderBy: { event_date: 'asc' },
@@ -22,10 +21,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const decoratorId = await getSessionDecoratorId();
-    if (!decoratorId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const decoratorId = acesso.decoratorId;
 
     const body = await request.json();
     const { id, ...data } = body;

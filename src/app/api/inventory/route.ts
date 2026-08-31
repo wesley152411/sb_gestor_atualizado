@@ -1,15 +1,14 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 import { hasPrice } from '@/lib/utils';
 
 export async function GET(request: Request) {
   try {
     // Identidade SEMPRE da sessão do servidor.
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     // Com ?decoratorId= => MEU acervo (o valor do param é ignorado, uso a sessão).
     // Sem param => feed do Marketplace: só itens PÚBLICOS de OUTRAS contas.
@@ -28,10 +27,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     const body = await request.json();
     const { id, ...data } = body;

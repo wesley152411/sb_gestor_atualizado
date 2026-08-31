@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { toDbDate, hasPrice } from '@/lib/utils';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 import { loadKitComponents, expandToItemDemand, findShortfalls } from '@/lib/rental-availability';
 
 // Backstop de servidor das validações de data do modal (retirada/devolução).
@@ -50,10 +50,9 @@ function serializeOrder(order: any) {
 export async function GET() {
   try {
     // Identidade SEMPRE da sessão — devolve só os pedidos em que você é dono OU locatário.
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     const orders = await prisma.rentalOrder.findMany({
       where: {
@@ -73,10 +72,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     const body = await request.json();
     const { id, ...data } = body;

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 import { EVENT_STATUS, effectiveStatus } from '@/lib/event-status';
 
 // Ações da decoradora sobre o próprio orçamento/evento: confirmar, cancelar,
@@ -8,10 +8,9 @@ import { EVENT_STATUS, effectiveStatus } from '@/lib/event-status';
 // /api/quote-links) — nunca aceita decorator do corpo.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const decoratorId = await getSessionDecoratorId();
-    if (!decoratorId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const decoratorId = acesso.decoratorId;
 
     const { id } = await params;
     const { action } = await request.json();

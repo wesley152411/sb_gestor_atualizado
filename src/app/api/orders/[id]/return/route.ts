@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 
 // POST /api/orders/[id]/return — marcar DEVOLVIDO. SÓ a LOCADORA (dona da peça),
 // nunca a locatária. Assimetria imposta AQUI (a RLS é só backstop).
@@ -8,8 +8,9 @@ import { getSessionDecoratorId } from '@/lib/supabase/server';
 // então virar 'devolvido' já libera a peça no acervo — sem mexer em stock_quantity.
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     const { id } = await params;
     const order = await prisma.rentalOrder.findUnique({ where: { id } });

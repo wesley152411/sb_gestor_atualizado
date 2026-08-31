@@ -1,16 +1,15 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 import { EVENT_STATUS } from '@/lib/event-status';
 
 export async function POST(request: Request) {
   try {
     // Dono do link SEMPRE da sessão — não aceitamos decoratorId do corpo.
-    const decoratorId = await getSessionDecoratorId();
-    if (!decoratorId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const decoratorId = acesso.decoratorId;
 
     const body = await request.json();
     const { itemId, kitId } = body;

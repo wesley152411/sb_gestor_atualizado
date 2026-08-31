@@ -138,3 +138,62 @@ jobs:
           echo "servidor não respondeu a tempo"; exit 1
       - name: Rodar os testes de rate limiting
         run: npx vitest run tests/rate-limit.test.ts
+
+  # ---------------------------------------------------------------------------
+  # PROVAS ESTÁTICAS — leem o código-fonte, sem servidor e sem banco. Rodam SEMPRE
+  # (sem o gate HARNESS_ENABLED) porque não dependem do projeto Supabase de teste.
+  # Segundos de execução; é a rede que pega o erro de empacotamento do proxy antes
+  # de gastar 3 minutos de build.
+  # ---------------------------------------------------------------------------
+  provas-estaticas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Provas estáticas (proxy sem nativo, toda rota privada com gate)
+        run: npm run test:static
+
+  # ---------------------------------------------------------------------------
+  # BUILD DA NETLIFY — o ponto cego que deixou passar o Prisma no proxy: o harness
+  # subia `npm run dev` e nunca CONSTRUÍA nada, então testava um artefato que não é
+  # o que vai para produção. `next build` local também não bastava: aquele erro
+  # nasce no empacotamento do @netlify/plugin-nextjs (createEdgeHandler), que só
+  # roda aqui. Este job executa o build REAL de produção. Não faz deploy.
+  # ---------------------------------------------------------------------------
+  build-netlify:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      # Falha com mensagem que se explica sozinha, em vez de um erro obscuro da CLI.
+      - name: Conferir os segredos da Netlify
+        run: |
+          faltando=""
+          [ -z "$NETLIFY_AUTH_TOKEN" ] && faltando="$faltando NETLIFY_AUTH_TOKEN"
+          [ -z "$NETLIFY_SITE_ID" ] && faltando="$faltando NETLIFY_SITE_ID"
+          if [ -n "$faltando" ]; then
+            echo "🛑 Pré-condição — secret(s) ausente(s):$faltando"
+            echo "   NETLIFY_AUTH_TOKEN: Netlify → User settings → Applications → Personal access tokens → New access token"
+            echo "   NETLIFY_SITE_ID:    Netlify → o site → Site configuration → General → Site information → Site ID"
+            echo "   Cadastre em: GitHub → repo → Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "segredos presentes"
+
+      # `netlify build` roda o build command do site + os plugins, puxando as
+      # variáveis de ambiente do próprio site. É o mesmo caminho do deploy, só que
+      # sem publicar. Se o empacotamento quebrar, quebra AQUI.
+      - name: Build de produção (mesmo caminho do deploy)
+        run: npx --yes netlify-cli@latest build

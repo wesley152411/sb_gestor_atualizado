@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 
 // POST /api/orders/[id]/cancel — cancelar a locação. Assimetria imposta AQUI:
 //   • LOCADORA (dona): pode cancelar uma locação ativa a qualquer momento.
@@ -10,8 +10,9 @@ import { getSessionDecoratorId } from '@/lib/supabase/server';
 // vive aqui; a RLS é backstop e é row-level, não column-level.
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     const { id } = await params;
     const order = await prisma.rentalOrder.findUnique({ where: { id } });
