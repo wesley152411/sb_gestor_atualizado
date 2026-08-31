@@ -181,6 +181,17 @@ export async function POST(request: Request) {
       }
 
       return tx.rentalOrder.findUniqueOrThrow({ where: { id }, include: ORDER_INCLUDE });
+    }, {
+      // O default do Prisma (5s) não foi pensado para ISTO: uma transação com
+      // FOR UPDATE, recálculo de disponibilidade e várias idas ao banco REMOTO.
+      // Medido em chamadas reais, o POST leva 3,3s a 6,2s — a margem já estoura
+      // hoje em condição normal, e o estouro vira 500 na cara de quem está
+      // tentando alugar. Transação lenta é melhor que transação que falha.
+      timeout: 20000,
+      // maxWait é a espera por uma CONEXÃO livre, não o trabalho em si. Fica
+      // curto de propósito: sob pool esgotado é melhor recusar rápido do que
+      // enfileirar até a Function morrer de timeout e devolver 502.
+      maxWait: 5000,
     });
 
     return NextResponse.json(serializeOrder(updated));
