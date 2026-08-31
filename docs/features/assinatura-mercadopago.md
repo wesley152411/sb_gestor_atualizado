@@ -266,6 +266,34 @@ credenciais de usuário de teste, o pagador precisa ser outro usuário de teste.
 `MP_PUBLIC_KEY` só faria falta em Checkout Transparente/Bricks. Com Pro ela pode
 ficar no `.env.local` sem uso — ou sair.
 
+### 2.1 Como ficou (etapa 2)
+
+`src/lib/mercadopago-credencial.ts` — regras **puras**, sem segredo dentro e sem
+`server-only`, para serem testáveis de verdade: modo pelo prefixo do token,
+ambiente esperado, coerência entre os dois, e redação de segredos.
+
+`src/lib/mercadopago.ts` — único ponto que toca o Access Token. `server-only` na
+primeira linha, token lido **dentro** da função, `mpFetch` com timeout e chave de
+idempotência, e tudo que sai (corpo de erro, exceção) passa por redação.
+
+**A coerência é conferida nos dois sentidos**, porque os dois erros são caros e
+silenciosos: credencial de produção em ambiente de teste cobraria de verdade;
+credencial de teste em produção não cobraria ninguém, e nada reclamaria.
+`MP_AMBIENTE` força o lado quando o `NODE_ENV` não basta (preview deploy).
+
+A redação preserva de propósito o **id de preapproval** (32 hex) e apaga a
+assinatura do webhook (64 hex) — log de cobrança precisa continuar legível.
+
+Provas em `tests/static/`, todas verificadas contra a violação real:
+
+| Prova | Violação encenada | Pegou |
+|---|---|---|
+| `server-only` na primeira linha | marca removida | ✅ |
+| Nenhum componente cliente alcança o módulo | gate importando `mpFetch` | ✅ (achou o direto e o transitivo) |
+| Nenhum `NEXT_PUBLIC_` em segredo de cobrança | `NEXT_PUBLIC_MP_ACCESS_TOKEN` | ✅ |
+| Token não fica em escopo de módulo nem é exportado | — | — |
+| Todo `console` do módulo passa por redação | — | — |
+
 ---
 
 ## 3. Modelo de dados
@@ -551,7 +579,7 @@ e-mail se perde, o app você abre.
 |---|---|---|
 | 0 | ~~Validar em sandbox~~ **concluído** — ver 1.5 | — |
 | 1 | Migration no banco de **teste** + modelos Prisma | revisão deste documento |
-| 2 | `src/lib/mercadopago.ts` (`mpFetch`, redação de log) + provas estáticas das chaves | 1 |
+| 2 | ~~`src/lib/mercadopago.ts` + provas estáticas das chaves~~ **concluída** | 1 |
 | 3 | `aplicarEstadoDaAssinatura()` — o coração idempotente | 2 |
 | 4 | `POST /api/billing/subscribe` + tela `/assinatura` + retorno com polling | 3 |
 | 5 | Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho | 3 |
