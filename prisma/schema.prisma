@@ -49,6 +49,7 @@ model Decorator {
   party_events                                        PartyEvent[]
   client_promo_messages                               ClientPromoMessage[]
   legal_acceptances                                   LegalAcceptance[]
+  subscriptions                                       Subscription[]
   rental_orders_rental_orders_owner_idTodecorators    RentalOrder[]   @relation("rental_orders_owner_idTodecorators")
   rental_orders_rental_orders_renter_idTodecorators   RentalOrder[]   @relation("rental_orders_renter_idTodecorators")
 
@@ -71,6 +72,75 @@ model LegalAcceptance {
 
   @@index([decorator_id, document, version], map: "idx_legal_acc_lookup")
   @@map("legal_acceptances")
+}
+
+// Assinatura recorrente no Mercado Pago (Preapproval). Espelho LOCAL: a verdade
+// é sempre relida com GET /preapproval/{id}, nunca do corpo do webhook.
+//
+// ATENÇÃO: o banco tem um índice ÚNICO PARCIAL (idx_subscriptions_viva) que
+// garante uma assinatura viva por decoradora. Prisma não sabe expressar índice
+// parcial, então ele NÃO aparece aqui — a violação chega como erro cru do
+// Postgres, não como erro tipado. Não remova o índice achando que é resíduo.
+model Subscription {
+  id                   String    @id @default(uuid())
+  decorator_id         String
+  mp_preapproval_id    String    @unique
+  mp_payer_id          String?
+  status               String    @default("pendente")
+  plano                String    @default("mensal")
+  // DESEJADO vs CONFIRMADO — o PUT de valor no MP é assíncrono e perdível
+  // (medido: 4 de 5 rajadas voltaram ao valor original com HTTP 200).
+  valor_centavos       Int
+  valor_centavos_mp    Int?
+  sincronizado_em      DateTime? @db.Timestamptz(6)
+  tentativas_sync      Int       @default(0)
+  teste_fim            DateTime? @db.Timestamptz(6)
+  periodo_fim          DateTime? @db.Timestamptz(6)
+  proxima_cobranca     DateTime? @db.Timestamptz(6)
+  cobrancas_no_plano   Int       @default(0)
+  primeira_cobranca_em DateTime? @db.Timestamptz(6)
+  oferta_retencao_em   DateTime? @db.Timestamptz(6)
+  cancelada_em         DateTime? @db.Timestamptz(6)
+  motivo_cancelamento  String?
+  criada_em            DateTime  @default(dbgenerated("now()")) @db.Timestamptz(6)
+  atualizada_em        DateTime  @default(dbgenerated("now()")) @db.Timestamptz(6)
+  decorators           Decorator @relation(fields: [decorator_id], references: [id], onDelete: Cascade)
+
+  @@index([decorator_id], map: "idx_subscriptions_decorator")
+  @@map("subscriptions")
+}
+
+// Notificações do webhook, cruas. O id é o da NOTIFICAÇÃO no Mercado Pago: a
+// retentativa traz o mesmo id, o INSERT conflita e o processamento não repete.
+model BillingEvent {
+  id                String    @id
+  tipo              String
+  acao              String?
+  recurso_id        String?
+  mp_preapproval_id String?
+  payload           Json
+  assinatura_ok     Boolean   @default(true)
+  recebido_em       DateTime  @default(dbgenerated("now()")) @db.Timestamptz(6)
+  processado_em     DateTime? @db.Timestamptz(6)
+  tentativas        Int       @default(0)
+  erro              String?
+
+  @@index([mp_preapproval_id], map: "idx_billing_events_preapproval")
+  @@map("billing_events")
+}
+
+// Quem já usou teste grátis / oferta de retenção. SEM relação com Decorator de
+// PROPÓSITO: precisa sobreviver à exclusão da conta, senão apagar e recriar
+// devolve o benefício. Guarda HMAC com pepper de ambiente, não o CNPJ em claro.
+model BeneficioConsumido {
+  id           String   @id @default(uuid())
+  ancora_tipo  String
+  ancora_hash  String
+  beneficio    String
+  consumido_em DateTime @default(dbgenerated("now()")) @db.Timestamptz(6)
+
+  @@unique([ancora_tipo, ancora_hash, beneficio], map: "idx_beneficios_ancora")
+  @@map("beneficios_consumidos")
 }
 
 model InventoryItem {

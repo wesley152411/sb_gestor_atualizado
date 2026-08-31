@@ -8,8 +8,9 @@
 // dados de produção) -> REVOGA o grant (restaura o estado fechado) -> limpa.
 //
 // Rodar da raiz do projeto:  node docs/security/rls-auth-test.mjs
-// Cobre as 12 tabelas com RLS. Requer o RLS já aplicado (ver rls-enable.sql;
-// client_promo_messages e legal_acceptances trazem o RLS nas próprias migrations).
+// Cobre as 13 tabelas com RLS POR DONO, mais 2 tabelas SEM dono (billing_events e
+// beneficios_consumidos), que são checadas separadamente no fim: nelas o correto é
+// authenticated não ver NADA, mesmo com GRANT, porque não têm policy alguma.
 import { readFileSync } from 'fs';
 import { PrismaClient } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
@@ -54,7 +55,7 @@ const sb = createClient(URL, ANON, { auth: { persistSession: false } });
 const admin = createClient(URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const TABLES = ['clients','party_events','rental_orders','rental_order_items','chat_messages',
                 'decorators','inventory_items','kits','consumables','forum_posts',
-                'client_promo_messages','legal_acceptances'];
+                'client_promo_messages','legal_acceptances','subscriptions'];
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('   OK  ', m); } else { fail++; console.log('   FALHA', m); } };
 
@@ -95,6 +96,8 @@ try {
   await ex(`INSERT INTO public.client_promo_messages (id,client_id,decorator_id,phone,message) VALUES ('${ID.client_promo_messages.A}','${ID.clients.A}','${A.id}','x','m'),('${ID.client_promo_messages.B}','${ID.clients.B}','${B.id}','x','m')`);
   await ex(`INSERT INTO public.legal_acceptances (id,decorator_id,document,version,content_hash) VALUES ('${ID.legal_acceptances.A}','${A.id}','privacy','test','hash-a'),('${ID.legal_acceptances.B}','${B.id}','privacy','test','hash-b')`);
 
+  await ex(`INSERT INTO public.subscriptions (id,decorator_id,mp_preapproval_id,valor_centavos,status) VALUES ('${ID.subscriptions.A}','${A.id}','pa_A_${t}',14990,'ativa'),('${ID.subscriptions.B}','${B.id}','pa_B_${t}',14990,'ativa')`);
+
   const pre = await restGet('decorators', A.token);
   ok(pre.status===401||pre.status===403, `sem GRANT: authenticated barrado -> HTTP ${pre.status}`);
 
@@ -106,6 +109,21 @@ try {
     ok(rb.ids.includes(ID[tb].B) && !rb.ids.includes(ID[tb].A) && rb.ids.length===1, `${tb}: B vê só a própria (viu ${rb.ids.length})`);
   }
   for (const tb of TABLES) await ex(`REVOKE SELECT ON public.${tb} FROM authenticated`);
+
+  // Tabelas SEM dono: RLS ligado e NENHUMA policy. A prova é o oposto das outras —
+  // mesmo dando GRANT de propósito, authenticated tem de ver ZERO linhas. Se um dia
+  // alguém criar uma policy "para facilitar", este bloco fica vermelho.
+  const SEM_DONO = ['billing_events', 'beneficios_consumidos'];
+  await ex(`INSERT INTO public.billing_events (id,tipo,payload) VALUES ('ev_${t}','subscription_preapproval','{}'::jsonb)`);
+  await ex(`INSERT INTO public.beneficios_consumidos (id,ancora_tipo,ancora_hash,beneficio) VALUES ('bc_${t}','cnpj','hash_${t}','teste_gratis')`);
+  for (const tb of SEM_DONO) {
+    await ex(`GRANT SELECT ON public.${tb} TO authenticated`);
+    const r = await restGet(tb, A.token);
+    ok(r.status === 200 && r.ids.length === 0, `${tb}: sem policy, authenticated vê ZERO mesmo com GRANT (HTTP ${r.status}, viu ${r.ids.length})`);
+    await ex(`REVOKE SELECT ON public.${tb} FROM authenticated`);
+  }
+  await ex(`DELETE FROM public.billing_events WHERE id = 'ev_${t}'`);
+  await ex(`DELETE FROM public.beneficios_consumidos WHERE id = 'bc_${t}'`);
   const post = await restGet('decorators', A.token);
   ok(post.status===401||post.status===403, `após REVOKE: fechado -> HTTP ${post.status}`);
 

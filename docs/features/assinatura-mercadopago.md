@@ -422,6 +422,79 @@ Netlify, a de teste no `.env.local`.
 
 ---
 
+---
+
+## 9. O job de reconciliação: onde roda e como se sabe que parou
+
+O job é a rede de segurança de tudo: reprocessa evento perdido, expira `pendente`
+abandonada, vence período, suspende inadimplente, e **converge o valor** que o
+`PUT` do MP perdeu. Se ele morre, nada quebra na hora — o sistema apenas para de
+corrigir a si mesmo, em silêncio. É o pior tipo de falha.
+
+### Onde roda: GitHub Actions, não Netlify Scheduled Functions
+
+A diferença que decide é a notificação. **Workflow agendado que falha no GitHub
+manda e-mail para o dono do repositório por padrão.** Scheduled Function da
+Netlify falha para dentro do log — que é exatamente o cron vermelho há semanas
+que ninguém viu.
+
+O workflow é fino: chama `POST /api/billing/reconcile` no site, com um header de
+segredo compartilhado (`RECONCILE_TOKEN`). A lógica fica no site, onde já existem
+Prisma e Access Token; o Actions só puxa o gatilho e falha ruidosamente. De
+quebra, **o endpoint pode ser chamado à mão** quando você quiser forçar.
+
+Cadência: de hora em hora. Não há pressa — a folga até a próxima cobrança é de
+dias — mas de hora em hora o desvio nunca envelhece muito.
+
+### Como você descobre que parou
+
+E-mail de falha resolve "rodou e deu erro". **Não resolve "deixou de rodar"** —
+workflow desabilitado, arquivo renomeado, ou a regra do GitHub que **suspende
+agendamentos após 60 dias sem atividade no repositório**. Nesses casos não há
+falha: há ausência, e ausência não dispara nada.
+
+Contra isso, um **batimento**: cada execução bem-sucedida grava o horário, e o
+**próprio app avisa**. No topo do dashboard, se o último sucesso tem mais de 6
+horas, aparece uma faixa:
+
+> ⚠ A reconciliação de cobrança não roda desde 31/08 às 14h. Verifique o
+> workflow `reconciliacao` no GitHub Actions.
+
+É o mesmo espírito do lembrete semanal dos pedidos de exclusão: **usar um canal
+que você já abre todo dia** em vez de construir um vigia que também pode morrer.
+Só você vê a faixa (conta de operação), e ela não depende de e-mail, de serviço
+externo, nem de alguém lembrar de olhar um painel.
+
+Se um dia você quiser aviso por push sem abrir o app, o encaixe natural é um
+dead-man's switch (healthchecks.io tem plano gratuito): o job dá um `curl` no fim
+e o serviço te e-mail quando o ping não chega. É um serviço a mais — por isso
+fica como opção, não como proposta.
+
+## 10. Alerta de divergência persistente
+
+`tentativas_sync` cresce a cada ciclo em que `valor_centavos_mp` continua
+diferente de `valor_centavos`. Passando de **3 tentativas**, é dinheiro errado: o
+MP está cobrando um valor que não é o que combinamos.
+
+A forma mais simples que de fato funciona, sem nada novo: **o job termina com
+código de saída diferente de zero.** O workflow fica vermelho e o GitHub te manda
+e-mail — o mesmo caminho de notificação que já existe, sem serviço adicional,
+sem integração, sem chave nova.
+
+```
+🛑 divergência persistente em 1 assinatura(s):
+   decorator=9c1a32e6… preapproval=abc123 desejado=R$ 149,90 no_MP=R$ 99,90 tentativas=4
+   → confira em https://www.mercadopago.com.br/subscriptions e force com
+     POST /api/billing/reconcile
+```
+
+O job **continua processando as outras** antes de sair com erro: uma divergência
+não pode impedir a reconciliação do resto. E a mesma linha sai no log com a
+etiqueta `[COBRANCA-DIVERGENTE]`, para busca nos logs de Functions.
+
+A divergência também aparece na faixa do dashboard, pelo mesmo motivo do batimento:
+e-mail se perde, o app você abre.
+
 ## 8. Plano de implementação
 
 | # | Etapa | Depende de |
@@ -434,7 +507,7 @@ Netlify, a de teste no `.env.local`.
 | 5 | Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho | 3 |
 | 6 | `requireAssinaturaAtiva` + classificação das rotas em 3 camadas + teste estático | 3 |
 | 7 | Cancelamento + oferta de retenção + volta ao valor cheio | 0, 3 |
-| 8 | Job de reconciliação (vencer, suspender, expirar, **convergir valor**) + alerta de divergência | 3 |
+| 8 | Job de reconciliação (seção 9) + batimento no dashboard + alerta de divergência (seção 10) | 3 |
 | 9 | Migration em **produção** (após dump) e deploy | tudo verde |
 
 Reembolso do primeiro mês (Termos 6.4) fica **manual via painel do MP** na
