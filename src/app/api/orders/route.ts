@@ -108,7 +108,9 @@ export async function POST(request: Request) {
       if (dateErr) return NextResponse.json({ error: dateErr }, { status: 400 });
       orderData.pickup_date = toDbDate(pickupStr);
       orderData.return_date = toDbDate(returnStr);
-      if (!orderData.event_date) orderData.event_date = orderData.pickup_date; // continuidade do legado
+      // event_date (legado) = retirada, como STRING — o bloco toDbDate abaixo a
+      // converte. Setar o Date aqui quebraria (toDbDate faz .includes numa string).
+      if (!orderData.event_date) orderData.event_date = pickupStr;
     }
     const orderItems = items as
       | { name: string; quantity: number; price: number; item_id?: string; kit_id?: string }[]
