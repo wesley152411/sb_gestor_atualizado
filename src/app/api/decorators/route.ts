@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 
 // Lista de decoradoras (usada por Marketplace, Chat e resolução de dono).
 // PÚBLICO MÍNIMO: nome, foto/logo e cidade. NUNCA telefone/whatsapp/instagram/
@@ -31,10 +31,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     // Só dá pra criar/editar o PRÓPRIO perfil (id da sessão). Antes: sem authz.
-    const decoratorId = await getSessionDecoratorId();
-    if (!decoratorId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const decoratorId = acesso.decoratorId;
 
     const body = await request.json();
     const { id, ...data } = body;

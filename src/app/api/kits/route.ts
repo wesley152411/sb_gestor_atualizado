@@ -1,14 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 import { hasPrice } from '@/lib/utils';
 
 export async function GET(request: Request) {
   try {
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     // Com ?decoratorId= => MEUS kits (valor ignorado, uso a sessão).
     // Sem param => feed do Marketplace: só kits PÚBLICOS de OUTRAS contas.
@@ -27,10 +26,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     const body = await request.json();
     const { id, ...data } = body;

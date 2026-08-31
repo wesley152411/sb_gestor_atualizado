@@ -44,11 +44,7 @@ export async function getSessionUser(): Promise<{ id: string; emailConfirmed: bo
   }
 }
 
-// Id da decoradora derivado da SESSÃO validada. decorator.id === auth user.id.
-// SEM sessão OU e-mail NÃO confirmado => null (as rotas de dados recusam igual
-// a uma requisição sem sessão). É a barreira de servidor da confirmação.
-export async function getSessionDecoratorId(): Promise<string | null> {
-  const user = await getSessionUser();
-  if (!user || !user.emailConfirmed) return null;
-  return user.id;
-}
+// getSessionDecoratorId foi REMOVIDO. As rotas privadas passam por
+// requireDecorator() em @/lib/api-auth, que junta sessão + confirmação de e-mail
+// + aceite dos documentos legais numa porta só. Reintroduzir um atalho daqui
+// recria o buraco de "rota nova esqueceu do gate".

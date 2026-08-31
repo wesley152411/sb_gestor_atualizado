@@ -1,14 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 
 export async function GET(request: Request) {
   try {
     // Identidade SEMPRE da sessão do servidor — ignora qualquer ?decoratorId= do cliente.
-    const decoratorId = await getSessionDecoratorId();
-    if (!decoratorId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const decoratorId = acesso.decoratorId;
     const { searchParams } = new URL(request.url);
     const year = Number(searchParams.get('year'));
     const month = Number(searchParams.get('month')); // 1-12

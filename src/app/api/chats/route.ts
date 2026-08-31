@@ -1,14 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getSessionDecoratorId } from '@/lib/supabase/server';
+import { requireDecorator } from '@/lib/api-auth';
 
 export async function GET(request: Request) {
   try {
     // Identidade SEMPRE da sessão do servidor.
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     const { searchParams } = new URL(request.url);
     const decoratorA = searchParams.get('decoratorA');
@@ -48,10 +47,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const sessionId = await getSessionDecoratorId();
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-    }
+    const acesso = await requireDecorator();
+    if (!acesso.ok) return acesso.response;
+    const sessionId = acesso.decoratorId;
 
     const body = await request.json();
     const { id, receiver_id, message } = body;
