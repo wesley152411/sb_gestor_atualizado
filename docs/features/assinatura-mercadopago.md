@@ -450,6 +450,72 @@ A recusa de assinatura órfã agora deixa rastro: etiqueta `[ASSINATURA-ORFA]` c
 o id, o status no MP e o `external_reference`. A faixa do dashboard consome isso
 na etapa 5, junto do batimento do job.
 
+### 4.2 Credenciais de sandbox: por que trocamos para usuário de teste
+
+**O beco.** Com credenciais `TEST-` da aplicação real, o coletor é a conta real. O
+Mercado Pago exige que pagador e coletor sejam ambos reais ou ambos de teste
+(*"Both payer and collector must be real or test users"*). Logo o pagador precisa
+ser real — e pagador real com cartão de teste é **recusado**. Nenhuma combinação
+fecha. Comprovado por três caminhos independentes:
+
+| Caminho | Resposta do MP |
+|---|---|
+| `PUT` com `card_token_id` + `status: authorized` | `404 Card token service not found` |
+| `PUT` só com `status: authorized` | `400 You cannot authorize a preapproval, only the payer can` |
+| Checkout no navegador, cartão de teste | pagamento recusado, sem registro de payment |
+
+**A saída** é usar as credenciais da aplicação de um **usuário de teste**: coletor
+e pagador ambos de teste, e aí o cartão de teste funciona.
+
+**Consequência não óbvia — a guarda precisa mudar.** As credenciais de um usuário
+de teste começam com `APP_USR-`, não `TEST-`, porque numa conta de teste as
+credenciais "de produção" já SÃO de sandbox. E `modoDoToken()` decide só pelo
+prefixo:
+
+```ts
+return token.startsWith('TEST-') ? 'teste' : 'producao';
+```
+
+Ou seja: `APP_USR-` num ambiente de teste é classificado como produção e
+**recusado**. A troca de credenciais exige, junto, um ajuste no
+`mercadopago-credencial.ts`. O ajuste NÃO pode ser só "aceitar APP_USR- quando
+declararem que é teste" — isso viraria a porta pela qual credencial de produção
+entra num ambiente de teste. Precisa de confirmação ONLINE pela tag `test_user`
+(`verificarContaSandbox()` já faz essa consulta), com o declarativo servindo
+apenas para dizer qual verificação aplicar.
+
+**O webhook da etapa 5 herda isto.** `MP_WEBHOOK_SECRET` e a URL cadastrada passam
+a ser os da aplicação **do usuário de teste**, não da conta real. Cada URL tem
+segredo próprio, então trocar de aplicação troca o segredo.
+
+**Preapprovals do coletor antigo viram inalcançáveis.** Elas pertencem ao coletor
+que as criou; com a credencial nova, `GET /preapproval/{id}` responde 404. O
+código não corrompe nada (404 → `nao_existe_no_mp`, sem alterar estado), mas as
+linhas ficam `pendente` para sempre e o `sync` falha em todas. Elas devem ser
+marcadas `expirada` — o mesmo estado terminal que a regra de 24h produziria —
+preservando o rastro em vez de apagar linha de cobrança.
+
+**Por que (a) e não (b):** a troca é o que transforma a autorização em sandbox num
+**teste automatizado no CI**, em vez de um ritual manual a cada sessão. Esse é o
+compromisso da etapa 5 — ainda NÃO cumprido no momento em que esta seção foi
+escrita.
+
+### 4.3 Notas de ambiente para testar por túnel
+
+Repetem-se em toda sessão; custaram tempo até serem identificadas.
+
+- **Use build de produção, não `next dev`.** O HMR do dev cria um WebSocket dentro
+  de `hydrate()`; o `wss://` não sobe pelo quick tunnel e a hidratação não
+  completa, deixando os formulários sem `onSubmit`. Não afeta produção.
+- **`next start` roda com `NODE_ENV=production`** — sem `MP_AMBIENTE=teste` a
+  guarda (corretamente) recusa a credencial de sandbox.
+- **A conta de teste precisa de e-mail roteável.** `@sbgestor-test.local` é
+  descartado pelo MP, e aí o checkout pede um e-mail que nunca casa com o dono da
+  assinatura (`subscription-invalid-user`).
+- **Bloqueadores de anúncio quebram o checkout do MP** (`ERR_BLOCKED_BY_CLIENT`) e
+  podem barrar as chamadas ao Supabase a partir de um domínio de túnel, o que
+  aparece disfarçado de erro de CORS.
+
 ---
 
 ## 5. Gate de acesso
