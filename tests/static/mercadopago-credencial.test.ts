@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  modoDoToken,
+  classeDoToken,
   ambienteEsperado,
   conferirCoerencia,
   redigirSegredos,
@@ -9,10 +9,16 @@ import {
 // Provas de COMPORTAMENTO das regras de credencial. Ficam no config estático
 // porque são funções puras: não sobem servidor nem tocam banco.
 
-describe('modo da credencial', () => {
-  it('reconhece credencial de teste pelo prefixo', () => {
-    expect(modoDoToken('TEST-7631234567890-083118-abc')).toBe('teste');
-    expect(modoDoToken('APP_USR-7631234567890-083118-abc')).toBe('producao');
+describe('classe do token', () => {
+  it('TEST- é sandbox pelo prefixo', () => {
+    expect(classeDoToken('TEST-7631234567890-083118-abc')).toBe('teste_pelo_prefixo');
+  });
+
+  it('APP_USR- é INDETERMINADO — pode ser produção ou usuário de teste', () => {
+    // A lição que custou uma sessão: numa conta de teste, as credenciais
+    // "de produção" já SÃO de sandbox e começam com APP_USR-. Só a tag
+    // test_user em /users/me distingue.
+    expect(classeDoToken('APP_USR-2127748519131286-090408-abc-3660392740')).toBe('indeterminado');
   });
 });
 
@@ -32,21 +38,30 @@ describe('ambiente esperado', () => {
 });
 
 describe('coerência entre credencial e ambiente', () => {
-  it('aceita o par certo', () => {
-    expect(conferirCoerencia('TEST-abc12345', 'teste').ok).toBe(true);
-    expect(conferirCoerencia('APP_USR-abc12345', 'producao').ok).toBe(true);
+  it('TEST- em ambiente de teste: aceita', () => {
+    expect(conferirCoerencia('TEST-abc12345', 'teste')).toEqual({ resultado: 'aceita', modo: 'teste' });
   });
 
-  it('RECUSA credencial de produção em ambiente de teste (cobraria de verdade)', () => {
-    const r = conferirCoerencia('APP_USR-abc12345', 'teste');
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.motivo).toContain('PRODUÇÃO');
+  it('APP_USR- em produção: aceita', () => {
+    expect(conferirCoerencia('APP_USR-abc12345', 'producao')).toEqual({ resultado: 'aceita', modo: 'producao' });
   });
 
   it('RECUSA credencial de teste em produção (ninguém seria cobrado, em silêncio)', () => {
     const r = conferirCoerencia('TEST-abc12345', 'producao');
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.motivo).toContain('TESTE');
+    expect(r.resultado).toBe('recusa');
+    if (r.resultado === 'recusa') expect(r.motivo).toContain('TESTE');
+  });
+
+  it('APP_USR- em ambiente de teste NÃO é aceito de plano — exige confirmação online', () => {
+    // Este é o ponto do desenho: declarar MP_AMBIENTE=teste não pode bastar,
+    // senão a variável vira a porta pela qual credencial de produção entra.
+    const r = conferirCoerencia('APP_USR-abc12345', 'teste');
+    expect(r.resultado).toBe('exige_confirmacao_online');
+  });
+
+  it('nenhum caminho aceita APP_USR- em teste sem passar pela confirmação', () => {
+    const r = conferirCoerencia('APP_USR-2127748519131286-090408-abc-3660392740', 'teste');
+    expect(r.resultado).not.toBe('aceita');
   });
 });
 

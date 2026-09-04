@@ -11,6 +11,19 @@ export type ModoMP = 'teste' | 'producao';
 //                 traz a tag 'test_user'). Só a API distingue esses dois; por
 //                 prefixo, tratamos APP_USR- como produção e exigimos a checagem
 //                 online em script que escreve (ver verificarContaSandbox).
+export type ClasseToken = 'teste_pelo_prefixo' | 'indeterminado';
+
+// O prefixo NÃO decide sozinho, e essa é a lição que custou uma sessão inteira:
+//   TEST-...     credenciais de teste da própria aplicação. Sempre sandbox.
+//   APP_USR-...  AMBÍGUO. É produção OU credencial de um usuário de teste — numa
+//                conta de teste, as credenciais "de produção" já SÃO de sandbox.
+// Só /users/me distingue os dois, pela tag 'test_user'. Por isso este módulo
+// classifica, e quem autoriza é a confirmação ONLINE em @/lib/mercadopago.
+export function classeDoToken(token: string): ClasseToken {
+  return token.startsWith('TEST-') ? 'teste_pelo_prefixo' : 'indeterminado';
+}
+
+/** @deprecated use classeDoToken — o prefixo sozinho não distingue produção de usuário de teste. */
 export function modoDoToken(token: string): ModoMP {
   return token.startsWith('TEST-') ? 'teste' : 'producao';
 }
@@ -23,28 +36,39 @@ export function ambienteEsperado(env: Record<string, string | undefined>): ModoM
   return env.NODE_ENV === 'production' ? 'producao' : 'teste';
 }
 
-export type Coerencia = { ok: true; modo: ModoMP } | { ok: false; motivo: string };
+export type Coerencia =
+  | { resultado: 'aceita'; modo: ModoMP }
+  | { resultado: 'recusa'; motivo: string }
+  | { resultado: 'exige_confirmacao_online'; motivo: string };
 
 // Confere nos DOIS sentidos, porque os dois erros são caros e silenciosos:
 //   dev/teste com credencial de produção  -> cobrança REAL em cliente real;
 //   produção com credencial de teste      -> NINGUÉM é cobrado, e nada reclama.
+//
+// O caso 'exige_confirmacao_online' é o novo: APP_USR- num ambiente de teste pode
+// ser produção (proibido) ou um usuário de teste (permitido). Declarar não basta —
+// se bastasse, MP_AMBIENTE=teste viraria a porta pela qual uma credencial de
+// produção entra no ambiente de teste. Quem autoriza é a tag 'test_user'.
 export function conferirCoerencia(token: string, esperado: ModoMP): Coerencia {
-  const modo = modoDoToken(token);
-  if (modo === esperado) return { ok: true, modo };
-  if (esperado === 'teste') {
+  const classe = classeDoToken(token);
+
+  if (classe === 'teste_pelo_prefixo') {
+    if (esperado === 'teste') return { resultado: 'aceita', modo: 'teste' };
     return {
-      ok: false,
+      resultado: 'recusa',
       motivo:
-        'Credencial de PRODUÇÃO em ambiente de teste: uma escrita aqui cobraria ' +
-        'de verdade. Use as credenciais de teste (token TEST-) ou defina MP_AMBIENTE=producao ' +
-        'se este processo é mesmo produção.',
+        'Credencial de TESTE em ambiente de produção: nenhuma cobrança sairia e a ' +
+        'falha seria silenciosa. Configure MP_ACCESS_TOKEN de produção na Netlify.',
     };
   }
+
+  // APP_USR-: ambíguo.
+  if (esperado === 'producao') return { resultado: 'aceita', modo: 'producao' };
   return {
-    ok: false,
+    resultado: 'exige_confirmacao_online',
     motivo:
-      'Credencial de TESTE em ambiente de produção: nenhuma cobrança sairia e a ' +
-      'falha seria silenciosa. Configure MP_ACCESS_TOKEN de produção na Netlify.',
+      'Token APP_USR- em ambiente de teste: pode ser produção (proibido) ou um ' +
+      'usuário de teste (permitido). Confirmando pela tag test_user em /users/me.',
   };
 }
 

@@ -2,6 +2,7 @@ import 'server-only';
 
 import {
   ambienteEsperado,
+  classeDoToken,
   conferirCoerencia,
   modoDoToken,
   redigirSegredos,
@@ -36,18 +37,56 @@ export class ErroMercadoPago extends Error {
   }
 }
 
+// Confirmação ONLINE de que um token APP_USR- pertence a um USUÁRIO DE TESTE.
+// Memorizada por processo — é uma consulta, não uma por requisição. Guarda só o
+// booleano: o token nunca fica retido em escopo de módulo.
+let sandboxConfirmado: Promise<boolean> | null = null;
+
+async function contaEhDeTeste(token: string): Promise<boolean> {
+  if (!sandboxConfirmado) {
+    sandboxConfirmado = (async () => {
+      try {
+        const res = await fetch(`${API}/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(TIMEOUT_PADRAO_MS),
+          cache: 'no-store',
+        });
+        if (!res.ok) return false;
+        const corpo = (await res.json()) as { tags?: string[] };
+        return Array.isArray(corpo.tags) && corpo.tags.includes('test_user');
+      } catch {
+        // Sem confirmação, NÃO liberamos: falha fechada. Cobrar de verdade a partir
+        // de um ambiente de teste é pior do que o teste não rodar.
+        return false;
+      }
+    })();
+  }
+  return sandboxConfirmado;
+}
+
 // Lê e VALIDA a credencial a cada chamada. A validação é nos dois sentidos:
 // credencial de produção em ambiente de teste cobraria de verdade; credencial de
 // teste em produção não cobraria ninguém e ninguém reclamaria.
-function credencial(): { token: string; modo: ModoMP } {
+async function credencial(): Promise<{ token: string; modo: ModoMP }> {
   const token = process.env.MP_ACCESS_TOKEN;
   if (!token) {
     throw new ErroMercadoPago('MP_ACCESS_TOKEN ausente no ambiente do servidor.', 0);
   }
   const esperado = ambienteEsperado(process.env);
   const coerencia = conferirCoerencia(token, esperado);
-  if (!coerencia.ok) throw new ErroMercadoPago(coerencia.motivo, 0);
-  return { token, modo: coerencia.modo };
+
+  if (coerencia.resultado === 'recusa') throw new ErroMercadoPago(coerencia.motivo, 0);
+  if (coerencia.resultado === 'aceita') return { token, modo: coerencia.modo };
+
+  // APP_USR- em ambiente de teste: só a tag test_user autoriza. Declarar não basta.
+  if (await contaEhDeTeste(token)) return { token, modo: 'teste' };
+  throw new ErroMercadoPago(
+    'Credencial APP_USR- em ambiente de teste SEM a tag test_user: é conta de ' +
+    'produção. Uma escrita aqui cobraria de verdade. Use as credenciais da ' +
+    'aplicação de um usuário de teste, ou defina MP_AMBIENTE=producao se este ' +
+    'processo é mesmo produção.',
+    0,
+  );
 }
 
 // Diagnóstico seguro para log e telas internas: diz o MODO, nunca o segredo.
@@ -72,7 +111,7 @@ type OpcoesMP = {
  * de negócio aqui. Lança apenas para falha de rede, timeout ou credencial incoerente.
  */
 export async function mpFetch<T = unknown>(caminho: string, opcoes: OpcoesMP = {}): Promise<RespostaMP<T>> {
-  const { token } = credencial();
+  const { token } = await credencial();
   const { method = 'GET', body, idempotencia, timeoutMs = TIMEOUT_PADRAO_MS } = opcoes;
 
   const headers: Record<string, string> = {
@@ -125,9 +164,9 @@ export function resumoParaLog(caminho: string, resposta: RespostaMP<unknown>): s
  * 'TEST-' legítima — por isso os dois sinais valem.
  */
 export async function verificarContaSandbox(): Promise<{ sandbox: boolean; conta: string; porque: string }> {
-  const { token } = credencial();
+  const { token } = await credencial();
   const me = await mpFetch<{ nickname?: string; email?: string; tags?: string[] }>('/users/me');
-  const porPrefixo = modoDoToken(token) === 'teste';
+  const porPrefixo = classeDoToken(token) === 'teste_pelo_prefixo';
   const porTag = (me.body?.tags ?? []).includes('test_user');
   return {
     sandbox: porPrefixo || porTag,

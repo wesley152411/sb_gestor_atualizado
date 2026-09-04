@@ -500,6 +500,32 @@ preservando o rastro em vez de apagar linha de cobrança.
 compromisso da etapa 5 — ainda NÃO cumprido no momento em que esta seção foi
 escrita.
 
+### 4.2b A guarda depois da troca (implementado)
+
+`classeDoToken()` substitui a decisão por prefixo puro:
+
+| Prefixo | Classe | Em ambiente de teste |
+|---|---|---|
+| `TEST-` | `teste_pelo_prefixo` | aceita |
+| `APP_USR-` | `indeterminado` | **exige confirmação online** |
+
+`conferirCoerencia()` devolve três resultados — `aceita`, `recusa` e
+`exige_confirmacao_online`. Só `@/lib/mercadopago` resolve o terceiro, consultando
+`/users/me` e exigindo a tag `test_user`; sem ela, lança. A consulta é memorizada
+por processo (uma vez, não por requisição) e guarda apenas o booleano — o token
+nunca fica retido em escopo de módulo.
+
+**Declarar não autoriza.** `MP_AMBIENTE=teste` diz *qual verificação aplicar*, não
+que a credencial é de teste. Se bastasse declarar, a variável viraria a porta pela
+qual uma credencial de produção entra num ambiente de teste — exatamente o que a
+guarda existe para impedir. Falha fechada: sem confirmação, recusa.
+
+**Correção factual:** preapproval de outro coletor devolve **HTTP 400**, não 404
+(medido nas 6 linhas órfãs). `aplicarEstadoDaAssinatura` classifica isso como
+`erro_mp`, não `nao_existe_no_mp`. Nenhum estado é alterado nos dois casos, mas o
+job de reconciliação precisa saber disso para não confundir "credencial trocada"
+com "assinatura sumiu".
+
 ### 4.3 Notas de ambiente para testar por túnel
 
 Repetem-se em toda sessão; custaram tempo até serem identificadas.
