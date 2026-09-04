@@ -34,6 +34,7 @@ yarn-error.log*
 .env*
 # exceção: versiona SÓ o template (sem segredos). Todos os .env reais seguem ignorados.
 !.env.test.example
+!.env.example
 
 # vercel
 .vercel

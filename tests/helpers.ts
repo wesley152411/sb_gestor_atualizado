@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { PrismaClient } from '@prisma/client';
+import { assertBancoDeTesteParaApagar } from './guard';
 
 // ----- carrega .env.local / .env (Vitest não faz isso sozinho) -----
 function loadEnv() {
@@ -77,8 +78,16 @@ function adminClient() {
 // email" do painel do projeto de teste, nem esbarra no limite do mailer embutido
 // (que, com a confirmação ligada, derruba o signUp quando se cria várias contas).
 // Cada throw abaixo nomeia a pré-condição exata, para o log do CI ser autoexplicativo.
-export async function createTestAccount(label: string, opts: { acceptLegal?: boolean } = {}): Promise<TestAccount> {
-  const email = `harness_${label}_${Date.now()}@sbgestor-test.local`;
+export async function createTestAccount(
+  label: string,
+  opts: { acceptLegal?: boolean; email?: string } = {},
+): Promise<TestAccount> {
+  // opts.email: o Mercado Pago exige que pagador e coletor sejam ambos reais ou
+  // ambos de teste. Como o coletor passou a ser um usuário de teste do MP, a conta
+  // que vai ASSINAR precisa nascer com o e-mail de um comprador de teste do MP.
+  // Medido: pagador @sbgestor-test.local -> 400 "Both payer and collector must be
+  // real or test users"; pagador @testuser.com -> 201.
+  const email = opts.email || `harness_${label}_${Date.now()}@sbgestor-test.local`;
   const password = HARNESS_PASSWORD;
 
   // 1) Cria o usuário confirmado via Admin API (não envia e-mail).
@@ -198,12 +207,14 @@ export async function assertDbReachable() {
 // Robusto contra execuções interrompidas que deixaram resíduo em produção.
 export async function sweepTestAccounts() {
   const users = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT id FROM auth.users WHERE email LIKE '%@sbgestor-test.local' OR email LIKE '%@example.com'`
+    // @testuser.com entrou porque a conta que assina usa e-mail de comprador de
+    // teste do MP (ver createTestAccount) — sem isso ela não seria varrida.
+    `SELECT id FROM auth.users WHERE email LIKE '%@sbgestor-test.local' OR email LIKE '%@example.com' OR email LIKE '%@testuser.com'`
   );
   const ids = users.map((u) => u.id);
   if (ids.length) await prisma.decorator.deleteMany({ where: { id: { in: ids } } });
   await prisma.$executeRawUnsafe(
-    `DELETE FROM auth.users WHERE email LIKE '%@sbgestor-test.local' OR email LIKE '%@example.com'`
+    `DELETE FROM auth.users WHERE email LIKE '%@sbgestor-test.local' OR email LIKE '%@example.com' OR email LIKE '%@testuser.com'`
   );
 }
 
@@ -253,4 +264,17 @@ export async function cleanupAccounts(ids: string[]) {
   if (ids.length) {
     await prisma.decorator.deleteMany({ where: { id: { in: ids } } });
   }
+}
+
+// Limpa beneficios_consumidos. EXPLÍCITA de propósito: nenhuma rotina de limpeza
+// geral toca nesta tabela, porque a razão de ela existir é justamente sobreviver
+// à exclusão da conta. Quem quiser apagá-la tem de chamar isto pelo nome.
+//
+// A trava é ALLOWLIST (só o ref de teste, nomeado), não blocklist: um banco
+// desconhecido — nem teste nem produção — é RECUSADO. É a diferença entre
+// improvável e impossível.
+export async function limparBeneficiosDoTeste() {
+  assertBancoDeTesteParaApagar('limparBeneficiosDoTeste');
+  const { count } = await prisma.beneficioConsumido.deleteMany({});
+  return count;
 }
