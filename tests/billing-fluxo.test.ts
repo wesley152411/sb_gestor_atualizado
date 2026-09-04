@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   createTestAccount, sweepTestAccounts, assertDbReachable, api, post, cleanupAccounts, prisma,
+  limparBeneficiosDoTeste,
   type TestAccount,
 } from './helpers';
 
@@ -10,7 +11,11 @@ import {
 // PULA quando não há credencial (o CI não tem os secrets do MP). Melhor pular
 // visivelmente do que fingir cobertura.
 const TOKEN = process.env.MP_ACCESS_TOKEN || '';
-const SEM_MP = !TOKEN;
+// Comprador de teste do MP. O coletor é um usuário de teste, e o MP exige que
+// pagador e coletor sejam ambos de teste — então a conta que assina precisa
+// nascer com ESTE e-mail. Vem do ambiente para o CI configurar sem editar código.
+const PAGADOR = process.env.MP_TEST_PAYER_EMAIL || '';
+const SEM_MP = !TOKEN || !PAGADOR;
 
 // GUARDA DE SANDBOX. Dois jeitos legítimos de estar em teste: token 'TEST-' da
 // própria aplicação, ou credencial de um usuário de teste (tag test_user em
@@ -45,7 +50,16 @@ beforeAll(async () => {
   }
   await assertDbReachable();
   await sweepTestAccounts();
-  [A, B] = await Promise.all([createTestAccount('bill_a'), createTestAccount('bill_b')]);
+  // A assina: precisa do e-mail do comprador de teste. B só exercita isolamento
+  // entre contas, então segue com e-mail comum do harness.
+  [A, B] = await Promise.all([
+    createTestAccount('bill_a', { email: PAGADOR }),
+    createTestAccount('bill_b'),
+  ]);
+  // O pagador é FIXO entre execuções, então o hash dele em beneficios_consumidos
+  // sobrevive e a execução seguinte não receberia teste grátis. A limpeza é
+  // explícita e travada por allowlist do banco de teste — ver guard.ts.
+  await limparBeneficiosDoTeste();
   // O CNPJ é a âncora do teste grátis; sem ele a decoradora não é elegível.
   await prisma.decorator.update({ where: { id: A.id }, data: { cnpj: '53592299000187' } });
 });
