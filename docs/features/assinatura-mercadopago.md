@@ -542,6 +542,44 @@ Repetem-se em toda sessão; custaram tempo até serem identificadas.
   podem barrar as chamadas ao Supabase a partir de um domínio de túnel, o que
   aparece disfarçado de erro de CORS.
 
+### 4.4 Como ficou o webhook (etapa 5)
+
+`src/lib/webhook-mp.ts` (puro) valida; `src/app/api/billing/webhook/route.ts`
+reage. É a **única rota sem gate de sessão** — quem chama é o Mercado Pago, não um
+navegador — e por isso está na lista `ISENTAS` do teste estrutural, com o motivo
+escrito: o que substitui a sessão é a assinatura HMAC.
+
+Ordem das três garantias, e ela importa:
+
+1. **Autenticidade primeiro.** A validação vem antes de qualquer escrita: aceitar
+   corpo não assinado seria dar a um estranho um canal de escrita no banco. Falha
+   → 401 e **nada** é gravado, nem o corpo.
+2. **Idempotência no banco**, não em memória: a PK de `billing_events` é o id da
+   notificação. Dois processos podem receber a mesma retentativa ao mesmo tempo;
+   quem insere processa, quem conflita responde 200 e para.
+3. **200 rápido.** O MP desiste em 22s e reenvia a cada 15 min. Orçamento de 12s;
+   estourando, a linha fica com `processado_em` nulo e o job de reconciliação
+   termina depois.
+
+O `data.id` do manifesto é o da **query string** (o corpo é só fallback), e o
+manifesto tem formato exato — `id:X;request-id:Y;ts:Z;`, com o ponto-e-vírgula
+final. Qualquer desvio derruba toda notificação, então há teste fixando o formato.
+
+`subscription_authorized_payment` traz o id da **cobrança**, não o da preapproval:
+resolver um para o outro é parte do trabalho, e é onde `primeira_cobranca_em`
+(janela de reembolso, Termos 6.4) e `cobrancas_no_plano` (volta ao valor cheio,
+Termos 6.1) são preenchidos.
+
+**As provas foram postas para falhar antes de aceitas.** Com a validação
+desligada, caem as 4 de autenticidade; com a chave de idempotência aleatória,
+caem 5, incluindo as 2 de idempotência. Registro de um tropeço útil: a primeira
+tentativa de desligar a validação (`if (false && ...)`) **não compilou** — a união
+discriminada de `ResultadoValidacao` impede o atalho, o que é uma garantia a mais
+do que a que eu procurava.
+
+O harness **assina o próprio payload** com `MP_WEBHOOK_SECRET`: as 9 provas rodam
+a cada `npm test`, sem depender do Mercado Pago nem de túnel.
+
 ---
 
 ## 5. Gate de acesso
@@ -751,7 +789,7 @@ e-mail se perde, o app você abre.
 | 2 | ~~`src/lib/mercadopago.ts` + provas estáticas das chaves~~ **concluída** | 1 |
 | 3 | ~~`aplicarEstadoDaAssinatura()` — o coração idempotente~~ **concluída** | 2 |
 | 4 | ~~`POST /api/billing/subscribe` + tela `/assinatura` + retorno com polling~~ **concluída** | 3 |
-| 5 | Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho | 3 |
+| 5 | ~~Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho~~ **rota pronta; falta o cadastro no painel** | 3 |
 | 6 | `requireAssinaturaAtiva` + classificação das rotas em 3 camadas + teste estático | 3 |
 | 7 | Cancelamento + oferta de retenção + volta ao valor cheio | 0, 3 |
 | 8 | Job de reconciliação (seção 9) + batimento no dashboard + alerta de divergência (seção 10) | 3 |

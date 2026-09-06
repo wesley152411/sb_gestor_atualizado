@@ -21,6 +21,10 @@ const ISENTAS: Record<string, string> = {
   'legal/documents/route.ts': 'só devolve as versões públicas; usada no cadastro, sem sessão',
   'public/decorator/[id]/route.ts': 'rota pública (cliente final, sem login)',
   'public/quote/[token]/route.ts': 'rota pública (cliente final, sem login)',
+  'billing/webhook/route.ts':
+    'chamada pelo Mercado Pago, não por um navegador — não há sessão. O que ' +
+    'substitui o gate é a assinatura HMAC do header x-signature, validada ANTES ' +
+    'de qualquer escrita (ver webhook-mp.ts).',
 };
 
 function rotas(dir: string): string[] {

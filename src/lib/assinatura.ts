@@ -262,3 +262,69 @@ export async function criarAssinatura(
 export async function assinaturaVigente(decoratorId: string) {
   return prisma.subscription.findFirst({ where: { decorator_id: decoratorId, vigente: true } });
 }
+
+// ---------------------------------------------------------------------------
+// Cobrança autorizada (evento subscription_authorized_payment do webhook).
+// ---------------------------------------------------------------------------
+
+type CobrancaMP = {
+  id?: number | string;
+  preapproval_id?: string;
+  status?: string;             // scheduled | processed | recycling | cancelled
+  transaction_amount?: number;
+  payment?: { status?: string; id?: number };
+  debit_date?: string | null;
+};
+
+export type ResultadoCobranca =
+  | { ok: true; preapprovalId: string; primeira: boolean }
+  | { ok: false; motivo: 'nao_encontrada' | 'sem_preapproval' | 'nao_conhecemos' | 'erro_mp'; detalhe: string };
+
+/**
+ * Reage a uma cobrança da assinatura. O `data.id` desse evento é o id da COBRANÇA,
+ * não o da preapproval — então é preciso resolver um para o outro antes de
+ * qualquer coisa. Como todo o resto, relê a verdade no MP.
+ *
+ * Preenche `primeira_cobranca_em`, que é o que abre a janela de reembolso integral
+ * do primeiro mês pagante (Termos 6.4), e conta as cobranças do plano atual, que é
+ * o que diz quando a oferta de retenção volta ao valor cheio (Termos 6.1).
+ */
+export async function registrarCobrancaAutorizada(cobrancaId: string): Promise<ResultadoCobranca> {
+  const resposta = await mpFetch<CobrancaMP>(`/authorized_payments/${encodeURIComponent(cobrancaId)}`);
+  if (resposta.status === 404) {
+    return { ok: false, motivo: 'nao_encontrada', detalhe: `cobrança ${cobrancaId} não existe no Mercado Pago` };
+  }
+  if (resposta.status >= 300) {
+    return { ok: false, motivo: 'erro_mp', detalhe: resumoParaLog(`/authorized_payments/${cobrancaId}`, resposta) };
+  }
+
+  const preapprovalId = resposta.body?.preapproval_id;
+  if (!preapprovalId) {
+    return { ok: false, motivo: 'sem_preapproval', detalhe: `cobrança ${cobrancaId} sem preapproval_id` };
+  }
+
+  // O estado da assinatura vem PRIMEIRO e pela via de sempre: a cobrança é um
+  // aviso, não a verdade. Se a assinatura for desconhecida, para aqui — a mesma
+  // recusa deliberada da órfã, com a mesma etiqueta.
+  const estado = await aplicarEstadoDaAssinatura(preapprovalId);
+  if (!estado.ok) {
+    return { ok: false, motivo: estado.motivo === 'nao_conhecemos' ? 'nao_conhecemos' : 'erro_mp', detalhe: estado.detalhe };
+  }
+
+  const paga = resposta.body?.status === 'processed' || resposta.body?.payment?.status === 'approved';
+  if (!paga) return { ok: true, preapprovalId, primeira: false };
+
+  const linha = await prisma.subscription.findUnique({ where: { mp_preapproval_id: preapprovalId } });
+  if (!linha) return { ok: false, motivo: 'nao_conhecemos', detalhe: `preapproval ${preapprovalId} sem linha local` };
+
+  const primeira = linha.primeira_cobranca_em === null;
+  await prisma.subscription.update({
+    where: { id: linha.id },
+    data: {
+      primeira_cobranca_em: linha.primeira_cobranca_em ?? new Date(),
+      cobrancas_no_plano: { increment: 1 },
+      atualizada_em: new Date(),
+    },
+  });
+  return { ok: true, preapprovalId, primeira };
+}
