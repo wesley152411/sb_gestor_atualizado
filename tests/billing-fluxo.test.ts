@@ -53,8 +53,8 @@ beforeAll(async () => {
   // A assina: precisa do e-mail do comprador de teste. B só exercita isolamento
   // entre contas, então segue com e-mail comum do harness.
   [A, B] = await Promise.all([
-    createTestAccount('bill_a', { email: PAGADOR }),
-    createTestAccount('bill_b'),
+    createTestAccount('bill_a', { email: PAGADOR, assinatura: 'nenhuma' }),
+    createTestAccount('bill_b', { assinatura: 'nenhuma' }),
   ]);
   // O pagador é FIXO entre execuções, então o hash dele em beneficios_consumidos
   // sobrevive e a execução seguinte não receberia teste grátis. A limpeza é

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { requireDecorator } from '@/lib/api-auth';
+import { requireAssinaturaAtiva, requireLeitura } from '@/lib/api-auth';
 
 // Lista de decoradoras (usada por Marketplace, Chat e resolução de dono).
 // PÚBLICO MÍNIMO: nome, foto/logo e cidade. NUNCA telefone/whatsapp/instagram/
@@ -8,6 +8,14 @@ import { requireDecorator } from '@/lib/api-auth';
 // O perfil COMPLETO do próprio dono vem de /api/decorators/me (por sessão).
 export async function GET() {
   try {
+    // Camada 2 (leitura), não 3: além da vitrine do Marketplace, esta lista é o
+    // que resolve NOME de decoradora nas telas de Clientes e Chat. Exigir
+    // assinatura vigente aqui quebraria a tela de quem está nos 90 dias de
+    // guarda — que é justamente quem precisa conseguir consultar os próprios
+    // dados. O payload é público-mínimo (sem contato), então o custo é baixo.
+    const acesso = await requireLeitura();
+    if (!acesso.ok) return acesso.response;
+
     const decorators = await prisma.decorator.findMany({
       // Contas internas de teste NÃO aparecem na vitrine/contatos. É o ÚNICO
       // lugar que olha para essa flag — ela nunca vira exceção de isolamento.
@@ -31,7 +39,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     // Só dá pra criar/editar o PRÓPRIO perfil (id da sessão). Antes: sem authz.
-    const acesso = await requireDecorator();
+    const acesso = await requireAssinaturaAtiva();
     if (!acesso.ok) return acesso.response;
     const decoratorId = acesso.decoratorId;
 

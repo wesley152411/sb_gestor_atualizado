@@ -139,7 +139,14 @@ describe('Conta sem linha de perfil (login órfão)', () => {
     expect(res.status, 'aceite de conta órfã não pode falhar na FK').toBe(200);
     expect(await prisma.decorator.findUnique({ where: { id: ORFA.id } })).toBeTruthy();
     expect(await prisma.legalAcceptance.count({ where: { decorator_id: ORFA.id } })).toBe(2);
-    expect((await api('/api/clients', ORFA.cookie)).status).toBe(200);
+
+    // O que esta linha prova é que o gate LEGAL parou de barrar. Ela não pode
+    // esperar 200: desde o gate por camadas, a conta ainda esbarra na cobrança —
+    // apagar o perfil levou a assinatura junto pela cascata. 402 é a resposta
+    // certa, e o que importa é que NÃO é mais 403.
+    const depois = await api('/api/clients', ORFA.cookie);
+    expect(depois.status, 'o gate legal deixou de barrar').not.toBe(403);
+    expect(depois.status, 'agora quem barra é a cobrança, não o aceite').toBe(402);
   });
 
   it('a recusa grava deletion_requested_at mesmo sem perfil (não promete em vão)', async () => {

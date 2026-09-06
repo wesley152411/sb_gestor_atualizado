@@ -1,13 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { requireDecorator } from '@/lib/api-auth';
+import { requireAssinaturaAtiva } from '@/lib/api-auth';
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const acesso = await requireDecorator();
+    const acesso = await requireAssinaturaAtiva();
     if (!acesso.ok) return acesso.response;
     const sessionId = acesso.decoratorId;
 

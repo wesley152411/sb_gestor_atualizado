@@ -80,7 +80,7 @@ function adminClient() {
 // Cada throw abaixo nomeia a pré-condição exata, para o log do CI ser autoexplicativo.
 export async function createTestAccount(
   label: string,
-  opts: { acceptLegal?: boolean; email?: string } = {},
+  opts: { acceptLegal?: boolean; email?: string; assinatura?: 'ativa' | 'nenhuma' } = {},
 ): Promise<TestAccount> {
   // opts.email: o Mercado Pago exige que pagador e coletor sejam ambos reais ou
   // ambos de teste. Como o coletor passou a ser um usuário de teste do MP, a conta
@@ -158,6 +158,25 @@ export async function createTestAccount(
   // Conta de teste NUNCA aparece na vitrine/contatos, nem durante a execução:
   // marca is_internal=true. Se um run vazar a linha, ela fica invisível.
   await prisma.decorator.update({ where: { id }, data: { is_internal: true } });
+
+  // ASSINATURA ATIVA por padrão. Desde o gate por camadas, uma conta sem
+  // assinatura recebe 402 em toda rota de dados — e a maioria dos testes existe
+  // para exercitar isolamento e regras de negócio, não o gate de cobrança.
+  // Quem testa o gate (billing-gate) ou assina de verdade (billing-fluxo) pede
+  // 'nenhuma' e monta o estado que quer.
+  if (opts.assinatura !== 'nenhuma') {
+    await prisma.subscription.create({
+      data: {
+        decorator_id: id,
+        mp_preapproval_id: `pa_harness_${id}`,
+        status: 'ativa',
+        vigente: true,
+        valor_centavos: 14990,
+        // Período aberto: o harness não deve depender de relógio para operar.
+        periodo_fim: new Date(Date.now() + 365 * 24 * 3600 * 1000),
+      },
+    });
+  }
 
   return { id, email, cookie };
 }

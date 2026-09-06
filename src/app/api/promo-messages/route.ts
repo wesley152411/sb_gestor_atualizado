@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { requireDecorator } from '@/lib/api-auth';
+import { requireAssinaturaAtiva, requireLeitura } from '@/lib/api-auth';
 import { promoWhatsappEnabled } from '@/lib/feature-flags';
 
 // Guarda de feature flag NO SERVIDOR: esconder só o botão deixaria o endpoint
@@ -15,7 +15,7 @@ export async function GET() {
   try {
     const blocked = flagGuard();
     if (blocked) return blocked;
-    const acesso = await requireDecorator();
+    const acesso = await requireLeitura();
     if (!acesso.ok) return acesso.response;
     const decoratorId = acesso.decoratorId;
 
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   try {
     const blocked = flagGuard();
     if (blocked) return blocked;
-    const acesso = await requireDecorator();
+    const acesso = await requireAssinaturaAtiva();
     if (!acesso.ok) return acesso.response;
     const decoratorId = acesso.decoratorId;
 

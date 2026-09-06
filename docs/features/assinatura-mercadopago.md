@@ -616,48 +616,88 @@ a compradora vê como "data do primeiro pagamento".
 
 ---
 
-## 5. Gate de acesso
+## 5. Gate de acesso — QUATRO camadas
 
-Composto com o que já existe, **sem repetir o erro do Prisma no middleware**:
-tudo em route handler, nada em `src/proxy.ts`.
+Três não bastavam. A camada "com assinatura" precisou separar **ler** de
+**operar**, e é essa divisão que torna real a guarda de 90 dias dos Termos 6.3:
+sem ela, quem está suspensa fica trancada fora de tudo e o prazo não significa
+nada na prática.
 
-```ts
-// src/lib/api-auth.ts
-requireDecorator()         // sessão + e-mail confirmado + aceite legal   (401/403)
-requireAssinaturaAtiva()   // chama requireDecorator e soma a assinatura  (402)
+| | Camada | Exige | Helper |
+|---|---|---|---|
+| 0 | Pública | nada | — |
+| 1 | Autenticada | sessão + e-mail + aceite legal | `requireDecorator` |
+| 2 | **Ler os próprios dados** | + já ter assinado alguma vez | `requireLeitura` |
+| 3 | **Operar** | + assinatura vigente | `requireAssinaturaAtiva` |
+
+### Status → o que consegue fazer
+
+| Status | Ler | Operar |
+|---|---|---|
+| sem assinatura, pendente | ✗ | ✗ |
+| em teste, ativa | ✓ | ✓ |
+| inadimplente / cancelada, **dentro** do período pago | ✓ | ✓ |
+| **suspensa** | **✓** | ✗ |
+| **expirada** (dentro dos 90 dias) | **✓** | ✗ |
+| após 90 dias | conta apagada — não há o que proteger |
+
+O limite não é um status: é a **exclusão dos dados**. Passados os 90 dias não há o
+que ler, e a janela se fecha sozinha, sem precisar de mais uma regra.
+
+Dois códigos, porque a interface precisa dizer coisas diferentes:
+
+```
+402 SUBSCRIPTION_REQUIRED   nunca assinou     -> tela de assinatura
+402 SUBSCRIPTION_READ_ONLY  já assinou        -> faixa "somente leitura"
 ```
 
-Retorna **402 Payment Required** com `code: 'SUBSCRIPTION_REQUIRED'` — código
-distinto do 403 legal para o cliente saber para qual tela mandar.
+Dizer "assine" a quem está dentro da guarda seria enganoso: ela já assinou, e o
+que falta é regularizar.
 
-**Três camadas de acesso, não duas.** A decoradora sem assinatura precisa
-continuar entrando para poder assinar, cancelar e sair com os dados:
+### A cliente final
 
-| Camada | Rotas | Helper |
-|---|---|---|
-| Pública | `/api/public/*`, `/api/legal/documents` | nenhum |
-| Autenticada | `/api/decorators/me`, `/api/legal/*`, `/api/billing/*` | `requireDecorator` |
-| **Com assinatura** | clientes, eventos, acervo, kits, pedidos, agenda, chat, promo, orçamentos | `requireAssinaturaAtiva` |
+**As rotas públicas não consultam assinatura. Nenhuma.** Um link de orçamento já
+enviado é **compromisso assumido com terceiro**: quebrá-lo não pressiona a
+decoradora a pagar, estraga a relação dela com a cliente dela. A linha fica em
+outro lugar, e é limpa:
 
-Matriz status → acesso:
+- **link já enviado continua funcionando** — inclusive com a decoradora expirada;
+- **criar link novo exige assinatura** (`quote-links` na camada 3).
 
-| Status | Acesso aos dados | Observação |
-|---|---|---|
-| `pendente` | não | vê só a tela de assinatura |
-| `em_teste` | **sim** | dentro do mês grátis |
-| `ativa` | **sim** | |
-| `inadimplente` | **sim, até `periodo_fim`** | com aviso na interface (Termos 5.3) |
-| `cancelada` | **sim, até `periodo_fim`** | Termos 6.2 |
-| `suspensa` | não | inadimplência vencida |
-| `expirada` | não | dados guardados 90 dias (Termos 6.3) |
+Ela honra o que já prometeu e não assume compromisso novo sem pagar.
 
-Na prática o gate é `status IN (...) AND (periodo_fim IS NULL OR periodo_fim > now())`.
-Igual ao gate legal, cacheia **só o positivo** por processo — e com TTL curto
-aqui, porque assinatura **pode** virar negativa dentro do mesmo deploy (ao
-contrário do aceite legal, que é monotônico).
+### Duas correções que a camada de leitura exigiu
 
-`tests/static/api-gate.test.ts` ganha uma segunda lista: cada rota declara a que
-camada pertence, e rota nova sem classificação quebra o CI.
+**`vigente` passou a significar "a linha corrente", não "tem acesso".** Antes,
+uma assinatura expirada virava `vigente=false` e sumia do gate — a decoradora
+seria tratada como se nunca tivesse assinado, e os 90 dias morreriam aí. Quem
+decide acesso é `status` + `periodo_fim`; `vigente` só diz qual linha é a atual.
+
+**`GET /api/decorators` não tinha gate nenhum** — era acessível sem sessão. Ficou
+na camada 2, e não na 3 como eu havia proposto: além da vitrine do Marketplace,
+essa lista resolve NOME de decoradora nas telas de Clientes e Chat. Exigir
+assinatura vigente ali quebraria a tela de quem está justamente na guarda de 90
+dias. O payload é público-mínimo (sem contato), então o custo é baixo.
+
+### O teste estrutural agora exige a CAMADA
+
+`tests/static/api-gate.test.ts` guarda uma tabela com toda rota, seu método e o
+motivo de cada exceção. Rota nova sem classificação quebra o CI; trocar a camada
+de uma rota vira ato visível no diff. Uma das provas afirma que **rota pública não
+menciona sequer o gate de assinatura** — um import solto hoje é uma chamada
+amanhã.
+
+Verificado contra desvio real: POST rebaixado para leitura é pego; gate posto em
+rota pública é pego. Registro de um defeito meu: a primeira versão dessa segunda
+prova procurava `requireAssinaturaAtiva(` **com parêntese** e deixava passar um
+import solto — e, pior, um `` corrompido em edição virou caractere de backspace
+literal no regex, que nunca casava com nada. `grep` não mostra backspace; só
+apareceu com `cat -A`. Hoje a prova usa `includes()`, sem escape nenhum.
+
+`tests/billing-gate.test.ts` prova o comportamento (13 casos), com os estados de
+assinatura montados direto no banco — não dependem do Mercado Pago e rodam a cada
+`npm test`.
+
 
 ---
 
@@ -824,7 +864,7 @@ e-mail se perde, o app você abre.
 | 3 | ~~`aplicarEstadoDaAssinatura()` — o coração idempotente~~ **concluída** | 2 |
 | 4 | ~~`POST /api/billing/subscribe` + tela `/assinatura` + retorno com polling~~ **concluída** | 3 |
 | 5 | ~~Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho~~ **concluída e confirmada com notificação real** | 3 |
-| 6 | `requireAssinaturaAtiva` + classificação das rotas em 3 camadas + teste estático | 3 |
+| 6 | ~~`requireAssinaturaAtiva` + classificação das rotas~~ **concluída — em 4 camadas, não 3** | 3 |
 | 7 | Cancelamento + oferta de retenção + volta ao valor cheio | 0, 3 |
 | 8 | Job de reconciliação (seção 9) + batimento no dashboard + alerta de divergência (seção 10) | 3 |
 | 9 | Migration em **produção** (após dump) e deploy | tudo verde |

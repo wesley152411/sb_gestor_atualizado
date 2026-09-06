@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   calcularEstado,
   concedeAcesso,
+  podeLerProprios,
   reaisParaCentavos,
   centavosParaReais,
   type EstadoAnterior,
+  type StatusLocal,
   type PreapprovalMP,
 } from '@/lib/assinatura-estado';
 
@@ -124,12 +126,15 @@ describe('cancelled — cancelamento (Termos 6.2)', () => {
     expect(e.proxima_cobranca, 'não há próxima cobrança depois de cancelar').toBeNull();
   });
 
-  it('com o período já vencido: EXPIRADA, sem acesso e sem ser vigente', () => {
+  it('com o período já vencido: EXPIRADA, sem acesso — mas SEGUE sendo a linha corrente', () => {
     const anterior: EstadoAnterior = { status: 'cancelada', periodo_fim: HA_5_DIAS, teste_fim: null, vigente: true };
     const e = calcularEstado(mp({ status: 'cancelled', next_payment_date: null }), anterior, AGORA);
     expect(e.status).toBe('expirada');
-    expect(e.vigente).toBe(false);
-    expect(concedeAcesso(e, AGORA)).toBe(false);
+    expect(concedeAcesso(e, AGORA), 'não opera mais').toBe(false);
+    // vigente descreve QUAL linha é a corrente, não se há acesso. Marcá-la como
+    // não vigente a faria sumir do gate, e os 90 dias de guarda (Termos 6.3)
+    // virariam promessa vazia: ela não conseguiria nem LER o que tem.
+    expect(e.vigente, 'continua sendo a linha corrente, para permitir a leitura').toBe(true);
   });
 });
 
@@ -154,6 +159,27 @@ describe('idempotência', () => {
       status: viaWebhook.status, periodo_fim: viaWebhook.periodo_fim, teste_fim: viaWebhook.teste_fim, vigente: viaWebhook.vigente,
     }, AGORA);
     expect(JSON.stringify(retornoDepois)).toBe(JSON.stringify(viaRetorno));
+  });
+});
+
+describe('camada de LEITURA (Termos 6.3 — 90 dias de guarda)', () => {
+  const comStatus = (status: StatusLocal) => ({ status });
+
+  it('quem já assinou lê os próprios dados, mesmo suspensa ou expirada', () => {
+    for (const s of ['em_teste', 'ativa', 'inadimplente', 'cancelada', 'suspensa', 'expirada'] as StatusLocal[]) {
+      expect(podeLerProprios(comStatus(s)), `${s} deveria poder ler`).toBe(true);
+    }
+  });
+
+  it('suspensa LÊ mas não OPERA — é o que torna os 90 dias reais', () => {
+    const suspensa = { status: 'suspensa' as StatusLocal, periodo_fim: HA_5_DIAS };
+    expect(podeLerProprios(suspensa)).toBe(true);
+    expect(concedeAcesso(suspensa, AGORA)).toBe(false);
+  });
+
+  it('quem nunca assinou não lê nada', () => {
+    expect(podeLerProprios(null)).toBe(false);
+    expect(podeLerProprios(comStatus('pendente'))).toBe(false);
   });
 });
 

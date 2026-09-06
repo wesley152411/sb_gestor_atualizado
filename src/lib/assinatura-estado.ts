@@ -134,7 +134,12 @@ export function calcularEstado(mp: PreapprovalMP, anterior: EstadoAnterior, agor
         ...base,
         proxima_cobranca: null,
         status: vencido ? 'expirada' : 'cancelada',
-        vigente: !vencido,
+        // vigente = "esta é a linha CORRENTE desta decoradora", não "tem acesso".
+        // Quem decide acesso é status + periodo_fim. Uma expirada continua sendo a
+        // linha corrente até ser substituída — é o que permite achá-la para liberar
+        // a LEITURA durante os 90 dias de guarda (Termos 6.3). Marcá-la como não
+        // vigente a faria sumir do gate, e a promessa dos 90 dias morreria aqui.
+        vigente: true,
         periodo_fim,
         teste_fim: anterior.teste_fim,
       };
@@ -154,7 +159,22 @@ export function calcularEstado(mp: PreapprovalMP, anterior: EstadoAnterior, agor
   }
 }
 
-/** O estado libera acesso agora? É a pergunta que o gate faz. */
+/**
+ * Pode LER os próprios dados? Camada 2 do gate.
+ *
+ * Vale para quem já assinou alguma vez, mesmo suspensa ou expirada: sem isto, os
+ * 90 dias de guarda dos Termos 6.3 seriam promessa vazia — ela não conseguiria
+ * nem conferir o que tem antes de decidir se reativa. Só 'pendente' fica de fora,
+ * e mesmo assim uma pendente nunca é vigente, então não há o que ler.
+ *
+ * O limite não é um status: é a EXCLUSÃO dos dados aos 90 dias. Passado o prazo
+ * não há o que ler, e a janela se fecha sozinha.
+ */
+export function podeLerProprios(estado: { status: StatusLocal } | null): boolean {
+  return estado !== null && estado.status !== 'pendente';
+}
+
+/** Pode OPERAR (criar, alterar, apagar)? Camada 3 — é a pergunta que o gate faz. */
 export function concedeAcesso(estado: { status: StatusLocal; periodo_fim: Date | null }, agora: Date): boolean {
   if (!['em_teste', 'ativa', 'inadimplente', 'cancelada'].includes(estado.status)) return false;
   return estado.periodo_fim === null || estado.periodo_fim.getTime() > agora.getTime();
