@@ -580,6 +580,40 @@ do que a que eu procurava.
 O harness **assina o próprio payload** com `MP_WEBHOOK_SECRET`: as 9 provas rodam
 a cada `npm test`, sem depender do Mercado Pago nem de túnel.
 
+### 4.5 O que só a rodada real mostrou
+
+Assinatura autorizada de verdade no sandbox em 2026-09-06, preapproval
+`17bdcb03faf348dfac5e7abf92ba9e4c`, transação `177644784308`. O estado local ficou
+correto **sem** o retorno pelo navegador — o webhook sozinho deu conta:
+
+```
+status em_teste | vigente true | teste_fim 2026-10-06
+valor desejado 14990 = valor no MP 14990 | mp_payer_id 3660468710
+beneficios_consumidos: cnpj + mp_payer, ambos 'teste_gratis'
+```
+
+Quatro coisas que a documentação do Mercado Pago não diz e que custariam horas
+para redescobrir:
+
+**1. Chegam DUAS notificações, e o `payment` vem PRIMEIRO.** O `payment` foi
+processado às 21:36:18 e o `subscription_preapproval` às 21:36:24 — seis segundos
+depois. Quem escrever a lógica supondo que a assinatura é notificada antes da
+cobrança vai ler estado que ainda não existe.
+
+**2. A ação do `payment` vem como `payment.created`, não `created`.** Os dois
+tópicos não usam o mesmo vocabulário no campo `action`. Comparar com `'created'`
+cru funciona para preapproval e falha silenciosamente para pagamento.
+
+**3. O `data.id` do `payment` é o id da TRANSAÇÃO, não o da preapproval.**
+Foi `177644784308`, o mesmo número que a tela do MP mostra para a compradora. Por
+isso essa linha de `billing_events` fica com `mp_preapproval_id` nulo: não há como
+derivar a assinatura desse id sem uma consulta extra. É a razão de o `payment` ser
+registrado para auditoria e não disparar reação.
+
+**4. O `teste_fim` bate exatamente com o `next_payment_date`.** Não é preciso
+calcular fim de teste somando 30 dias; o MP já entrega a data, e ela é a mesma que
+a compradora vê como "data do primeiro pagamento".
+
 ---
 
 ## 5. Gate de acesso
@@ -789,7 +823,7 @@ e-mail se perde, o app você abre.
 | 2 | ~~`src/lib/mercadopago.ts` + provas estáticas das chaves~~ **concluída** | 1 |
 | 3 | ~~`aplicarEstadoDaAssinatura()` — o coração idempotente~~ **concluída** | 2 |
 | 4 | ~~`POST /api/billing/subscribe` + tela `/assinatura` + retorno com polling~~ **concluída** | 3 |
-| 5 | ~~Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho~~ **rota pronta; falta o cadastro no painel** | 3 |
+| 5 | ~~Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho~~ **concluída e confirmada com notificação real** | 3 |
 | 6 | `requireAssinaturaAtiva` + classificação das rotas em 3 camadas + teste estático | 3 |
 | 7 | Cancelamento + oferta de retenção + volta ao valor cheio | 0, 3 |
 | 8 | Job de reconciliação (seção 9) + batimento no dashboard + alerta de divergência (seção 10) | 3 |
