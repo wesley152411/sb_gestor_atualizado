@@ -13,6 +13,7 @@ import {
   type NovoEstado,
   type PreapprovalMP,
   type StatusLocal,
+  ehCortesia,
 } from '@/lib/assinatura-estado';
 import { ancoraValida, hashAncora } from '@/lib/beneficios-hash';
 
@@ -366,6 +367,8 @@ export async function ofertaJaUsada(cnpj: string | null, payerId?: string | null
 }
 
 export type EstadoCancelamento = {
+  /** Cortesia nossa: não há cobrança, então não há o que cancelar nem descontar. */
+  cortesia: boolean;
   podeCancelar: boolean;
   ofereceRetencao: boolean;
   valorAtualCentavos: number;
@@ -385,10 +388,16 @@ export async function estadoDoCancelamento(decoratorId: string): Promise<EstadoC
   ));
   const jaUsou = await ofertaJaUsada(decoradora?.cnpj ?? null, assinatura?.mp_payer_id ?? null);
 
+  // CORTESIA não tem preapproval no Mercado Pago: não há o que cancelar nem sobre
+  // o que dar desconto. Oferecer 99,90 a quem não paga nada, e depois falhar no
+  // PUT, é beco sem saída — a decoradora clica, toma erro e não entende por quê.
+  const cortesia = ehCortesia(assinatura?.mp_preapproval_id);
+
   return {
-    podeCancelar: viva && assinatura!.status !== 'cancelada',
+    cortesia,
+    podeCancelar: viva && !cortesia && assinatura!.status !== 'cancelada',
     // Só oferece a quem ainda não consumiu E ainda não está no plano de retenção.
-    ofereceRetencao: viva && !jaUsou && assinatura!.plano !== 'retencao',
+    ofereceRetencao: viva && !cortesia && !jaUsou && assinatura!.plano !== 'retencao',
     valorAtualCentavos: assinatura?.valor_centavos ?? VALOR_MENSAL_CENTAVOS,
     valorOfertaCentavos: VALOR_RETENCAO_CENTAVOS,
     mesesDaOferta: COBRANCAS_DA_RETENCAO,
@@ -398,7 +407,7 @@ export async function estadoDoCancelamento(decoratorId: string): Promise<EstadoC
 
 export type ResultadoOferta =
   | { ok: true; valorCentavos: number }
-  | { ok: false; motivo: 'sem_assinatura' | 'ja_usada' | 'ja_na_retencao' | 'erro_mp'; detalhe: string };
+  | { ok: false; motivo: 'sem_assinatura' | 'ja_usada' | 'ja_na_retencao' | 'cortesia' | 'erro_mp'; detalhe: string };
 
 /**
  * Aceita a oferta de permanência: R$ 99,90 por 3 cobranças, depois volta ao valor
@@ -417,6 +426,11 @@ export async function aceitarOfertaRetencao(decoratorId: string): Promise<Result
   }
   if (assinatura.plano === 'retencao') {
     return { ok: false, motivo: 'ja_na_retencao', detalhe: 'a assinatura já está no plano de permanência' };
+  }
+  // Cortesia não paga nada: descontar de zero não significa coisa alguma, e o PUT
+  // falharia depois de a tela já ter prometido o desconto.
+  if (ehCortesia(assinatura.mp_preapproval_id)) {
+    return { ok: false, motivo: 'cortesia', detalhe: 'assinatura de cortesia não tem valor a descontar' };
   }
 
   const decoradora = await prisma.decorator.findUnique({ where: { id: decoratorId }, select: { cnpj: true } });
@@ -455,7 +469,7 @@ export async function aceitarOfertaRetencao(decoratorId: string): Promise<Result
 
 export type ResultadoCancelamento =
   | { ok: true; periodoFim: Date | null }
-  | { ok: false; motivo: 'sem_assinatura' | 'erro_mp'; detalhe: string };
+  | { ok: false; motivo: 'sem_assinatura' | 'cortesia' | 'erro_mp'; detalhe: string };
 
 /**
  * Cancela no Mercado Pago e localmente. O acesso NÃO é cortado agora: vale até o
@@ -465,6 +479,13 @@ export type ResultadoCancelamento =
 export async function cancelarAssinatura(decoratorId: string, motivo?: string): Promise<ResultadoCancelamento> {
   const assinatura = await assinaturaVigente(decoratorId);
   if (!assinatura) return { ok: false, motivo: 'sem_assinatura', detalhe: 'não há assinatura vigente' };
+
+  // A recusa vive AQUI, e não só na tela: um POST direto na rota chegaria a um
+  // PUT em /preapproval/cortesia:… e voltaria como 502 genérico, que é o erro
+  // errado para uma situação que não é erro nenhum.
+  if (ehCortesia(assinatura.mp_preapproval_id)) {
+    return { ok: false, motivo: 'cortesia', detalhe: 'assinatura de cortesia não tem cobrança a cancelar' };
+  }
 
   const resposta = await mpFetch(`/preapproval/${encodeURIComponent(assinatura.mp_preapproval_id)}`, {
     method: 'PUT',

@@ -12,6 +12,21 @@ export const COBRANCAS_DA_RETENCAO = 3;       // depois, volta ao valor cheio
 // uma preapproval pendente velha, porque o estado dela no MP é desconhecido.
 export const HORAS_PARA_EXPIRAR_PENDENTE = 24;
 
+// CORTESIA: assinatura concedida por nós, sem contrapartida no Mercado Pago.
+// Vive como prefixo do mp_preapproval_id porque a linha precisa ser reconhecível
+// por QUALQUER parte do sistema que fale com o MP — e nenhuma delas pode depender
+// de uma lista de ids que alguém teria de manter à mão.
+//
+// Fica aqui, no módulo puro, e não em reconciliacao.ts (que é 'server-only'),
+// porque as telas também precisam reconhecer cortesia: oferecer desconto ou
+// cancelamento sobre uma cobrança que não existe é beco sem saída.
+export const PREFIXO_CORTESIA = 'cortesia:';
+
+/** A linha é uma cortesia nossa? Então não há nada a consultar, cobrar ou cancelar no MP. */
+export function ehCortesia(preapprovalId: string | null | undefined): boolean {
+  return typeof preapprovalId === 'string' && preapprovalId.startsWith(PREFIXO_CORTESIA);
+}
+
 export type StatusLocal =
   | 'pendente'
   | 'em_teste'

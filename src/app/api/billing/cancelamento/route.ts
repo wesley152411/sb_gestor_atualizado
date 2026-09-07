@@ -28,6 +28,13 @@ export async function POST(request: Request) {
     if (r.motivo === 'sem_assinatura') {
       return NextResponse.json({ error: 'Não há assinatura para cancelar.' }, { status: 409 });
     }
+    if (r.motivo === 'cortesia') {
+      // 409, e não 502: nada falhou. O pedido é que não se aplica a esta conta.
+      return NextResponse.json({
+        error: 'Sua conta está em cortesia — não há cobrança a cancelar.',
+        code: 'CORTESIA',
+      }, { status: 409 });
+    }
     console.error(`[assinatura] cancelamento falhou para ${acesso.decoratorId}: ${r.detalhe}`);
     return NextResponse.json({ error: 'Não foi possível cancelar agora. Tente novamente.' }, { status: 502 });
   }

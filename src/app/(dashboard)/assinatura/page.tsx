@@ -25,15 +25,30 @@ const dia = (iso: string | null) =>
 
 // Cada status ganha uma frase que diz o que ele significa PARA ELA — não o nome
 // interno do estado. "Inadimplente" não é mensagem para quem está pagando.
+//
+// TODA data aqui pode ser nula, e a interpolação crua imprimia "Próxima cobrança
+// em ." — que parece defeito. Acontecia com as assinaturas de cortesia, que não
+// têm proxima_cobranca porque não existem no Mercado Pago, mas o buraco não era
+// da cortesia: era de confiar que a data sempre viria. Por isso cada frase tem
+// uma versão sem data, e não um remendo para o caso conhecido.
 const DESCRICAO: Record<string, (e: Estado) => string> = {
   sem_assinatura: () => 'Você ainda não tem uma assinatura.',
   pendente: () => 'Sua assinatura está aguardando a confirmação do Mercado Pago.',
-  em_teste: (e) => `Seu mês gratuito vai até ${dia(e.teste_fim)}. A primeira cobrança acontece nessa data.`,
-  ativa: (e) => `Assinatura ativa. Próxima cobrança em ${dia(e.proxima_cobranca)}.`,
+  em_teste: (e) => e.teste_fim
+    ? `Seu mês gratuito vai até ${dia(e.teste_fim)}. A primeira cobrança acontece nessa data.`
+    : 'Você está no seu mês gratuito. A primeira cobrança acontece ao final dele.',
+  ativa: (e) => e.proxima_cobranca
+    ? `Assinatura ativa. Próxima cobrança em ${dia(e.proxima_cobranca)}.`
+    : e.periodo_fim
+      ? `Assinatura ativa até ${dia(e.periodo_fim)}.`
+      : 'Assinatura ativa.',
   inadimplente: (e) =>
-    `Não conseguimos concluir a última cobrança. Seu acesso continua até ${dia(e.periodo_fim)} — ` +
+    'Não conseguimos concluir a última cobrança. ' +
+    (e.periodo_fim ? `Seu acesso continua até ${dia(e.periodo_fim)} — ` : 'Seu acesso continua por ora — ') +
     'atualize o meio de pagamento no Mercado Pago para não perdê-lo.',
-  cancelada: (e) => `Assinatura cancelada. Seu acesso continua até ${dia(e.periodo_fim)}.`,
+  cancelada: (e) => e.periodo_fim
+    ? `Assinatura cancelada. Seu acesso continua até ${dia(e.periodo_fim)}.`
+    : 'Assinatura cancelada.',
   suspensa: () => 'Seu acesso está suspenso porque a cobrança não foi regularizada.',
   expirada: () => 'Sua assinatura terminou. Seus dados ficam guardados por 90 dias.',
 };

@@ -7,6 +7,7 @@ import {
   centavosParaReais,
   COBRANCAS_DA_RETENCAO,
   HORAS_PARA_EXPIRAR_PENDENTE,
+  ehCortesia,
   VALOR_MENSAL_CENTAVOS,
   type StatusLocal,
 } from '@/lib/assinatura-estado';
@@ -32,8 +33,7 @@ export const NOME_DO_JOB = 'reconciliacao-assinaturas';
 //
 // O job as ignora — mas CONTA e registra, em vez de pular em silêncio: dá para
 // saber quantas cortesias ainda existem lendo o log, sem consultar o banco.
-export const PREFIXO_CORTESIA = 'cortesia:';
-const ehCortesia = (preapprovalId: string) => preapprovalId.startsWith(PREFIXO_CORTESIA);
+
 const LIMITE_DIVERGENCIA = 3;
 const MAX_POR_CICLO = 50;
 
