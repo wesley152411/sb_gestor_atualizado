@@ -66,3 +66,54 @@ transforme-a em migration versionada no primeiro `db pull`.)
 HARNESS_ALLOW_TEST_DB=true NEXT_PUBLIC_SUPABASE_URL=... DATABASE_URL=... npm run dev &
 npm test
 ```
+
+---
+
+## Encenar a regressão: confirmar que o build aconteceu é parte da prova
+
+Um teste que nunca falhou não prova nada. A disciplina desta base é **encenar a
+regressão**: quebrar de propósito o que o teste deveria pegar e confirmar que ele
+fica vermelho. Sem isso, nasce prova decorativa — aconteceu quatro vezes numa
+única sessão (dinheiro truncado, rota pública com gate, oferta de retenção,
+batimento do job), e em todas o teste passava com o bug aplicado.
+
+**A armadilha que vai voltar.** Encenando contra um build de PRODUÇÃO
+(`next build` + `next start`, que é como se testa por túnel), esta sequência
+falha em silêncio:
+
+```
+1. patch da regressão no fonte      OK
+2. npm run build                     -> prisma generate falha com EPERM
+                                        (o servidor ANTIGO segura
+                                         node_modules/.prisma/client/query_engine-windows.dll.node)
+3. next build NUNCA roda             (o script é `prisma generate && next build`)
+4. o teste roda contra o ARTEFATO ANTERIOR
+5. "passou" — e a conclusão é falsa
+```
+
+Pior: `kill %1` **não** encerra o servidor, porque cada invocação do shell é um
+processo novo e o job control não alcança o anterior. O servidor sobrevive, o
+EPERM se repete, e o erro parece intermitente.
+
+**A ordem que funciona**, uma etapa por vez, verificando cada uma:
+
+```
+1. encerrar o servidor POR PID   (Get-NetTCPConnection -LocalPort 3200 -> Stop-Process)
+2. confirmar que a porta está livre
+3. aplicar o patch e CONFERIR que ele entrou no fonte (grep)
+4. build, e CONFERIR "Compiled successfully" (não deixar o grep engolir a saída)
+5. subir o servidor e esperar responder
+6. rodar o teste
+7. restaurar e reconstruir
+```
+
+Se o passo 4 não imprimir "Compiled successfully", o resultado do passo 6 não vale
+— seja ele verde ou vermelho.
+
+**Sinais de que a edição corrompeu o teste em vez de corrigi-lo.** Escapes
+passando por heredoc do shell + Python viram outra coisa: `` chegou a virar o
+caractere de **backspace** literal dentro de um regex, que nunca casa com nada.
+`grep` não mostra backspace; só apareceu com `cat -A`. Quando um teste
+inexplicavelmente não pega a regressão, `cat -A` no trecho é o próximo passo —
+e, em asserção de string, `includes()` é preferível a regex justamente por não
+ter escape para corromper.
