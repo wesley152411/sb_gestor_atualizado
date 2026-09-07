@@ -1,6 +1,10 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    // Mesmo alias do app, para os testes poderem importar módulos puros por '@/'.
+    alias: { '@': new URL('./src/', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') },
+  },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],

@@ -5,9 +5,11 @@ import { mpFetch, resumoParaLog } from '@/lib/mercadopago';
 import {
   calcularEstado,
   centavosParaReais,
+  COBRANCAS_DA_RETENCAO,
   concedeAcesso,
   HORAS_PARA_EXPIRAR_PENDENTE,
   VALOR_MENSAL_CENTAVOS,
+  VALOR_RETENCAO_CENTAVOS,
   type NovoEstado,
   type PreapprovalMP,
   type StatusLocal,
@@ -96,7 +98,7 @@ export async function aplicarEstadoDaAssinatura(preapprovalId: string): Promise<
       },
     });
 
-    if (comecouOTeste) await registrarTesteConsumido(tx, atual.decorator_id, novo.mp_payer_id);
+    if (comecouOTeste) await registrarBeneficio(tx, atual.decorator_id, novo.mp_payer_id, 'teste_gratis');
   });
 
   if (divergente && tentativas_sync >= LIMITE_DIVERGENCIA) {
@@ -111,15 +113,24 @@ export async function aplicarEstadoDaAssinatura(preapprovalId: string): Promise<
   return { ok: true, assinaturaId: atual.id, status: novo.status, divergente };
 }
 
-// Marca teste grátis como consumido nas âncoras disponíveis. Não falha a
+// Marca um benefício como consumido nas âncoras disponíveis. Não falha a
 // transação inteira por causa disto: benefício já registrado é o caso NORMAL na
 // reexecução (é o que idempotência significa aqui).
+//
+// Serve os dois benefícios — teste grátis e oferta de permanência — porque a
+// propriedade que importa é a mesma: o registro sobrevive à exclusão da conta,
+// então apagar e recriar não devolve nenhum dos dois.
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
-async function registrarTesteConsumido(tx: Tx, decoratorId: string, payerId: string | null) {
+async function registrarBeneficio(
+  tx: Tx,
+  decoratorId: string,
+  payerId: string | null,
+  beneficio: 'teste_gratis' | 'oferta_retencao',
+) {
   const pepper = process.env.BENEFICIOS_PEPPER;
   if (!pepper) {
-    console.error('[BENEFICIO] BENEFICIOS_PEPPER ausente: o consumo do teste grátis NÃO foi registrado.');
+    console.error(`[BENEFICIO] BENEFICIOS_PEPPER ausente: o consumo de '${beneficio}' NÃO foi registrado.`);
     return;
   }
 
@@ -132,7 +143,7 @@ async function registrarTesteConsumido(tx: Tx, decoratorId: string, payerId: str
     ancoras.push({ ancora_tipo: 'mp_payer', valor: payerId });
   }
   if (!ancoras.length) {
-    console.warn(`[BENEFICIO] decorator=${decoratorId} entrou em teste sem âncora utilizável (CNPJ ausente?).`);
+    console.warn(`[BENEFICIO] decorator=${decoratorId} consumiu '${beneficio}' sem âncora utilizável (CNPJ ausente?).`);
     return;
   }
 
@@ -140,7 +151,7 @@ async function registrarTesteConsumido(tx: Tx, decoratorId: string, payerId: str
     data: ancoras.map((a) => ({
       ancora_tipo: a.ancora_tipo,
       ancora_hash: hashAncora(a.ancora_tipo, a.valor, pepper),
-      beneficio: 'teste_gratis',
+      beneficio,
     })),
     skipDuplicates: true, // reexecução não é erro: é o esperado
   });
@@ -327,4 +338,148 @@ export async function registrarCobrancaAutorizada(cobrancaId: string): Promise<R
     },
   });
   return { ok: true, preapprovalId, primeira };
+}
+
+// ---------------------------------------------------------------------------
+// Cancelamento e oferta de permanência (Termos 6.1).
+// ---------------------------------------------------------------------------
+
+/** A oferta já foi consumida por alguma âncora desta decoradora? */
+export async function ofertaJaUsada(cnpj: string | null, payerId?: string | null): Promise<boolean> {
+  const pepper = process.env.BENEFICIOS_PEPPER;
+  if (!pepper) {
+    // Sem pepper não dá para responder. Fecha, pelo mesmo motivo do teste grátis:
+    // conceder por engano é prejuízo que se repete; recusar é um suporte pontual.
+    console.error('[BENEFICIO] BENEFICIOS_PEPPER ausente: negando oferta de retenção por precaução.');
+    return true;
+  }
+  const hashes: string[] = [];
+  if (cnpj && ancoraValida('cnpj', cnpj)) hashes.push(hashAncora('cnpj', cnpj, pepper));
+  if (payerId && ancoraValida('mp_payer', payerId)) hashes.push(hashAncora('mp_payer', payerId, pepper));
+  if (!hashes.length) return false;
+
+  const achado = await prisma.beneficioConsumido.findFirst({
+    where: { beneficio: 'oferta_retencao', ancora_hash: { in: hashes } },
+    select: { id: true },
+  });
+  return achado !== null;
+}
+
+export type EstadoCancelamento = {
+  podeCancelar: boolean;
+  ofereceRetencao: boolean;
+  valorAtualCentavos: number;
+  valorOfertaCentavos: number;
+  mesesDaOferta: number;
+  periodoFim: Date | null;
+};
+
+/** O que a tela de cancelamento precisa saber antes de mostrar qualquer coisa. */
+export async function estadoDoCancelamento(decoratorId: string): Promise<EstadoCancelamento> {
+  const [assinatura, decoradora] = await Promise.all([
+    assinaturaVigente(decoratorId),
+    prisma.decorator.findUnique({ where: { id: decoratorId }, select: { cnpj: true } }),
+  ]);
+  const viva = Boolean(assinatura && concedeAcesso(
+    { status: assinatura.status as StatusLocal, periodo_fim: assinatura.periodo_fim }, new Date(),
+  ));
+  const jaUsou = await ofertaJaUsada(decoradora?.cnpj ?? null, assinatura?.mp_payer_id ?? null);
+
+  return {
+    podeCancelar: viva && assinatura!.status !== 'cancelada',
+    // Só oferece a quem ainda não consumiu E ainda não está no plano de retenção.
+    ofereceRetencao: viva && !jaUsou && assinatura!.plano !== 'retencao',
+    valorAtualCentavos: assinatura?.valor_centavos ?? VALOR_MENSAL_CENTAVOS,
+    valorOfertaCentavos: VALOR_RETENCAO_CENTAVOS,
+    mesesDaOferta: COBRANCAS_DA_RETENCAO,
+    periodoFim: assinatura?.periodo_fim ?? null,
+  };
+}
+
+export type ResultadoOferta =
+  | { ok: true; valorCentavos: number }
+  | { ok: false; motivo: 'sem_assinatura' | 'ja_usada' | 'ja_na_retencao' | 'erro_mp'; detalhe: string };
+
+/**
+ * Aceita a oferta de permanência: R$ 99,90 por 3 cobranças, depois volta ao valor
+ * cheio (Termos 6.1).
+ *
+ * O benefício é consumido AQUI, na aceitação — não na exibição. Quem abriu a tela
+ * de cancelamento, viu a oferta e desistiu não obteve benefício nenhum; queimar a
+ * oferta dela empurraria para o cancelamento alguém que talvez ficasse. O abuso a
+ * cortar é aceitar repetidamente para ficar a 99,90 para sempre, e o registro nas
+ * âncoras (que sobrevive à exclusão da conta) corta exatamente isso.
+ */
+export async function aceitarOfertaRetencao(decoratorId: string): Promise<ResultadoOferta> {
+  const assinatura = await assinaturaVigente(decoratorId);
+  if (!assinatura || !concedeAcesso({ status: assinatura.status as StatusLocal, periodo_fim: assinatura.periodo_fim }, new Date())) {
+    return { ok: false, motivo: 'sem_assinatura', detalhe: 'não há assinatura viva para aplicar a oferta' };
+  }
+  if (assinatura.plano === 'retencao') {
+    return { ok: false, motivo: 'ja_na_retencao', detalhe: 'a assinatura já está no plano de permanência' };
+  }
+
+  const decoradora = await prisma.decorator.findUnique({ where: { id: decoratorId }, select: { cnpj: true } });
+  if (await ofertaJaUsada(decoradora?.cnpj ?? null, assinatura.mp_payer_id)) {
+    return { ok: false, motivo: 'ja_usada', detalhe: 'a oferta de permanência já foi usada' };
+  }
+
+  // UM PUT só. O valor no MP é assíncrono e perdível (medido: 4 de 5 rajadas
+  // voltaram ao original), então quem garante a convergência é o job de
+  // reconciliação lendo valor_centavos vs valor_centavos_mp — não este disparo.
+  const resposta = await mpFetch(`/preapproval/${encodeURIComponent(assinatura.mp_preapproval_id)}`, {
+    method: 'PUT',
+    body: { auto_recurring: { transaction_amount: centavosParaReais(VALOR_RETENCAO_CENTAVOS), currency_id: 'BRL' } },
+  });
+  if (resposta.status >= 300) {
+    return { ok: false, motivo: 'erro_mp', detalhe: resumoParaLog('/preapproval (oferta)', resposta) };
+  }
+
+  const agora = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { id: assinatura.id },
+      data: {
+        plano: 'retencao',
+        valor_centavos: VALOR_RETENCAO_CENTAVOS, // DESEJADO; o confirmado vem do MP
+        cobrancas_no_plano: 0,                   // reinicia a contagem das 3
+        oferta_retencao_em: agora,
+        atualizada_em: agora,
+      },
+    });
+    await registrarBeneficio(tx, decoratorId, assinatura.mp_payer_id, 'oferta_retencao');
+  });
+
+  return { ok: true, valorCentavos: VALOR_RETENCAO_CENTAVOS };
+}
+
+export type ResultadoCancelamento =
+  | { ok: true; periodoFim: Date | null }
+  | { ok: false; motivo: 'sem_assinatura' | 'erro_mp'; detalhe: string };
+
+/**
+ * Cancela no Mercado Pago e localmente. O acesso NÃO é cortado agora: vale até o
+ * fim do período já pago (Termos 6.2) — quem decide isso é `periodo_fim`, que
+ * `calcularEstado` preserva mesmo quando o MP zera o next_payment_date.
+ */
+export async function cancelarAssinatura(decoratorId: string, motivo?: string): Promise<ResultadoCancelamento> {
+  const assinatura = await assinaturaVigente(decoratorId);
+  if (!assinatura) return { ok: false, motivo: 'sem_assinatura', detalhe: 'não há assinatura vigente' };
+
+  const resposta = await mpFetch(`/preapproval/${encodeURIComponent(assinatura.mp_preapproval_id)}`, {
+    method: 'PUT',
+    body: { status: 'cancelled' },
+  });
+  if (resposta.status >= 300) {
+    return { ok: false, motivo: 'erro_mp', detalhe: resumoParaLog('/preapproval (cancelar)', resposta) };
+  }
+
+  // Relê a verdade em vez de deduzir o estado — mesma via de sempre.
+  const aplicado = await aplicarEstadoDaAssinatura(assinatura.mp_preapproval_id);
+  const atual = await prisma.subscription.findUnique({ where: { id: assinatura.id } });
+  if (motivo && atual) {
+    await prisma.subscription.update({ where: { id: atual.id }, data: { motivo_cancelamento: motivo.slice(0, 300) } });
+  }
+  void aplicado;
+  return { ok: true, periodoFim: atual?.periodo_fim ?? null };
 }

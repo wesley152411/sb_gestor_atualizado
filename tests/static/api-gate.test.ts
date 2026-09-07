@@ -42,6 +42,16 @@ const CAMADAS: Record<string, { get?: Camada; escrita?: Camada; motivo?: string 
   'billing/estado/route.ts': { get: 'autenticada', motivo: 'é o que a tela de assinatura lê' },
   'billing/subscribe/route.ts': { escrita: 'autenticada', motivo: 'é como se assina' },
   'billing/sync/route.ts': { escrita: 'autenticada', motivo: 'confirma o retorno do checkout' },
+  'billing/cancelamento/route.ts': {
+    get: 'autenticada', escrita: 'autenticada',
+    motivo: 'quem está inadimplente ou já cancelou precisa conseguir abrir esta tela; exigir assinatura vigente para CANCELAR seria um beco',
+  },
+  'billing/oferta/route.ts': { escrita: 'autenticada', motivo: 'aceite da oferta: mesma razão do cancelamento' },
+  'billing/saude/route.ts': { get: 'autenticada', motivo: 'batimento do job: o operador precisa ver de qualquer estado' },
+  'billing/reconcile/route.ts': {
+    escrita: 'publica',
+    motivo: 'disparada pelo cron; autentica por segredo compartilhado, não por sessão — mesma lógica do webhook',
+  },
 
   // --- CAMADAS 2 e 3: dados da decoradora. Ler é aberto a quem já assinou. ---
   'clients/route.ts': { get: 'leitura', escrita: 'operacao' },

@@ -4809,3 +4809,36 @@ img { max-width: 100%; display: block; }
 @media (prefers-reduced-motion: reduce) {
   .assinatura-girando { animation: none; }
 }
+
+/* ==========================================================================
+   FAIXA DO BATIMENTO DOS JOBS — só aparece quando há algo errado. Silêncio é o
+   estado correto; uma faixa permanente vira ruído e deixa de ser lida.
+   ========================================================================== */
+.job-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+.job-banner svg { flex-shrink: 0; margin-top: 2px; }
+.job-banner code {
+  background: rgba(146, 64, 14, 0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Divergência de valor é dinheiro cobrado errado agora: pesa mais que atraso. */
+.job-banner-grave {
+  background: var(--danger-light);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.job-banner-grave code { background: rgba(220, 38, 38, 0.1); }

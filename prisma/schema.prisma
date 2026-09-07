@@ -146,6 +146,21 @@ model BeneficioConsumido {
   @@map("beneficios_consumidos")
 }
 
+// Batimento dos jobs. Uma linha por job, sobrescrita — é ESTADO, não histórico.
+// Existe para responder "ele ainda está rodando?", que o e-mail de falha do CI
+// não responde: ausência de execução não dispara falha nenhuma.
+model JobExecucao {
+  id               String   @id
+  ultima_execucao  DateTime @default(dbgenerated("now()")) @db.Timestamptz(6)
+  ultimo_resultado String   @default("ok")
+  detalhe          String?
+  divergencias     Int      @default(0)
+  processadas      Int      @default(0)
+  duracao_ms       Int      @default(0)
+
+  @@map("job_execucoes")
+}
+
 model InventoryItem {
   id                 String            @id @default(uuid())
   decorator_id       String?

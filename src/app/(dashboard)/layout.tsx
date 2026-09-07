@@ -1,6 +1,7 @@
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { CnpjBanner } from '@/components/layout/CnpjBanner';
+import { JobBanner } from '@/components/layout/JobBanner';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { PublicLegalFooter } from '@/components/legal/PublicLegalFooter';
 
@@ -16,6 +17,7 @@ export default function DashboardLayout({
         <main className="main-area">
           <Header />
           <div className="main-content">
+            <JobBanner />
             <CnpjBanner />
             {children}
             <PublicLegalFooter />

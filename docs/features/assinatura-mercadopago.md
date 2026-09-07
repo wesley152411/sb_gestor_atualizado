@@ -699,6 +699,62 @@ assinatura montados direto no banco — não dependem do Mercado Pago e rodam a 
 `npm test`.
 
 
+## 5.1 Cancelamento e oferta de permanência (etapa 7)
+
+A oferta é consumida **na aceitação, nunca na exibição**. Quem abriu a tela, viu a
+oferta e desistiu de cancelar não obteve benefício nenhum — queimar a oferta dela
+puniria hesitação e empurraria para o cancelamento alguém que talvez ficasse.
+
+O abuso que importa cortar é outro: `aceita → 3 meses a 99,90 → cancela → aceita
+de novo → 99,90 para sempre`. Isso fica bloqueado pelo mesmo mecanismo do mês
+grátis — `beneficios_consumidos` com `beneficio = 'oferta_retencao'`, ancorado no
+hash do CNPJ e do `mp_payer`. Como a tabela não tem FK para `decorators`, apagar a
+conta e recriar com o mesmo CNPJ **não** devolve a oferta. Há prova disso.
+
+`/api/billing/cancelamento` fica na camada 1, não na 3: quem está inadimplente ou
+já cancelou precisa conseguir abrir a tela. **Recusar acesso a quem quer sair é o
+pior lugar possível para pôr atrito.**
+
+## 5.2 O job de reconciliação e o batimento (etapa 8)
+
+É o que torna o webhook uma otimização em vez de uma dependência. Sem ele:
+pendente abandonada fica pendente para sempre; notificação perdida nunca é
+recuperada; divergência de valor não é vista por ninguém; e a volta aos R$ 149,90
+depois dos 3 meses **nunca acontece** — essa é a mais cara, porque o `PUT` de
+valor é perdível (medido: 4 de 5 rajadas voltaram sozinhas ao original). Não
+existe "disparar e esquecer"; existe convergir, um `PUT` por ciclo, conferindo na
+releitura seguinte.
+
+**Onde roda:** GitHub Actions, de hora em hora. Não Scheduled Function da Netlify,
+porque workflow agendado que FALHA manda e-mail ao dono do repositório por padrão
+— e Function da Netlify falha para dentro do log, que é exatamente o mecanismo do
+cron que ficou vermelho por semanas sem ninguém notar.
+
+**O que o e-mail NÃO cobre:** "deixou de rodar". Workflow desabilitado, arquivo
+renomeado, ou a regra do GitHub que suspende agendamentos após 60 dias sem
+atividade no repositório. Nesses casos não há falha, há **ausência**, e ausência
+não dispara nada. Quem cobre isso é o batimento em `job_execucoes` mais a faixa no
+dashboard: o vigia é a tela aberta todos os dias, não outro processo que também
+pode morrer calado.
+
+**Divergência derruba a chamada com 500**, de propósito: é o que deixa o workflow
+vermelho e dispara o e-mail, sem serviço novo. Dinheiro errado tem de doer.
+
+A faixa só aparece quando há algo errado — faixa permanente vira ruído e deixa de
+ser lida.
+
+### Um erro de método que se repetiu duas vezes
+
+Duas encenações de regressão "passaram" e não deviam. A causa não era o teste: o
+servidor antigo continuava vivo na porta 3200 (o `kill %1` não alcança processo de
+outra invocação do shell), o `prisma generate` falhava com `EPERM` porque a DLL
+estava em uso, o `next build` nunca rodava, e o teste corria contra o **artefato
+anterior**. Encerrando o processo por PID e reconstruindo, as duas regressões
+foram pegas na hora.
+
+A lição vale além deste projeto: ao encenar regressão contra build de produção,
+**confirmar que o build realmente aconteceu** é parte da prova.
+
 ---
 
 ## 6. A pergunta difícil: como saber que já usou o teste grátis
@@ -865,7 +921,7 @@ e-mail se perde, o app você abre.
 | 4 | ~~`POST /api/billing/subscribe` + tela `/assinatura` + retorno com polling~~ **concluída** | 3 |
 | 5 | ~~Webhook: assinatura, idempotência, 200 rápido + harness que assina sozinho~~ **concluída e confirmada com notificação real** | 3 |
 | 6 | ~~`requireAssinaturaAtiva` + classificação das rotas~~ **concluída — em 4 camadas, não 3** | 3 |
-| 7 | Cancelamento + oferta de retenção + volta ao valor cheio | 0, 3 |
+| 7 | ~~Cancelamento + oferta de retenção + volta ao valor cheio~~ **concluída** | 0, 3 |
 | 8 | Job de reconciliação (seção 9) + batimento no dashboard + alerta de divergência (seção 10) | 3 |
 | 9 | Migration em **produção** (após dump) e deploy | tudo verde |
 
