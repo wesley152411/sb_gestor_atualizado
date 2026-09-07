@@ -16,6 +16,10 @@ export type EstadoAssinatura = {
   liberado: boolean;       // pode OPERAR
   somenteLeitura: boolean; // já assinou, mas não pode operar agora
   periodo_fim: string | null;
+  // Usados pelo portão de quem nunca assinou: a tela precisa dizer o preço e se
+  // o mês grátis ainda está disponível ANTES de mandar a pessoa ao Mercado Pago.
+  ofereceTeste: boolean;
+  valorCentavos: number;
   carregando: boolean;
 };
 
@@ -24,6 +28,8 @@ const PADRAO: EstadoAssinatura = {
   liberado: true,          // otimista enquanto carrega: não pisca a interface
   somenteLeitura: false,
   periodo_fim: null,
+  ofereceTeste: false,
+  valorCentavos: 14990,
   carregando: true,
 };
 
@@ -66,6 +72,8 @@ export function AssinaturaProvider({ children }: { children: React.ReactNode }) 
           // nunca assinou não é "somente leitura": é uma tela de assinatura.
           somenteLeitura: !d.liberado && d.status !== 'sem_assinatura' && d.status !== 'pendente',
           periodo_fim: d.periodo_fim ?? null,
+          ofereceTeste: Boolean(d.ofereceTeste),
+          valorCentavos: Number(d.valor_centavos) || 14990,
           carregando: false,
         });
       })

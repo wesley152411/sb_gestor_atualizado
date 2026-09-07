@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, Key, Camera, MapPin, Mail } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, Key, Camera, MapPin, Mail, CreditCard } from 'lucide-react';
 import type { TurnstileInstance } from '@marsidev/react-turnstile';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
@@ -11,12 +12,34 @@ import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle, defaultPromo
 import { promoWhatsappEnabled, captchaEnabled } from '@/lib/feature-flags';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
+import { useAssinatura } from '@/components/providers/AssinaturaProvider';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import type { Decorator } from '@/types';
 
+// Uma linha que diz o essencial sem repetir a tela inteira: plano, cobrança e
+// cancelamento continuam em /assinatura. Aqui é só o suficiente para ela saber
+// se precisa clicar.
+function descricaoDaAssinatura(a: { status: string; periodo_fim: string | null; carregando: boolean }): string {
+  if (a.carregando) return 'Carregando…';
+  const ate = a.periodo_fim
+    ? new Date(a.periodo_fim).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+    : null;
+  switch (a.status) {
+    case 'em_teste':     return 'Mês gratuito em andamento. Veja plano, valor e data da primeira cobrança.';
+    case 'ativa':        return 'Assinatura ativa. Veja valor, próxima cobrança e cancelamento.';
+    case 'inadimplente': return 'A última cobrança não foi concluída. Regularize para não perder o acesso.';
+    case 'cancelada':    return ate ? `Cancelada — seu acesso vale até ${ate}. Você pode reativar.` : 'Cancelada. Você pode reativar.';
+    case 'suspensa':     return 'Acesso suspenso por falta de pagamento. Regularize para voltar a operar.';
+    case 'expirada':     return 'Assinatura encerrada. Reative para voltar a operar.';
+    case 'pendente':     return 'Aguardando a confirmação do Mercado Pago.';
+    default:             return 'Plano, forma de pagamento e cancelamento.';
+  }
+}
+
 export default function SettingsPage() {
   const { decorator, updateDecorator, setDecorator } = useAuthStore();
+  const assinatura = useAssinatura();
   const { addNotification } = useNotificationStore();
   const [profile, setProfile] = useState<Partial<Decorator>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -322,6 +345,23 @@ export default function SettingsPage() {
             </div>
           </div>
           )}
+
+          {/* Bloco Assinatura — a tela /assinatura existia sem NENHUM link para
+              ela em todo o app. Uma assinante em dia não tinha como ver a
+              própria assinatura, nem chegar ao cancelamento. */}
+          <div className="settings-card">
+            <h2 className="settings-section-title">Assinatura</h2>
+
+            <div className="settings-row">
+              <div>
+                <div className="settings-row-title">Minha assinatura</div>
+                <div className="settings-row-desc">{descricaoDaAssinatura(assinatura)}</div>
+              </div>
+              <Link href="/assinatura">
+                <Button variant="secondary" icon={CreditCard}>Ver assinatura</Button>
+              </Link>
+            </div>
+          </div>
 
           {/* Bloco Segurança */}
           <div className="settings-card">

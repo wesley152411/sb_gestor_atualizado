@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CreditCard, ShieldCheck, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useAssinar } from '@/hooks/useAssinar';
 
 type Estado = {
   status: string;
@@ -24,15 +25,30 @@ const dia = (iso: string | null) =>
 
 // Cada status ganha uma frase que diz o que ele significa PARA ELA — não o nome
 // interno do estado. "Inadimplente" não é mensagem para quem está pagando.
+//
+// TODA data aqui pode ser nula, e a interpolação crua imprimia "Próxima cobrança
+// em ." — que parece defeito. Acontecia com as assinaturas de cortesia, que não
+// têm proxima_cobranca porque não existem no Mercado Pago, mas o buraco não era
+// da cortesia: era de confiar que a data sempre viria. Por isso cada frase tem
+// uma versão sem data, e não um remendo para o caso conhecido.
 const DESCRICAO: Record<string, (e: Estado) => string> = {
   sem_assinatura: () => 'Você ainda não tem uma assinatura.',
   pendente: () => 'Sua assinatura está aguardando a confirmação do Mercado Pago.',
-  em_teste: (e) => `Seu mês gratuito vai até ${dia(e.teste_fim)}. A primeira cobrança acontece nessa data.`,
-  ativa: (e) => `Assinatura ativa. Próxima cobrança em ${dia(e.proxima_cobranca)}.`,
+  em_teste: (e) => e.teste_fim
+    ? `Seu mês gratuito vai até ${dia(e.teste_fim)}. A primeira cobrança acontece nessa data.`
+    : 'Você está no seu mês gratuito. A primeira cobrança acontece ao final dele.',
+  ativa: (e) => e.proxima_cobranca
+    ? `Assinatura ativa. Próxima cobrança em ${dia(e.proxima_cobranca)}.`
+    : e.periodo_fim
+      ? `Assinatura ativa até ${dia(e.periodo_fim)}.`
+      : 'Assinatura ativa.',
   inadimplente: (e) =>
-    `Não conseguimos concluir a última cobrança. Seu acesso continua até ${dia(e.periodo_fim)} — ` +
+    'Não conseguimos concluir a última cobrança. ' +
+    (e.periodo_fim ? `Seu acesso continua até ${dia(e.periodo_fim)} — ` : 'Seu acesso continua por ora — ') +
     'atualize o meio de pagamento no Mercado Pago para não perdê-lo.',
-  cancelada: (e) => `Assinatura cancelada. Seu acesso continua até ${dia(e.periodo_fim)}.`,
+  cancelada: (e) => e.periodo_fim
+    ? `Assinatura cancelada. Seu acesso continua até ${dia(e.periodo_fim)}.`
+    : 'Assinatura cancelada.',
   suspensa: () => 'Seu acesso está suspenso porque a cobrança não foi regularizada.',
   expirada: () => 'Sua assinatura terminou. Seus dados ficam guardados por 90 dias.',
 };
@@ -40,36 +56,21 @@ const DESCRICAO: Record<string, (e: Estado) => string> = {
 export default function AssinaturaPage() {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [carregando, setCarregando] = useState(true);
-  const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState('');
+  const [erroDeCarga, setErroDeCarga] = useState('');
+  // A ação de assinar mora em useAssinar: o portão de quem nunca assinou usa a
+  // MESMA função, e duas cópias divergiriam no primeiro ajuste de mensagem.
+  const { assinar, enviando, erro: erroAoAssinar } = useAssinar();
+  const erro = erroAoAssinar || erroDeCarga;
 
   useEffect(() => {
     let vivo = true;
     fetch('/api/billing/estado')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('falha'))))
       .then((d) => { if (vivo) setEstado(d); })
-      .catch(() => { if (vivo) setErro('Não foi possível carregar sua assinatura.'); })
+      .catch(() => { if (vivo) setErroDeCarga('Não foi possível carregar sua assinatura.'); })
       .finally(() => { if (vivo) setCarregando(false); });
     return () => { vivo = false; };
   }, []);
-
-  async function assinar() {
-    setEnviando(true);
-    setErro('');
-    try {
-      const res = await fetch('/api/billing/subscribe', { method: 'POST' });
-      const corpo = await res.json().catch(() => ({}));
-      if (!res.ok || !corpo.initPoint) {
-        throw new Error(corpo.error || 'Não foi possível iniciar a assinatura.');
-      }
-      // Daqui em diante quem manda é o Mercado Pago. O retorno cai em
-      // /assinatura/retorno, que confirma com o servidor — nunca pela URL.
-      window.location.href = corpo.initPoint;
-    } catch (motivo) {
-      setErro(motivo instanceof Error ? motivo.message : 'Não foi possível iniciar a assinatura.');
-      setEnviando(false);
-    }
-  }
 
   if (carregando) return <div className="assinatura-page"><p>Carregando…</p></div>;
 

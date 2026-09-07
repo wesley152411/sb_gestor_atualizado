@@ -12,7 +12,8 @@
 // Uso:
 //   node scripts/semear-cortesia.cjs --env=prod --expect-ref=<ref>            (dry-run)
 //   node scripts/semear-cortesia.cjs --env=prod --expect-ref=<ref> --apply
-//   [--dias=90]  janela da cortesia (padrão 90)
+//   [--dias=90]            janela da cortesia (padrão 90)
+//   [--incluir-internas]   inclui contas is_internal (padrão: NÃO inclui)
 const fs = require('fs');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
@@ -23,6 +24,11 @@ const envMode = get('env') || 'test';
 const expectRef = get('expect-ref');
 const dias = Number(get('dias') || 90);
 const apply = args.includes('--apply');
+// is_internal marca conta de teste. Por padrão elas ficam DE FORA, senão uma
+// rodada no banco de teste semearia dezenas de contas do harness. A inclusão é
+// opt-in explícito, para o caso legítimo: a conta interna que o dono usa para
+// testar em produção também precisa passar pelo gate como qualquer outra.
+const incluirInternas = args.includes('--incluir-internas');
 
 const ENV_SETS = { test: ['.env', '.env.local', '.env.test', '.env.test.local'], prod: ['.env', '.env.local'] };
 if (!(envMode in ENV_SETS)) { console.error(`🛑 --env inválido: "${envMode}". Use test | prod.`); process.exit(1); }
@@ -61,12 +67,12 @@ const VALOR_MENSAL_CENTAVOS = 14990;
     console.log(`alvo: host=${alvo.hostname} db=${alvo.pathname.slice(1)} (--env=${envMode}, ref ${expectRef})`);
     console.log(`janela da cortesia: ${dias} dias\n`);
 
-    // Só contas REAIS: is_internal marca conta de teste do harness.
     const decoradoras = await prisma.decorator.findMany({
-      where: { is_internal: false },
-      select: { id: true, name: true, cnpj: true },
+      where: incluirInternas ? {} : { is_internal: false },
+      select: { id: true, name: true, cnpj: true, is_internal: true },
       orderBy: { created_at: 'asc' },
     });
+    console.log(`contas internas: ${incluirInternas ? 'INCLUÍDAS (--incluir-internas)' : 'excluídas'}`);
 
     const semAssinatura = [];
     for (const d of decoradoras) {
@@ -81,7 +87,7 @@ const VALOR_MENSAL_CENTAVOS = 14990;
     const fim = new Date(Date.now() + dias * 24 * 3600 * 1000);
     console.log(`\n${semAssinatura.length} conta(s) receberão cortesia até ${fim.toISOString().slice(0, 10)}:`);
     for (const d of semAssinatura) {
-      console.log(`  - ${d.name} | CNPJ ${d.cnpj || '(sem CNPJ)'} | id=${d.id}`);
+      console.log(`  - ${d.name}${d.is_internal ? ' [interna]' : ''} | CNPJ ${d.cnpj || '(sem CNPJ)'} | id=${d.id}`);
     }
 
     if (!semAssinatura.length) {
@@ -100,6 +106,7 @@ const VALOR_MENSAL_CENTAVOS = 14990;
       alvo: `${alvo.hostname}${alvo.pathname}`,
       ref: expectRef,
       diasDeCortesia: dias,
+      incluiuInternas: incluirInternas,
       expiraEm: fim.toISOString(),
       semeadas: [],
     };
@@ -119,7 +126,7 @@ const VALOR_MENSAL_CENTAVOS = 14990;
           motivo_cancelamento: null,
         },
       });
-      comprovante.semeadas.push({ id: criada.id, decorator_id: d.id, nome: d.name, preapproval: criada.mp_preapproval_id });
+      comprovante.semeadas.push({ id: criada.id, decorator_id: d.id, nome: d.name, interna: d.is_internal, preapproval: criada.mp_preapproval_id });
       console.log(`  semeada: ${d.name} -> ${criada.mp_preapproval_id}`);
     }
 

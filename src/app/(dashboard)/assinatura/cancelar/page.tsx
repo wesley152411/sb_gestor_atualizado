@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarClock, CheckCircle2, Heart } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Heart, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 // A TELA DE CANCELAMENTO (Termos 6.1 e 6.2).
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 //    diz a data, porque essa é a dúvida imediata de quem cancela.
 
 type Estado = {
+  cortesia: boolean;
   podeCancelar: boolean;
   ofereceRetencao: boolean;
   valorAtualCentavos: number;
@@ -88,6 +89,29 @@ export default function CancelarPage() {
   }
 
   if (fase === 'carregando') return <div className="assinatura-page"><p>Carregando…</p></div>;
+
+  // CORTESIA antes do caso geral: as duas caem em podeCancelar=false, mas por
+  // motivos opostos. "Sua assinatura já está encerrada" para quem tem acesso
+  // liberado e em dia seria mentira — e assustaria à toa.
+  if (estado?.cortesia && fase !== 'cancelada' && fase !== 'ficou') {
+    return (
+      <div className="assinatura-page">
+        <section className="assinatura-cartao assinatura-retorno">
+          <Gift size={32} aria-hidden="true" />
+          <h1>Não há cobrança a cancelar</h1>
+          <p>
+            Sua conta está em <strong>cortesia</strong>
+            {estado.periodoFim ? <> até <strong>{dia(estado.periodoFim)}</strong></> : null}
+            {' '}— você não paga nada e não há assinatura ativa no Mercado Pago.
+          </p>
+          <p>
+            Se quiser encerrar a conta em vez disso, é só falar com a gente pelo e-mail de contato.
+          </p>
+          <Link href="/assinatura" className="assinatura-link">Ver minha assinatura</Link>
+        </section>
+      </div>
+    );
+  }
 
   if (estado && !estado.podeCancelar && fase !== 'cancelada' && fase !== 'ficou') {
     return (

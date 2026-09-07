@@ -826,6 +826,98 @@ mundo. As tabelas ficam no banco sem incomodar ninguém — foi o que aconteceu 
 
 ---
 
+## 5.5 A guarda de 90 dias: o risco está invertido
+
+Registrado porque a intuição erra o lado, e errar o lado faz olhar para o lugar
+errado quando o problema aparecer.
+
+**A intuição:** "o perigo é apagar antes da hora e alguém perder os dados."
+
+**O que o sistema faz:** não apaga **nunca**, sozinho. O único job agendado é o
+`reconciliacao.yml`. A exclusão é manual, pelo `delete-decorator.cjs`, e o
+`pending-deletions.cjs` lista apenas os pedidos **explícitos** de exclusão — não
+as contas cuja guarda de 90 dias venceu.
+
+Ou seja: os dados **ficam além do prazo**, não aquém. O risco é retenção, não
+perda.
+
+Isso importa por três motivos:
+
+1. **É promessa escrita e aceita.** Termos §6.3 e a Política de Privacidade dizem
+   que os dados são apagados após 90 dias. A pessoa aceitou um documento que diz
+   isso; guardar mais tempo é descumprimento, e o registro do aceite prova o que
+   foi prometido.
+2. **É exposição de LGPD pela ponta menos óbvia.** A discussão costuma ser sobre
+   coletar demais; aqui é **conservar depois do término do tratamento**. Base
+   legal que acabou não se renova por inércia.
+3. **É acúmulo silencioso.** Nada falha, nada fica vermelho, nenhum e-mail chega.
+   O passivo cresce sem sinal — exatamente o padrão que o batimento do §5.2 foi
+   criado para combater em outro lugar.
+
+Some-se a isso que os avisos por e-mail prometidos (Termos §5.3 na falha de
+cobrança e §6.3 antes da exclusão) **não existem**: não há infraestrutura de
+e-mail transacional no projeto além dos e-mails de autenticação do Supabase.
+
+### O que entra na rotina semanal
+
+O lembrete semanal dos pedidos de exclusão passa a cobrir **duas** perguntas, não
+uma:
+
+```
+1. Há pedidos explícitos de exclusão pendentes?
+   node scripts/pending-deletions.cjs --env=prod --expect-ref=urvbkfyyvbsahdnkkwed
+
+2. Há contas com a guarda de 90 dias VENCIDA?
+   (hoje não há comando — a consulta é manual em subscriptions.periodo_fim)
+```
+
+A segunda linha está sem ferramenta de propósito, e o documento diz isso em vez
+de fingir que a rotina está completa: enquanto não houver comando, a pergunta
+depende de alguém lembrar, e é o elo fraco conhecido desta rotina.
+
+---
+
+## 5.6 Contas abandonadas no portão — e a fila da versão 1.2
+
+O portão de assinatura criou uma categoria que não existia: **quem se cadastra,
+vê o preço e vai embora**. Fica com nome, CNPJ e e-mail no banco, sem assinatura
+nenhuma — e **nenhum prazo dos documentos a cobre**, porque a guarda de 90 dias
+conta do fim de um período pago que nunca existiu.
+
+**Regra decidida (2026-09-07):** conta criada, e-mail confirmado, que nunca teve
+assinatura, é excluída depois de **90 dias** sem assinar. É o mesmo número da
+guarda de propósito — um segundo prazo diferente seria mais um número para
+ninguém lembrar.
+
+Duas coisas ficaram pendentes de propósito:
+
+- **O aviso prévio depende dos e-mails**, que não existem. Enquanto isso, a regra
+  vive como **listagem** no `pending-deletions.cjs` (seção 4) e a exclusão é
+  decidida caso a caso. Listar sem apagar é o estado honesto: dá para ver o
+  problema crescer sem automatizar uma exclusão que ainda não foi avisada.
+- **Não entrou nos documentos na 1.1** porque a 1.1 já estava aprovada e
+  reescrevê-la significaria refazer texto revisado.
+
+### Fila da versão 1.2
+
+Agrupar mudanças num bump só vale enquanto forem poucas contas: cada bump obriga
+**todas** as decoradoras a reaceitar (a conferência é por versão **e** hash do
+conteúdo, então qualquer byte alterado conta). Com três contas o custo é trivial;
+com trezentas vira incômodo repetido — e é aí que se deixa de corrigir por
+preguiça. Por isso a fila existe, e por isso ela não deve ficar longa.
+
+| # | O que entra | Onde |
+|---|---|---|
+| 1 | Exclusão de conta sem assinatura após 90 dias, com aviso prévio | Termos §6.3 e Política §6 |
+| 2 | (a acrescentar conforme aparecer) | |
+
+O que a 1.1 já resolveu, para não voltar à fila por engano: o mês grátis descrito
+como é de fato (§5.1), a âncora por CNPJ em vez de "por pessoa" (§5.1), o registro
+de benefício que sobrevive à exclusão (Termos §5.1 e Política §7) e a oferta de
+permanência valendo uma única vez (§6.1).
+
+---
+
 ## 6. A pergunta difícil: como saber que já usou o teste grátis
 
 ### O que dá para fazer, sem virar vigilância

@@ -4877,6 +4877,57 @@ img { max-width: 100%; display: block; }
 }
 .assinatura-cancelar-link:hover { color: var(--text-secondary); }
 
+/* -------------------- Portão de quem nunca assinou -------------------- */
+/* Reaproveita a moldura do gate de aceite legal (.legal-gate-card): é o mesmo
+   formato que ela já viu nesta sessão, então não parece uma tela nova e
+   estranha. Só o miolo muda. */
+.assinatura-portao { max-width: 480px; }
+
+.assinatura-portao-preco {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+
+.assinatura-portao-teste {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.assinatura-portao-teste svg { flex-shrink: 0; margin-top: 2px; }
+.assinatura-portao-teste strong { color: var(--text-primary); }
+
+.assinatura-portao-nota {
+  font-size: 12px !important;
+  color: var(--text-light) !important;
+}
+
+.assinatura-portao-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text-light);
+}
+.assinatura-portao-rodape a {
+  color: var(--text-light);
+  font-weight: 600;
+  text-decoration: underline;
+}
+.assinatura-portao-rodape a:hover { color: var(--text-secondary); }
+
 /* ==========================================================================
    FAIXA DE AVISO — slot ÚNICO. Empilhar tarjas empurra o conteúdo para baixo e
    faz a última deixar de ser lida; a prioridade vive em FaixaDeAviso.tsx.

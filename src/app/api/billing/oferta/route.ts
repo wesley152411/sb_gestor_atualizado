@@ -15,6 +15,7 @@ export async function POST() {
       sem_assinatura: { status: 409, mensagem: 'Não há assinatura ativa para aplicar a oferta.' },
       ja_usada: { status: 409, mensagem: 'Esta oferta já foi utilizada uma vez.' },
       ja_na_retencao: { status: 409, mensagem: 'Sua assinatura já está com a oferta aplicada.' },
+      cortesia: { status: 409, mensagem: 'Sua conta está em cortesia — não há valor a descontar.' },
     };
     const conhecido = conhecidos[r.motivo];
     if (conhecido) return NextResponse.json({ error: conhecido.mensagem, code: r.motivo.toUpperCase() }, { status: conhecido.status });
