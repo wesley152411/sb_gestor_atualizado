@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { CreditCard, ShieldCheck, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -112,6 +113,14 @@ export default function AssinaturaPage() {
           Ao continuar você será levada ao Mercado Pago para autorizar a cobrança recorrente.
         </p>
       </section>
+
+      {/* Cancelar fica FORA do cartão de venda e sem destaque — mas visível.
+          Esconder a saída é hostil; competir com ela é ruído. */}
+      {estado?.liberado && estado.status !== 'cancelada' && (
+        <Link href="/assinatura/cancelar" className="assinatura-cancelar-link">
+          Cancelar assinatura
+        </Link>
+      )}
     </div>
   );
 }

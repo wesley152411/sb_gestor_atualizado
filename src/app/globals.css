@@ -4842,3 +4842,37 @@ img { max-width: 100%; display: block; }
   color: var(--danger);
 }
 .job-banner-grave code { background: rgba(220, 38, 38, 0.1); }
+
+/* Tela de cancelamento — mesma casca do cartão de assinatura. */
+.cancelar-icone { color: var(--primary); margin-bottom: 12px; }
+.cancelar-titulo { font-size: 20px; font-weight: 800; margin: 0 0 10px; color: var(--text-primary); }
+.cancelar-texto { font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin: 0 0 12px; }
+.cancelar-texto strong { color: var(--text-primary); }
+.cancelar-nota { font-size: 12.5px; line-height: 1.55; color: var(--text-light); margin: 0 0 20px; }
+
+/* Recusar não é botão secundário decorativo: é a saída, e precisa ser óbvia. */
+.cancelar-recusar {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.cancelar-recusar:hover { color: var(--text-primary); }
+.cancelar-recusar[aria-disabled='true'] { opacity: 0.5; pointer-events: none; }
+.assinatura-cancelar-link {
+  display: block;
+  text-align: center;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--text-light);
+  text-decoration: underline;
+}
+.assinatura-cancelar-link:hover { color: var(--text-secondary); }
