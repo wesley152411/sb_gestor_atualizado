@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CreditCard, ShieldCheck, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useAssinar } from '@/hooks/useAssinar';
 
 type Estado = {
   status: string;
@@ -40,36 +41,21 @@ const DESCRICAO: Record<string, (e: Estado) => string> = {
 export default function AssinaturaPage() {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [carregando, setCarregando] = useState(true);
-  const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState('');
+  const [erroDeCarga, setErroDeCarga] = useState('');
+  // A ação de assinar mora em useAssinar: o portão de quem nunca assinou usa a
+  // MESMA função, e duas cópias divergiriam no primeiro ajuste de mensagem.
+  const { assinar, enviando, erro: erroAoAssinar } = useAssinar();
+  const erro = erroAoAssinar || erroDeCarga;
 
   useEffect(() => {
     let vivo = true;
     fetch('/api/billing/estado')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('falha'))))
       .then((d) => { if (vivo) setEstado(d); })
-      .catch(() => { if (vivo) setErro('Não foi possível carregar sua assinatura.'); })
+      .catch(() => { if (vivo) setErroDeCarga('Não foi possível carregar sua assinatura.'); })
       .finally(() => { if (vivo) setCarregando(false); });
     return () => { vivo = false; };
   }, []);
-
-  async function assinar() {
-    setEnviando(true);
-    setErro('');
-    try {
-      const res = await fetch('/api/billing/subscribe', { method: 'POST' });
-      const corpo = await res.json().catch(() => ({}));
-      if (!res.ok || !corpo.initPoint) {
-        throw new Error(corpo.error || 'Não foi possível iniciar a assinatura.');
-      }
-      // Daqui em diante quem manda é o Mercado Pago. O retorno cai em
-      // /assinatura/retorno, que confirma com o servidor — nunca pela URL.
-      window.location.href = corpo.initPoint;
-    } catch (motivo) {
-      setErro(motivo instanceof Error ? motivo.message : 'Não foi possível iniciar a assinatura.');
-      setEnviando(false);
-    }
-  }
 
   if (carregando) return <div className="assinatura-page"><p>Carregando…</p></div>;
 

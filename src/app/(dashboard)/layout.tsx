@@ -2,6 +2,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { FaixaDeAviso } from '@/components/layout/FaixaDeAviso';
 import { AssinaturaProvider } from '@/components/providers/AssinaturaProvider';
+import { AssinaturaGate } from '@/components/providers/AssinaturaGate';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { PublicLegalFooter } from '@/components/legal/PublicLegalFooter';
 
@@ -13,6 +14,9 @@ export default function DashboardLayout({
   return (
     <AuthProvider>
       <AssinaturaProvider>
+        {/* Quem nunca assinou não entra: o portão cobre a casca inteira, menos as
+            próprias telas de assinatura, que são a saída dele. */}
+        <AssinaturaGate>
         <div className="app-layout">
           <Sidebar />
           <main className="main-area">
@@ -25,6 +29,7 @@ export default function DashboardLayout({
             </div>
           </main>
         </div>
+        </AssinaturaGate>
       </AssinaturaProvider>
     </AuthProvider>
   );
