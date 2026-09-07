@@ -791,6 +791,41 @@ quando as contas antigas migrarem.
 
 ---
 
+## 5.4 Runbook: "uma conta ficou trancada" — o que olhar
+
+O corpo do `402` diz **em qual dos dois estados** a conta está, e os dois pedem
+correções diferentes. Sem esse código, os dois casos parecem iguais na tela.
+
+| No corpo da resposta | Significa | O que fazer |
+|---|---|---|
+| `SUBSCRIPTION_REQUIRED` | **não achou linha** vigente em `subscriptions` — para o gate, nunca assinou | é a semeadura que não pegou, ou a assinatura nunca foi autorizada. Rodar `semear-cortesia.cjs` de novo, ou mandar assinar |
+| `SUBSCRIPTION_READ_ONLY` | **achou a linha, mas o período acabou** — já assinou, está na guarda de 90 dias | não é falha: é o estado esperado de quem venceu. Ela lê tudo e não opera. Corrige-se pagando |
+
+Onde ver: DevTools → Network → a requisição que falhou (`/api/clients`, por
+exemplo) → aba Response. O campo é `code`.
+
+**Caminho de volta se a semeadura não pegou.** Não é rollback de deploy — é uma
+linha no banco:
+
+```
+node scripts/semear-cortesia.cjs --env=prod --expect-ref=urvbkfyyvbsahdnkkwed --apply
+```
+
+É idempotente: pula quem já tem vigente e semeia só quem falta. O gate consulta o
+banco a cada requisição, então basta recarregar a página — sem parar o site.
+
+**Ninguém fica trancado fora do login.** Sessão, aceite legal e `/api/billing/*`
+são camada 1 e não consultam assinatura. Uma conta sem linha entra, vê a casca do
+app com as telas de dados vazias, e **chega em `/assinatura`** para resolver. É
+uma porta com pedágio, não uma parede.
+
+**Reverter o deploy é o último recurso, e funciona:** o código anterior não
+consulta `subscriptions`, então voltar ao commit anterior devolve o acesso a todo
+mundo. As tabelas ficam no banco sem incomodar ninguém — foi o que aconteceu com
+`legal_acceptances` quando o build quebrou.
+
+---
+
 ## 6. A pergunta difícil: como saber que já usou o teste grátis
 
 ### O que dá para fazer, sem virar vigilância

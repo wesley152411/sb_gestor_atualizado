@@ -81,6 +81,13 @@ async function assinaturaCorrente(decoratorId: string) {
 function recusa(code: 'SUBSCRIPTION_REQUIRED' | 'SUBSCRIPTION_READ_ONLY', error: string) {
   // 402 Payment Required distingue de 401 (sem sessão) e 403 (sem aceite legal):
   // a interface precisa mandar cada caso para uma tela diferente.
+  //
+  // Os DOIS códigos separam falhas diferentes na hora de diagnosticar:
+  //   SUBSCRIPTION_REQUIRED  -> NÃO achou linha vigente (nunca assinou, ou a
+  //                             semeadura de cortesia não pegou)
+  //   SUBSCRIPTION_READ_ONLY -> achou a linha, mas o período acabou (guarda de
+  //                             90 dias; é estado esperado, não falha)
+  // Runbook: docs/features/assinatura-mercadopago.md §5.4.
   return { ok: false as const, response: NextResponse.json({ error, code }, { status: 402 }) };
 }
 
