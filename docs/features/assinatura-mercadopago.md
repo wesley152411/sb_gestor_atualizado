@@ -826,6 +826,57 @@ mundo. As tabelas ficam no banco sem incomodar ninguém — foi o que aconteceu 
 
 ---
 
+## 5.5 A guarda de 90 dias: o risco está invertido
+
+Registrado porque a intuição erra o lado, e errar o lado faz olhar para o lugar
+errado quando o problema aparecer.
+
+**A intuição:** "o perigo é apagar antes da hora e alguém perder os dados."
+
+**O que o sistema faz:** não apaga **nunca**, sozinho. O único job agendado é o
+`reconciliacao.yml`. A exclusão é manual, pelo `delete-decorator.cjs`, e o
+`pending-deletions.cjs` lista apenas os pedidos **explícitos** de exclusão — não
+as contas cuja guarda de 90 dias venceu.
+
+Ou seja: os dados **ficam além do prazo**, não aquém. O risco é retenção, não
+perda.
+
+Isso importa por três motivos:
+
+1. **É promessa escrita e aceita.** Termos §6.3 e a Política de Privacidade dizem
+   que os dados são apagados após 90 dias. A pessoa aceitou um documento que diz
+   isso; guardar mais tempo é descumprimento, e o registro do aceite prova o que
+   foi prometido.
+2. **É exposição de LGPD pela ponta menos óbvia.** A discussão costuma ser sobre
+   coletar demais; aqui é **conservar depois do término do tratamento**. Base
+   legal que acabou não se renova por inércia.
+3. **É acúmulo silencioso.** Nada falha, nada fica vermelho, nenhum e-mail chega.
+   O passivo cresce sem sinal — exatamente o padrão que o batimento do §5.2 foi
+   criado para combater em outro lugar.
+
+Some-se a isso que os avisos por e-mail prometidos (Termos §5.3 na falha de
+cobrança e §6.3 antes da exclusão) **não existem**: não há infraestrutura de
+e-mail transacional no projeto além dos e-mails de autenticação do Supabase.
+
+### O que entra na rotina semanal
+
+O lembrete semanal dos pedidos de exclusão passa a cobrir **duas** perguntas, não
+uma:
+
+```
+1. Há pedidos explícitos de exclusão pendentes?
+   node scripts/pending-deletions.cjs --env=prod --expect-ref=urvbkfyyvbsahdnkkwed
+
+2. Há contas com a guarda de 90 dias VENCIDA?
+   (hoje não há comando — a consulta é manual em subscriptions.periodo_fim)
+```
+
+A segunda linha está sem ferramenta de propósito, e o documento diz isso em vez
+de fingir que a rotina está completa: enquanto não houver comando, a pergunta
+depende de alguém lembrar, e é o elo fraco conhecido desta rotina.
+
+---
+
 ## 6. A pergunta difícil: como saber que já usou o teste grátis
 
 ### O que dá para fazer, sem virar vigilância

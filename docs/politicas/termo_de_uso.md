@@ -1,7 +1,7 @@
 # Termos de Uso — SB Gestor
 
-**Última atualização:** 30 de agosto de 2026
-**Versão:** 1.0
+**Última atualização:** 7 de setembro de 2026
+**Versão:** 1.1
 
 ## 1. Quem oferece o serviço
 
@@ -68,6 +68,8 @@ O valor pode ser reajustado, com aviso de pelo menos 30 dias. Você pode cancela
 O cancelamento é feito pela própria plataforma, a qualquer momento, sem justificativa e sem multa.
 
 Ao iniciar o cancelamento, você receberá uma oferta de permanência de **R$ 99,90 por mês durante 3 meses**. Essa oferta é opcional. Recusando, o cancelamento é concluído imediatamente, na mesma tela.
+
+A oferta de permanência pode ser aceita **uma única vez**. Quem já a utilizou não a recebe novamente em cancelamentos futuros, mesmo cancelando e reativando a conta.
 
 Após os 3 meses da oferta, o valor volta a ser R$ 149,90.
 
