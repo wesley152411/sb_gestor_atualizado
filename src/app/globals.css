@@ -4876,3 +4876,55 @@ img { max-width: 100%; display: block; }
   text-decoration: underline;
 }
 .assinatura-cancelar-link:hover { color: var(--text-secondary); }
+
+/* ==========================================================================
+   FAIXA DE AVISO — slot ÚNICO. Empilhar tarjas empurra o conteúdo para baixo e
+   faz a última deixar de ser lida; a prioridade vive em FaixaDeAviso.tsx.
+   ========================================================================== */
+.faixa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.faixa svg { flex-shrink: 0; }
+.faixa > span { flex: 1; min-width: 0; }
+.faixa code {
+  background: rgba(0, 0, 0, 0.07);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.faixa-atencao { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+/* Divergência de valor é dinheiro cobrado errado agora: pesa mais que atraso. */
+.faixa-grave { background: var(--danger-light); border: 1px solid var(--danger); color: var(--danger); }
+
+.faixa-acao {
+  flex-shrink: 0;
+  font-weight: 700;
+  text-decoration: underline;
+  color: inherit;
+  white-space: nowrap;
+}
+.faixa-dispensar {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.faixa-dispensar:hover { opacity: 1; }
+
+@media (max-width: 640px) {
+  .faixa { flex-wrap: wrap; }
+  .faixa-acao { width: 100%; }
+}

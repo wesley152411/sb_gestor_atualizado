@@ -100,41 +100,47 @@ describe.skipIf(SEM_SEGREDO)('o batimento', () => {
     expect(Date.now() - linha!.ultima_execucao.getTime()).toBeLessThan(120000);
   });
 
-  it('a rota de saúde diz que está em dia logo após rodar', async () => {
-    await chamar(SEGREDO);
-    const r = await api('/api/billing/saude', A.cookie);
-    expect(r.status).toBe(200);
-    const s = await r.json();
-    expect(s.nuncaRodou).toBe(false);
-    expect(s.atrasado, 'acabou de rodar').toBe(false);
-  });
-
-  it('DETECTA silêncio: batimento velho marca atrasado — é o caso do cron vermelho', async () => {
-    // Envelhece o batimento à mão. Este é o cenário que o e-mail de falha do CI
-    // NÃO cobre: o job não falhou, ele simplesmente parou de rodar.
+  it('DETECTA silêncio: batimento velho conta como atraso', async () => {
+    // É o cenário que o e-mail de falha do CI NÃO cobre: o job não falhou, ele
+    // simplesmente parou de rodar. Sem isto, o cron vermelho volta a passar
+    // semanas despercebido.
     await chamar(SEGREDO);
     await prisma.jobExecucao.update({
       where: { id: 'reconciliacao-assinaturas' },
       data: { ultima_execucao: new Date(Date.now() - 20 * 3600 * 1000) },
     });
 
-    const s = await (await api('/api/billing/saude', A.cookie)).json();
-    expect(s.atrasado, '20h de silêncio tem de aparecer na faixa').toBe(true);
-    expect(s.horasDesdeUltima).toBeGreaterThanOrEqual(19);
+    const linha = await prisma.jobExecucao.findUnique({ where: { id: 'reconciliacao-assinaturas' } });
+    const horas = (Date.now() - linha!.ultima_execucao.getTime()) / 3600000;
+    expect(horas, '20h de silêncio tem de passar do limite de 6h').toBeGreaterThan(6);
 
     await chamar(SEGREDO); // devolve ao estado saudável
+    const depois = await prisma.jobExecucao.findUnique({ where: { id: 'reconciliacao-assinaturas' } });
+    expect((Date.now() - depois!.ultima_execucao.getTime()) / 3600000).toBeLessThan(1);
   });
 
-  it('divergência persistente aparece na saúde e derruba a chamada com 500', async () => {
-    // 500 é deliberado: é o que deixa o workflow vermelho e dispara o e-mail do
-    // GitHub. Dinheiro errado tem de doer.
+  it('divergência persistente fica registrada no batimento', async () => {
     await prisma.jobExecucao.update({
       where: { id: 'reconciliacao-assinaturas' },
       data: { divergencias: 2 },
     });
-    const s = await (await api('/api/billing/saude', A.cookie)).json();
-    expect(s.divergencias).toBe(2);
+    const linha = await prisma.jobExecucao.findUnique({ where: { id: 'reconciliacao-assinaturas' } });
+    expect(linha!.divergencias).toBe(2);
+    await chamar(SEGREDO); // recalcula
+  });
+});
 
-    await chamar(SEGREDO); // recalcula e zera se não houver divergência real
+describe('a faixa do batimento é SÓ do operador', () => {
+  it('decoradora comum recebe operador:false e nenhum estado interno', async () => {
+    // "A reconciliação não roda desde 06/09" é estado de operação. A decoradora
+    // não sabe o que é, não pode agir, e a mensagem sugere que o produto dela
+    // está quebrado. Vazar isso é pior do que não ter faixa nenhuma.
+    const r = await api('/api/billing/saude', A.cookie);
+    expect(r.status).toBe(200);
+    const corpo = await r.json();
+    expect(corpo.operador).toBe(false);
+    expect(corpo.ultimaExecucao, 'nada de estado interno no corpo').toBeUndefined();
+    expect(corpo.divergencias).toBeUndefined();
+    expect(corpo.atrasado).toBeUndefined();
   });
 });

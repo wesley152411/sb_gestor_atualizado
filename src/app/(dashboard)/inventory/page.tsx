@@ -473,7 +473,7 @@ export default function InventoryPage() {
             Gerencie suas peças e kits de decoração disponíveis para locação.
           </p>
         </div>
-        <Button icon={Plus} onClick={handleOpenKitModal}>
+        <Button icon={Plus} bloqueiaEmLeitura onClick={handleOpenKitModal}>
           Nova Peça
         </Button>
       </div>
@@ -563,7 +563,7 @@ export default function InventoryPage() {
               <Package className="w-12 h-12" />
               <h3>Nenhuma peça encontrada</h3>
               <p>Adicione peças ao seu acervo para começar.</p>
-              <Button icon={Plus} onClick={handleOpenKitModal}>
+              <Button icon={Plus} bloqueiaEmLeitura onClick={handleOpenKitModal}>
                 Adicionar Peça
               </Button>
             </div>
@@ -821,7 +821,7 @@ export default function InventoryPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setIsKitModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveKit}>
+            <Button onClick={handleSaveKit} bloqueiaEmLeitura>
               {editingItemId || editingKitId ? "Salvar Alterações" : "Salvar Kit"}
             </Button>
           </>

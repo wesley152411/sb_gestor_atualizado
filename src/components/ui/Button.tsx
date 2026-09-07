@@ -3,6 +3,7 @@
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ButtonHTMLAttributes } from 'react';
+import { useBloqueioDeEscrita } from '@/components/providers/AssinaturaProvider';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -10,6 +11,15 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: LucideIcon;
   iconPosition?: 'left' | 'right';
   isLoading?: boolean;
+  /**
+   * Marca o botão como AÇÃO DE ESCRITA. Em somente-leitura ele fica desabilitado
+   * com o motivo no title, em vez de deixar a decoradora clicar e tomar erro.
+   *
+   * É cortesia de interface, não barreira: o servidor recusa de qualquer forma
+   * (402 SUBSCRIPTION_READ_ONLY). Esquecer a marca em um botão degrada a
+   * experiência; não abre buraco de segurança.
+   */
+  bloqueiaEmLeitura?: boolean;
 }
 
 export function Button({
@@ -21,8 +31,12 @@ export function Button({
   iconPosition = 'left',
   isLoading,
   disabled,
+  bloqueiaEmLeitura,
+  title,
   ...props
 }: ButtonProps) {
+  const { bloqueado, motivo } = useBloqueioDeEscrita();
+  const travado = Boolean(bloqueiaEmLeitura && bloqueado);
   const baseStyles = 'btn-base';
   
   const variants = {
@@ -49,7 +63,8 @@ export function Button({
         sizes[size],
         className
       )}
-      disabled={disabled || isLoading}
+      disabled={disabled || isLoading || travado}
+      title={travado ? motivo : title}
       {...props}
     >
       {isLoading ? (
