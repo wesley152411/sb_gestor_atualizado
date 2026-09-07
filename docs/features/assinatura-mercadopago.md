@@ -755,6 +755,40 @@ foram pegas na hora.
 A lição vale além deste projeto: ao encenar regressão contra build de produção,
 **confirmar que o build realmente aconteceu** é parte da prova.
 
+## 5.3 Ir a produção sem se trancar fora (etapa 9)
+
+**O risco.** Com o gate no ar, uma conta sem linha em `subscriptions` recebe
+`402 SUBSCRIPTION_REQUIRED` em toda rota de dados — **nem lê**. Não é
+somente-leitura: é trancada para fora. Somente-leitura é o estado de quem JÁ
+assinou. As três decoradoras reais não têm assinatura nenhuma.
+
+**A ordem resolve, sem flag de bypass** — que seria caminho de escape esquecido
+ligado, e o próximo incidente:
+
+```
+1. dump de produção
+2. aplicar as migrations (assinaturas + job_execucoes)
+3. semear as cortesias      <- ANTES do deploy
+4. deploy do código
+```
+
+Como o código que lê essas linhas só sobe no passo 4, **não existe janela** em que
+o gate está ativo e as linhas faltam.
+
+**A cortesia expira em 2026-12-06** (90 dias). Data, não "para sempre": prazo
+infinito vira permanente por inércia, e a data força a conversa de migrar as duas
+decoradoras para assinatura real. Passada a data, elas caem em somente-leitura —
+leem tudo, não operam — e não são trancadas fora.
+
+`scripts/semear-cortesia.cjs`: allowlist do ref (banco desconhecido é recusado),
+dry-run por padrão, idempotente (pula quem já tem vigente) e comprovante em
+arquivo, como o `delete-decorator`.
+
+As linhas usam `mp_preapproval_id = cortesia:<decorator_id>`. O job de
+reconciliação **ignora e CONTA** esse prefixo, com etiqueta `[CORTESIA]` no log:
+dá para saber quantas ainda existem sem abrir o banco, e elas devem chegar a zero
+quando as contas antigas migrarem.
+
 ---
 
 ## 6. A pergunta difícil: como saber que já usou o teste grátis
@@ -923,7 +957,7 @@ e-mail se perde, o app você abre.
 | 6 | ~~`requireAssinaturaAtiva` + classificação das rotas~~ **concluída — em 4 camadas, não 3** | 3 |
 | 7 | ~~Cancelamento + oferta de retenção + volta ao valor cheio~~ **concluída** | 0, 3 |
 | 8 | Job de reconciliação (seção 9) + batimento no dashboard + alerta de divergência (seção 10) | 3 |
-| 9 | Migration em **produção** (após dump) e deploy | tudo verde |
+| 9 | Migration em **produção** (após dump), semeadura de cortesia e deploy | tudo verde |
 
 Reembolso do primeiro mês (Termos 6.4) fica **manual via painel do MP** na
 primeira versão: é raro, tem julgamento envolvido, e automatizar devolução de

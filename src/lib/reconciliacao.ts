@@ -25,12 +25,22 @@ import {
 // Tudo aqui é idempotente e relê a verdade no Mercado Pago.
 
 export const NOME_DO_JOB = 'reconciliacao-assinaturas';
+
+// Assinaturas de CORTESIA não existem no Mercado Pago: são linhas semeadas à mão
+// para as contas que já usavam o sistema antes de haver cobrança. Consultar o MP
+// por elas devolveria 400 a cada hora, poluindo log e gastando chamada.
+//
+// O job as ignora — mas CONTA e registra, em vez de pular em silêncio: dá para
+// saber quantas cortesias ainda existem lendo o log, sem consultar o banco.
+export const PREFIXO_CORTESIA = 'cortesia:';
+const ehCortesia = (preapprovalId: string) => preapprovalId.startsWith(PREFIXO_CORTESIA);
 const LIMITE_DIVERGENCIA = 3;
 const MAX_POR_CICLO = 50;
 
 export type ResumoReconciliacao = {
   pendentesExpiradas: number;
   suspensas: number;
+  cortesiasIgnoradas: number;
   eventosProcessados: number;
   valoresConvergidos: number;
   divergentes: string[]; // ids de preapproval que não convergiram
@@ -42,7 +52,7 @@ export async function reconciliar(): Promise<ResumoReconciliacao> {
   const inicio = Date.now();
   const agora = new Date();
   const resumo: ResumoReconciliacao = {
-    pendentesExpiradas: 0, suspensas: 0, eventosProcessados: 0,
+    pendentesExpiradas: 0, suspensas: 0, cortesiasIgnoradas: 0, eventosProcessados: 0,
     valoresConvergidos: 0, divergentes: [], orfas: 0, duracaoMs: 0,
   };
 
@@ -90,6 +100,7 @@ export async function reconciliar(): Promise<ResumoReconciliacao> {
     take: MAX_POR_CICLO,
   });
   for (const assinatura of vivas) {
+    if (ehCortesia(assinatura.mp_preapproval_id)) { resumo.cortesiasIgnoradas++; continue; }
     const antes = assinatura.status as StatusLocal;
     const r = await aplicarEstadoDaAssinatura(assinatura.mp_preapproval_id);
     if (!r.ok) {
@@ -107,6 +118,7 @@ export async function reconciliar(): Promise<ResumoReconciliacao> {
     take: MAX_POR_CICLO,
   });
   for (const assinatura of divergentes) {
+    if (ehCortesia(assinatura.mp_preapproval_id)) continue; // já contada acima
     // Fim da oferta: 3 cobranças no plano de retenção → volta ao valor cheio.
     const fimDaOferta = assinatura.plano === 'retencao' && assinatura.cobrancas_no_plano >= COBRANCAS_DA_RETENCAO;
     const desejado = fimDaOferta ? VALOR_MENSAL_CENTAVOS : assinatura.valor_centavos;
@@ -137,6 +149,13 @@ export async function reconciliar(): Promise<ResumoReconciliacao> {
     } else if ((depois?.tentativas_sync ?? 0) >= LIMITE_DIVERGENCIA) {
       resumo.divergentes.push(assinatura.mp_preapproval_id);
     }
+  }
+
+  if (resumo.cortesiasIgnoradas > 0) {
+    // Etiqueta buscável: `grep CORTESIA` nos logs diz quantas ainda existem, sem
+    // precisar abrir o banco. Elas devem chegar a zero quando as contas antigas
+    // migrarem para assinatura de verdade.
+    console.warn(`[CORTESIA] ${resumo.cortesiasIgnoradas} assinatura(s) de cortesia ignorada(s) — não existem no Mercado Pago.`);
   }
 
   resumo.duracaoMs = Date.now() - inicio;

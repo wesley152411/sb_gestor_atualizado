@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   } catch (motivo) {
     const detalhe = motivo instanceof Error ? motivo.message : String(motivo);
     await registrarExecucao(
-      { pendentesExpiradas: 0, suspensas: 0, eventosProcessados: 0, valoresConvergidos: 0, divergentes: [], orfas: 0, duracaoMs: 0 },
+      { pendentesExpiradas: 0, suspensas: 0, cortesiasIgnoradas: 0, eventosProcessados: 0, valoresConvergidos: 0, divergentes: [], orfas: 0, duracaoMs: 0 },
       detalhe,
     ).catch(() => { /* se nem o batimento grava, o log é o que resta */ });
     console.error(`[reconciliacao] falhou: ${detalhe}`);
