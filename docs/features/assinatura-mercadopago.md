@@ -877,6 +877,47 @@ depende de alguém lembrar, e é o elo fraco conhecido desta rotina.
 
 ---
 
+## 5.6 Contas abandonadas no portão — e a fila da versão 1.2
+
+O portão de assinatura criou uma categoria que não existia: **quem se cadastra,
+vê o preço e vai embora**. Fica com nome, CNPJ e e-mail no banco, sem assinatura
+nenhuma — e **nenhum prazo dos documentos a cobre**, porque a guarda de 90 dias
+conta do fim de um período pago que nunca existiu.
+
+**Regra decidida (2026-09-07):** conta criada, e-mail confirmado, que nunca teve
+assinatura, é excluída depois de **90 dias** sem assinar. É o mesmo número da
+guarda de propósito — um segundo prazo diferente seria mais um número para
+ninguém lembrar.
+
+Duas coisas ficaram pendentes de propósito:
+
+- **O aviso prévio depende dos e-mails**, que não existem. Enquanto isso, a regra
+  vive como **listagem** no `pending-deletions.cjs` (seção 4) e a exclusão é
+  decidida caso a caso. Listar sem apagar é o estado honesto: dá para ver o
+  problema crescer sem automatizar uma exclusão que ainda não foi avisada.
+- **Não entrou nos documentos na 1.1** porque a 1.1 já estava aprovada e
+  reescrevê-la significaria refazer texto revisado.
+
+### Fila da versão 1.2
+
+Agrupar mudanças num bump só vale enquanto forem poucas contas: cada bump obriga
+**todas** as decoradoras a reaceitar (a conferência é por versão **e** hash do
+conteúdo, então qualquer byte alterado conta). Com três contas o custo é trivial;
+com trezentas vira incômodo repetido — e é aí que se deixa de corrigir por
+preguiça. Por isso a fila existe, e por isso ela não deve ficar longa.
+
+| # | O que entra | Onde |
+|---|---|---|
+| 1 | Exclusão de conta sem assinatura após 90 dias, com aviso prévio | Termos §6.3 e Política §6 |
+| 2 | (a acrescentar conforme aparecer) | |
+
+O que a 1.1 já resolveu, para não voltar à fila por engano: o mês grátis descrito
+como é de fato (§5.1), a âncora por CNPJ em vez de "por pessoa" (§5.1), o registro
+de benefício que sobrevive à exclusão (Termos §5.1 e Política §7) e a oferta de
+permanência valendo uma única vez (§6.1).
+
+---
+
 ## 6. A pergunta difícil: como saber que já usou o teste grátis
 
 ### O que dá para fazer, sem virar vigilância

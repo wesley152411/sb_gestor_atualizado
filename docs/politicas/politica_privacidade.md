@@ -1,7 +1,7 @@
 # Política de Privacidade — SB Gestor
 
-**Última atualização:** 30 de agosto de 2026
-**Versão:** 1.0
+**Última atualização:** 7 de setembro de 2026
+**Versão:** 1.1
 
 ## 1. Quem somos
 
@@ -106,6 +106,8 @@ Quando uma conta é excluída, apagamos:
 - As fotos armazenadas
 
 **O que não conseguimos apagar imediatamente:** registros técnicos mantidos por nossos prestadores (endereço IP em logs de servidor e de autenticação). Esses registros expiram automaticamente em prazos curtos definidos por cada prestador e não podem ser removidos manualmente por nós.
+
+**Registro de benefício já utilizado.** Para aplicar a regra de um primeiro mês sem cobrança por CNPJ (Termos, item 5.1), guardamos um **código irreversível** derivado do CNPJ e do identificador de pagador do Mercado Pago — nunca esses números em si. Esse registro **permanece após a exclusão da conta**, e isso é intencional: sem ele, bastaria excluir a conta e criar outra para receber o benefício novamente. O código não permite recuperar o CNPJ, não fica ligado ao seu cadastro depois da exclusão e não é usado para nenhuma outra finalidade.
 
 **Sobre o histórico de eventos.** Quando uma decoradora exclui o cadastro de uma cliente, o histórico dos eventos já realizados permanece, incluindo o nome, telefone e endereço registrados naquele evento. Isso funciona como um registro de serviço prestado. Para apagar também esse histórico, é necessário excluir os eventos correspondentes.
 

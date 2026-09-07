@@ -1,15 +1,24 @@
 // A ROTINA SEMANAL DE EXCLUSÃO, em um comando só.
 //
-// Responde às DUAS perguntas que a rotina precisa fazer:
+// Responde às TRÊS perguntas que a rotina precisa fazer:
 //
 //   1. Há pedidos EXPLÍCITOS de exclusão pendentes? (deletion_requested_at)
 //   2. Há contas com a GUARDA DE 90 DIAS VENCIDA? (periodo_fim + 90 dias)
+//   3. Há contas que NUNCA assinaram e passaram de 90 dias? (created_at + 90)
 //
 // A segunda existe porque o risco aqui está invertido em relação à intuição:
 // não há job que apague nada automaticamente, então os dados ficam ALÉM do prazo
 // prometido nos Termos §6.3, não aquém. E acúmulo por inércia não falha, não fica
 // vermelho e não manda e-mail — ninguém descobre sozinho. Uma linha de lembrete
 // que depende de alguém lembrar de consultar o banco não é rotina de verdade.
+//
+// A terceira nasceu com o portão de assinatura: quem se cadastra, vê o portão e
+// vai embora fica com nome, CNPJ e e-mail no banco, sem assinatura NENHUMA — e
+// nenhum prazo dos Termos a cobre, porque a guarda conta do fim de um período
+// pago que nunca existiu. A regra decidida é 90 dias sem assinatura, o MESMO
+// número da guarda, para não inventar um segundo prazo que ninguém lembra.
+// Enquanto o aviso por e-mail não existe, isto é LISTAGEM para decisão caso a
+// caso — e ainda precisa entrar nos Termos e na Política (previsto para a 1.2).
 //
 // É SOMENTE LEITURA: a exclusão continua manual, pelo delete-decorator.cjs, para
 // incluir Auth e Storage com segurança.
@@ -138,12 +147,52 @@ const dia = (valor) => new Date(valor).toISOString().slice(0, 10);
       }
     }
 
+    // ---- 4. Nunca assinaram e passaram do prazo ------------------------------
+    // Exige e-mail confirmado: cadastro abandonado ANTES da confirmação é outra
+    // categoria (nunca virou conta de verdade) e tem limpeza própria.
+    console.log('');
+    console.log(`=== 4. Nunca assinaram, cadastradas há mais de ${guarda} dias ===`);
+    const nuncaAssinaram = await prisma.$queryRawUnsafe(`
+      SELECT d.id, d.name, d.is_internal, d.created_at, u.email
+      FROM public.decorators d
+      JOIN auth.users u ON u.id = d.id::uuid
+      WHERE u.email_confirmed_at IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM public.subscriptions s WHERE s.decorator_id = d.id)
+        AND d.created_at + ($1 || ' days')::interval < now()
+      ORDER BY d.created_at ASC
+    `, String(guarda));
+    if (!nuncaAssinaram.length) {
+      console.log('  ✅ nenhuma passou do prazo.');
+    } else {
+      achou = true;
+      console.log(`  ${nuncaAssinaram.length} conta(s) sem assinatura nenhuma:`);
+      for (const row of nuncaAssinaram) {
+        const dias = Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86400000);
+        const interna = row.is_internal ? ' [interna]' : '';
+        console.log(`  - cadastrada há ${String(dias).padStart(4)} dia(s) | ${row.name}${interna} | ${row.email || '(sem login)'} | id=${row.id}`);
+      }
+    }
+
+    // Quantas ainda estão DENTRO do prazo. Uma linha, não uma lista: serve para
+    // ver o problema crescer antes de ele virar trabalho, sem virar ruído.
+    const aCaminho = await prisma.$queryRawUnsafe(`
+      SELECT count(*)::int AS n
+      FROM public.decorators d
+      JOIN auth.users u ON u.id = d.id::uuid
+      WHERE u.email_confirmed_at IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM public.subscriptions s WHERE s.decorator_id = d.id)
+        AND d.created_at + ($1 || ' days')::interval >= now()
+    `, String(guarda));
+    if (aCaminho[0].n > 0) {
+      console.log(`  (mais ${aCaminho[0].n} conta(s) sem assinatura ainda dentro do prazo)`);
+    }
+
     console.log('');
     if (achou) {
       console.log('Para processar qualquer uma, faça primeiro o dry-run:');
       console.log('  node scripts/delete-decorator.cjs --id=<id> --env=<test|prod> --expect-ref=<ref>');
     } else {
-      console.log('✅ Nada pendente nas duas frentes.');
+      console.log('✅ Nada pendente em nenhuma frente.');
     }
   } catch (error) {
     console.error('ERRO:', String(error?.message || error).split(/\r?\n/)[0]);

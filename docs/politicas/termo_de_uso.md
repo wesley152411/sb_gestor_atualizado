@@ -41,15 +41,21 @@ As funcionalidades podem ser alteradas, incluídas ou removidas ao longo do temp
 
 ## 5. Assinatura e pagamento
 
-### 5.1 Teste grátis
+### 5.1 Primeiro mês sem cobrança
 
-Novas contas têm **1 (um) mês de uso gratuito**, com acesso completo.
+Para usar a plataforma é necessário ter assinatura ativa. **Criar a conta não dá acesso** — o acesso começa quando você assina.
 
-O teste grátis é concedido **uma única vez por pessoa**. Quem já utilizou não tem direito a novo período gratuito, mesmo cancelando e criando conta novamente.
+Ao assinar pela primeira vez, você autoriza o pagamento recorrente no Mercado Pago **no ato da assinatura**, e a **primeira cobrança acontece 30 dias depois**. Ou seja: o primeiro mês não é cobrado, mas a autorização do pagamento é feita antes, no começo.
+
+Cancelando dentro desses 30 dias, **nenhum valor é cobrado**.
+
+O primeiro mês sem cobrança é concedido **uma única vez por CNPJ**. Quem já o utilizou não tem direito a novo período gratuito, mesmo cancelando a assinatura e criando conta nova com outro e-mail.
+
+Para aplicar essa regra, guardamos um código irreversível derivado do CNPJ. Esse registro **permanece mesmo depois de a conta ser excluída** — é o que impede que o mesmo CNPJ receba o benefício de novo. Ele não permite recuperar o CNPJ e não é usado para nenhuma outra finalidade. Detalhes na Política de Privacidade, item 7.
 
 ### 5.2 Mensalidade
 
-Após o teste, a assinatura custa **R$ 149,90 por mês**, cobrados automaticamente no mesmo dia de cada mês.
+Terminado esse primeiro mês, a assinatura custa **R$ 149,90 por mês**, cobrados automaticamente no mesmo dia de cada mês.
 
 Os pagamentos são processados pelo Mercado Pago. Não armazenamos dados de cartão.
 
