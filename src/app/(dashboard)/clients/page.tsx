@@ -515,7 +515,7 @@ export default function ClientsPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setPromoModal(null)}>Cancelar</Button>
-            <Button icon={MessageCircle} isLoading={promoSending} onClick={handleSendPromo}>Enviar</Button>
+            <Button icon={MessageCircle} isLoading={promoSending} onClick={handleSendPromo} bloqueiaEmLeitura>Enviar</Button>
           </>
         }
       >

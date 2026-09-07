@@ -285,7 +285,7 @@ export default function SettingsPage() {
             />
 
             <div className="settings-actions-end">
-              <Button onClick={handleSaveProfile} isLoading={isLoading}>Salvar Alterações</Button>
+              <Button onClick={handleSaveProfile} isLoading={isLoading} bloqueiaEmLeitura>Salvar Alterações</Button>
             </div>
           </div>
 

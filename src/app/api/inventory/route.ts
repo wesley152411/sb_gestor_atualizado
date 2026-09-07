@@ -1,12 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { requireDecorator } from '@/lib/api-auth';
+import { requireAssinaturaAtiva, requireLeitura } from '@/lib/api-auth';
 import { hasPrice } from '@/lib/utils';
 
 export async function GET(request: Request) {
   try {
     // Identidade SEMPRE da sessão do servidor.
-    const acesso = await requireDecorator();
+    const acesso = await requireLeitura();
     if (!acesso.ok) return acesso.response;
     const sessionId = acesso.decoratorId;
 
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const acesso = await requireDecorator();
+    const acesso = await requireAssinaturaAtiva();
     if (!acesso.ok) return acesso.response;
     const sessionId = acesso.decoratorId;
 

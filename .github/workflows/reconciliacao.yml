@@ -1,0 +1,61 @@
+# RECONCILIAÇÃO DE COBRANÇA
+#
+# Chama POST /api/billing/reconcile de hora em hora. A lógica mora no site, onde
+# Prisma e Access Token já existem; aqui só há o gatilho.
+#
+# Por que GitHub Actions e não Scheduled Function da Netlify: workflow agendado
+# que FALHA manda e-mail para o dono do repositório por padrão. Function da
+# Netlify falha para dentro do log — que é exatamente o mecanismo do cron que
+# ficou vermelho por semanas sem ninguém notar.
+#
+# ATENÇÃO ao que isto NÃO cobre: "deixou de rodar". Workflow desabilitado,
+# arquivo renomeado, ou a regra do GitHub que SUSPENDE agendamentos após 60 dias
+# sem atividade no repositório — nesses casos não há falha, há ausência, e
+# ausência não dispara e-mail. Quem cobre isso é a faixa do dashboard, que lê o
+# batimento gravado em job_execucoes.
+name: reconciliacao
+
+on:
+  schedule:
+    - cron: '17 * * * *' # de hora em hora, fora do minuto 0 (menos fila no GitHub)
+  workflow_dispatch: {}  # permite disparar à mão para conferir
+
+jobs:
+  reconciliar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conferir os segredos
+        env:
+          BASE: ${{ secrets.RECONCILE_BASE_URL }}
+          TOKEN: ${{ secrets.RECONCILE_TOKEN }}
+        run: |
+          faltando=""
+          [ -z "$BASE" ] && faltando="$faltando RECONCILE_BASE_URL"
+          [ -z "$TOKEN" ] && faltando="$faltando RECONCILE_TOKEN"
+          if [ -n "$faltando" ]; then
+            echo "🛑 Pré-condição — secret(s) ausente(s):$faltando"
+            echo "   RECONCILE_BASE_URL: https://www.sbgestor.com (sem barra no fim)"
+            echo "   RECONCILE_TOKEN:    o mesmo valor da variável no ambiente da Netlify"
+            echo "   Cadastre em: GitHub → repo → Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
+      - name: Rodar a reconciliação
+        env:
+          BASE: ${{ secrets.RECONCILE_BASE_URL }}
+          TOKEN: ${{ secrets.RECONCILE_TOKEN }}
+        run: |
+          set -o pipefail
+          corpo=$(mktemp)
+          # --max-time generoso: a passada varre assinaturas e fala com o MP.
+          codigo=$(curl -s -o "$corpo" -w '%{http_code}' --max-time 120 \
+            -X POST -H "Authorization: Bearer $TOKEN" "$BASE/api/billing/reconcile")
+          echo "HTTP $codigo"
+          cat "$corpo"
+          echo
+          if [ "$codigo" != "200" ]; then
+            echo "::error::Reconciliação retornou HTTP $codigo."
+            echo "500 com divergentes = assinatura cobrando valor diferente do combinado."
+            echo "É deliberado que isto falhe: dinheiro errado tem de doer."
+            exit 1
+          fi

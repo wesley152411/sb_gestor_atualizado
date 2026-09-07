@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { toDbDate, hasPrice } from '@/lib/utils';
 import { NextResponse } from 'next/server';
-import { requireDecorator } from '@/lib/api-auth';
+import { requireAssinaturaAtiva, requireLeitura } from '@/lib/api-auth';
 import { loadKitComponents, expandToItemDemand, findShortfalls } from '@/lib/rental-availability';
 
 // Backstop de servidor das validações de data do modal (retirada/devolução).
@@ -50,7 +50,7 @@ function serializeOrder(order: any) {
 export async function GET() {
   try {
     // Identidade SEMPRE da sessão — devolve só os pedidos em que você é dono OU locatário.
-    const acesso = await requireDecorator();
+    const acesso = await requireLeitura();
     if (!acesso.ok) return acesso.response;
     const sessionId = acesso.decoratorId;
 
@@ -72,7 +72,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const acesso = await requireDecorator();
+    const acesso = await requireAssinaturaAtiva();
     if (!acesso.ok) return acesso.response;
     const sessionId = acesso.decoratorId;
 

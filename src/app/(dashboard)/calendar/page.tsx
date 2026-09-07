@@ -271,7 +271,7 @@ export default function CalendarPage() {
                 </button>
               ))}
             </div>
-            <Button icon={Plus} onClick={() => router.push('/party-form')}>Novo Evento</Button>
+            <Button icon={Plus} bloqueiaEmLeitura onClick={() => router.push('/party-form')}>Novo Evento</Button>
           </div>
         </div>
 
@@ -403,7 +403,7 @@ function DayDetails({ bucket, decoratorId, onDownloadPDF, onMarkReturned, return
             items={order.items}
             amount={order.total_value}
             action={showReturnBtn ? (
-              <Button size="sm" icon={CheckCircle2} onClick={() => onMarkReturned(order.id)} isLoading={returningId === order.id}>
+              <Button size="sm" icon={CheckCircle2} bloqueiaEmLeitura onClick={() => onMarkReturned(order.id)} isLoading={returningId === order.id}>
                 Devolvido
               </Button>
             ) : undefined}

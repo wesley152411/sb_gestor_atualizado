@@ -27,6 +27,11 @@ jobs:
       # isolamento de /api/promo-messages (sem depender do fallback de dev). O 404
       # da flag DESLIGADA é coberto pelo job promo-flag-off abaixo.
       NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP: 'true'
+      # Pepper das âncoras de benefício. SEPARADO do de produção de propósito: as
+      # âncoras deste banco são de teste, e o de produção não pode circular na CI.
+      # Sem ele as regras de benefício falham FECHADAS (por desenho) e os testes
+      # de retenção quebram com "expected false to be true" — que não explica nada.
+      BENEFICIOS_PEPPER: ${{ secrets.TEST_BENEFICIOS_PEPPER }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +42,21 @@ jobs:
 
       - run: npm ci
       - run: npx prisma generate
+
+      # Sem esta checagem o sintoma é um teste de negócio falhando por engano: as
+      # regras de benefício NEGAM quando o pepper falta (fail-closed correto), e a
+      # falha aparece como "expected false to be true". Falhar aqui, nomeando a
+      # causa, custa 0s e economiza uma caçada.
+      - name: Conferir o pepper das âncoras de benefício
+        run: |
+          if [ -z "$BENEFICIOS_PEPPER" ]; then
+            echo "🛑 Pré-condição — secret ausente: TEST_BENEFICIOS_PEPPER"
+            echo "   Gere um valor novo e SÓ para teste (não reaproveite o de produção):"
+            echo "     node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+            echo "   Cadastre em: GitHub → repo → Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "pepper presente (${#BENEFICIOS_PEPPER} chars)"
 
       - name: Subir o app (dev) em background
         run: npm run dev &
@@ -71,6 +91,9 @@ jobs:
       HARNESS_ALLOW_TEST_DB: 'true'
       # Flag DESLIGADA explicitamente: a rota promo deve virar 404.
       NEXT_PUBLIC_FEATURE_PROMO_WHATSAPP: 'false'
+      # Este job também chama `npm test` (filtrado por -t), então importa os mesmos
+      # arquivos de teste. Mesmo pepper, para não depender de qual filtro passou.
+      BENEFICIOS_PEPPER: ${{ secrets.TEST_BENEFICIOS_PEPPER }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -191,6 +214,21 @@ jobs:
             exit 1
           fi
           echo "segredos presentes"
+
+      # Presença não é validade: o token pode estar revogado, expirado ou colado
+      # com espaço. Sem isto o sintoma é "Failed retrieving user account:
+      # Unauthorized" no meio do build, que parece erro de build e não é.
+      - name: Conferir se o token da Netlify AUTENTICA
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" https://api.netlify.com/api/v1/user)
+          if [ "$code" != "200" ]; then
+            echo "🛑 Pré-condição — NETLIFY_AUTH_TOKEN não autentica (HTTP $code)."
+            echo "   O secret EXISTE, mas a Netlify o recusa. Gere outro:"
+            echo "   Netlify → User settings → Applications → Personal access tokens → New access token"
+            echo "   Cole SEM espaços em: GitHub → Settings → Secrets and variables → Actions → NETLIFY_AUTH_TOKEN"
+            exit 1
+          fi
+          echo "token autentica na Netlify (HTTP 200)"
 
       # `netlify build` roda o build command do site + os plugins, puxando as
       # variáveis de ambiente do próprio site. É o mesmo caminho do deploy, só que

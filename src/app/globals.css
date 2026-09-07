@@ -4738,3 +4738,193 @@ img { max-width: 100%; display: block; }
    .quote-page deixa de reservar a viewport inteira sozinho). */
 .quote-shell { min-height: 100vh; display: flex; flex-direction: column; }
 .quote-shell .quote-page { min-height: 0; flex: 1; }
+
+/* ==========================================================================
+   ASSINATURA — tela de contratação e retorno do Mercado Pago.
+   ========================================================================== */
+.assinatura-page { max-width: 620px; margin: 0 auto; padding: 8px 0 32px; }
+
+.assinatura-cabecalho { margin-bottom: 20px; }
+.assinatura-cabecalho h1 { font-size: 22px; font-weight: 800; margin: 0 0 6px; }
+.assinatura-cabecalho p { font-size: 14px; color: var(--text-secondary); margin: 0; line-height: 1.6; }
+
+.assinatura-erro {
+  background: var(--danger-light);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.assinatura-cartao {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 24px;
+}
+
+.assinatura-preco { display: flex; align-items: baseline; gap: 8px; margin-bottom: 18px; }
+.assinatura-valor { font-size: 32px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em; }
+.assinatura-periodo { font-size: 14px; color: var(--text-secondary); }
+
+.assinatura-itens { list-style: none; margin: 0 0 22px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.assinatura-itens li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.assinatura-itens svg { color: var(--primary); flex-shrink: 0; margin-top: 2px; }
+.assinatura-itens strong { color: var(--text-primary); }
+
+.assinatura-ok { font-size: 14px; font-weight: 700; color: var(--success); margin: 0; }
+.assinatura-nota { font-size: 12px; color: var(--text-light); margin: 14px 0 0; text-align: center; line-height: 1.5; }
+
+/* Retorno do Mercado Pago */
+.assinatura-retorno {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.assinatura-retorno svg { color: var(--primary); }
+.assinatura-retorno h1 { font-size: 20px; font-weight: 800; margin: 0; }
+.assinatura-retorno p { font-size: 14px; color: var(--text-secondary); margin: 0; line-height: 1.6; max-width: 420px; }
+.assinatura-link { color: var(--primary); font-weight: 700; font-size: 14px; text-decoration: none; margin-top: 6px; }
+.assinatura-link:hover { text-decoration: underline; }
+
+.assinatura-girando { animation: assinatura-girar 1.4s linear infinite; }
+@keyframes assinatura-girar { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .assinatura-girando { animation: none; }
+}
+
+/* ==========================================================================
+   FAIXA DO BATIMENTO DOS JOBS — só aparece quando há algo errado. Silêncio é o
+   estado correto; uma faixa permanente vira ruído e deixa de ser lida.
+   ========================================================================== */
+.job-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+.job-banner svg { flex-shrink: 0; margin-top: 2px; }
+.job-banner code {
+  background: rgba(146, 64, 14, 0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Divergência de valor é dinheiro cobrado errado agora: pesa mais que atraso. */
+.job-banner-grave {
+  background: var(--danger-light);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.job-banner-grave code { background: rgba(220, 38, 38, 0.1); }
+
+/* Tela de cancelamento — mesma casca do cartão de assinatura. */
+.cancelar-icone { color: var(--primary); margin-bottom: 12px; }
+.cancelar-titulo { font-size: 20px; font-weight: 800; margin: 0 0 10px; color: var(--text-primary); }
+.cancelar-texto { font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin: 0 0 12px; }
+.cancelar-texto strong { color: var(--text-primary); }
+.cancelar-nota { font-size: 12.5px; line-height: 1.55; color: var(--text-light); margin: 0 0 20px; }
+
+/* Recusar não é botão secundário decorativo: é a saída, e precisa ser óbvia. */
+.cancelar-recusar {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.cancelar-recusar:hover { color: var(--text-primary); }
+.cancelar-recusar[aria-disabled='true'] { opacity: 0.5; pointer-events: none; }
+.assinatura-cancelar-link {
+  display: block;
+  text-align: center;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--text-light);
+  text-decoration: underline;
+}
+.assinatura-cancelar-link:hover { color: var(--text-secondary); }
+
+/* ==========================================================================
+   FAIXA DE AVISO — slot ÚNICO. Empilhar tarjas empurra o conteúdo para baixo e
+   faz a última deixar de ser lida; a prioridade vive em FaixaDeAviso.tsx.
+   ========================================================================== */
+.faixa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.faixa svg { flex-shrink: 0; }
+.faixa > span { flex: 1; min-width: 0; }
+.faixa code {
+  background: rgba(0, 0, 0, 0.07);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.faixa-atencao { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+/* Divergência de valor é dinheiro cobrado errado agora: pesa mais que atraso. */
+.faixa-grave { background: var(--danger-light); border: 1px solid var(--danger); color: var(--danger); }
+
+.faixa-acao {
+  flex-shrink: 0;
+  font-weight: 700;
+  text-decoration: underline;
+  color: inherit;
+  white-space: nowrap;
+}
+.faixa-dispensar {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.faixa-dispensar:hover { opacity: 1; }
+
+@media (max-width: 640px) {
+  .faixa { flex-wrap: wrap; }
+  .faixa-acao { width: 100%; }
+}

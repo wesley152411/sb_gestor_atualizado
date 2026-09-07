@@ -1,13 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { requireDecorator } from '@/lib/api-auth';
+import { requireAssinaturaAtiva } from '@/lib/api-auth';
 import { EVENT_STATUS } from '@/lib/event-status';
 
 export async function POST(request: Request) {
   try {
     // Dono do link SEMPRE da sessão — não aceitamos decoratorId do corpo.
-    const acesso = await requireDecorator();
+    const acesso = await requireAssinaturaAtiva();
     if (!acesso.ok) return acesso.response;
     const decoratorId = acesso.decoratorId;
 

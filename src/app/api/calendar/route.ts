@@ -1,11 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { requireDecorator } from '@/lib/api-auth';
+import { requireLeitura } from '@/lib/api-auth';
 
 export async function GET(request: Request) {
   try {
     // Identidade SEMPRE da sessão do servidor — ignora qualquer ?decoratorId= do cliente.
-    const acesso = await requireDecorator();
+    const acesso = await requireLeitura();
     if (!acesso.ok) return acesso.response;
     const decoratorId = acesso.decoratorId;
     const { searchParams } = new URL(request.url);

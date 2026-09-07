@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { requireDecorator } from '@/lib/api-auth';
+import { requireAssinaturaAtiva } from '@/lib/api-auth';
 
 // POST /api/orders/[id]/cancel — cancelar a locação. Assimetria imposta AQUI:
 //   • LOCADORA (dona): pode cancelar uma locação ativa a qualquer momento.
@@ -10,7 +10,7 @@ import { requireDecorator } from '@/lib/api-auth';
 // vive aqui; a RLS é backstop e é row-level, não column-level.
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const acesso = await requireDecorator();
+    const acesso = await requireAssinaturaAtiva();
     if (!acesso.ok) return acesso.response;
     const sessionId = acesso.decoratorId;
 
