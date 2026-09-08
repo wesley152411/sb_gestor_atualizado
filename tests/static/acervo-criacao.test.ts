@@ -6,12 +6,14 @@ import { RAIZ } from './grafo';
 // POR QUE ESTE TESTE EXISTE
 //
 // A tela do Acervo gravava a peça no instante em que se clicava em "Criar novo
-// item" — antes de a decoradora preencher o valor. Ao salvar, o valor ia para o
-// KIT e a peça ficava em zero: o card aparecia sem preço e parecia defeito.
-// Desistir no meio do modal também deixava a peça no acervo.
+// item" — antes de o valor ser preenchido. O valor ia depois para o KIT, a peça
+// ficava em zero, e sobravam DOIS cards: a peça sem preço e um kit de um item.
 //
-// A migração já consertou os dados (10 kits de um componente); estas provas
-// guardam o COMPORTAMENTO, que é o que faria o problema voltar.
+// A primeira correção adiou a gravação mas manteve a decisão automática ("1
+// item vira peça, 2+ vira kit"). O desenho atual tirou a adivinhação do código:
+// a decoradora escolhe "Criar item" ou "Criar kit" ANTES de preencher. Estas
+// provas guardam que a escolha continua explícita e que nada é gravado antes do
+// Salvar — as duas metades do problema original.
 
 const fonte = readFileSync(path.join(RAIZ, 'src/app/(dashboard)/inventory/page.tsx'), 'utf8');
 
@@ -25,8 +27,7 @@ function corpoDe(nome: string): string {
 
 describe('nada é gravado antes do Salvar', () => {
   it('"Criar novo item" NÃO chama saveInventoryItem', () => {
-    const corpo = corpoDe('handleCreateKitInventoryItem');
-    expect(corpo, 'gravar aqui é o bug original: a peça nasce sem o valor que ainda será digitado')
+    expect(corpoDe('handleCreateKitInventoryItem'), 'gravar aqui é o bug original')
       .not.toMatch(/saveInventoryItem/);
   });
 
@@ -36,56 +37,97 @@ describe('nada é gravado antes do Salvar', () => {
   });
 });
 
-describe('o tipo é decidido no Salvar, pela composição', () => {
-  const corpo = corpoDe('handleSaveKit');
-
-  it('um item só toma caminho diferente de vários', () => {
-    expect(corpo, 'sem esta ramificação volta a criar kit para tudo')
-      .toMatch(/linkedItems\.length === 1/);
+describe('o tipo é ESCOLHIDO, não deduzido', () => {
+  it('existe um estado de tipo do modal', () => {
+    expect(fonte).toMatch(/const \[modalTipo, setModalTipo\] = useState<'item' \| 'kit'>/);
   });
 
-  it('editar um kit existente NÃO vira peça avulsa', () => {
-    // Converter em silêncio apagaria um kit que pode estar referenciado numa
-    // locação ou num orçamento — o histórico depende dele.
-    expect(corpo).toMatch(/linkedItems\.length === 1 && !editingKitId/);
+  it('abrir a criação exige dizer o tipo', () => {
+    expect(fonte).toMatch(/handleOpenCreateModal = \(tipo: 'item' \| 'kit'\)/);
+    expect(fonte, 'o menu precisa oferecer as duas opções').toMatch(/handleOpenCreateModal\('item'\)/);
+    expect(fonte).toMatch(/handleOpenCreateModal\('kit'\)/);
   });
 
-  it('peça que já existe é avisada ANTES de ter o preço trocado', () => {
+  it('o Salvar despacha pelo TIPO, nunca pela quantidade de itens', () => {
+    const corpo = corpoDe('handleSaveKit');
+    expect(corpo).toMatch(/modalTipo === 'item' \? salvarPeca\(\) : salvarKit\(\)/);
+    expect(corpo, 'decidir por contagem é a ambiguidade que este desenho eliminou')
+      .not.toMatch(/linkedItems\.length === 1/);
+  });
+
+  it('nenhum caminho de salvamento decide o tipo por contagem', () => {
+    for (const fn of ['salvarPeca', 'salvarKit']) {
+      expect(corpoDe(fn), `${fn} não deve olhar a contagem para escolher tipo`)
+        .not.toMatch(/linkedItems\.length === 1/);
+    }
+  });
+
+  it('a seção de itens só aparece no fluxo de kit', () => {
+    // Mostrá-la ao criar uma peça era o que fazia a decoradora adicionar itens
+    // sem saber que aquilo mudaria o tipo do que estava criando.
+    expect(fonte).toMatch(/\{modalTipo === 'kit' && \(/);
+  });
+});
+
+describe('peça com nome repetido atualiza, e avisa antes', () => {
+  const corpo = corpoDe('salvarPeca');
+
+  it('procura peça existente pelo NOME antes de criar outra', () => {
+    expect(corpo, 'sem isto, salvar um nome que já existe cria o par duplicado')
+      .toMatch(/items\.find\(\(i\) => i\.name\.trim\(\)\.toLowerCase\(\) === nome\.toLowerCase\(\)\)/);
+  });
+
+  it('avisa ANTES de trocar o preço', () => {
     const aviso = corpo.indexOf('window.confirm');
     const grava = corpo.indexOf('saveInventoryItem({ ...existente');
     expect(aviso, 'sem confirmação, o preço muda em silêncio').toBeGreaterThan(-1);
-    expect(grava, 'o caminho da peça existente deveria gravar').toBeGreaterThan(-1);
+    expect(grava).toBeGreaterThan(-1);
     expect(aviso, 'o aviso precisa vir ANTES da gravação').toBeLessThan(grava);
   });
 
-  it('o aviso mostra os DOIS valores, não só o novo', () => {
-    expect(corpo).toMatch(/será atualizado de \$\{formatPriceLabel\(de\)\} para \$\{formatCurrency\(parsedValue\)\}/);
+  it('o aviso mostra os DOIS valores', () => {
+    expect(corpo).toMatch(/de \$\{formatPriceLabel\(de\)\} para \$\{formatCurrency\(valor\)\}/);
   });
 });
 
 describe('o kit continua referenciando peças reais', () => {
-  const corpo = corpoDe('handleSaveKit');
+  const corpo = corpoDe('salvarKit');
 
   it('as peças pendentes são criadas ANTES do kit', () => {
-    // O kit guarda ids; a locação B2B expande o kit em demanda POR PEÇA. Um id
+    // O kit guarda ids; a locação B2B expande o kit em demanda POR PEÇA. Id
     // temporário gravado no kit sairia do controle de estoque e deixaria alugar
     // duas vezes a mesma peça física.
     const criaPecas = corpo.indexOf('idsFinais.set');
-    const criaKit = corpo.indexOf('saveKit(kitData)');
+    const criaKit = corpo.indexOf('saveKit(');
     expect(criaPecas).toBeGreaterThan(-1);
     expect(criaKit).toBeGreaterThan(-1);
     expect(criaPecas, 'criar o kit antes das peças gravaria id temporário').toBeLessThan(criaKit);
   });
 
   it('nenhum id temporário chega ao kit', () => {
-    expect(corpo, 'o id pendente tem de ser trocado pelo real na composição')
-      .toMatch(/idsFinais\.get\(i\.id\) \?\? i\.id/);
+    expect(corpo).toMatch(/idsFinais\.get\(i\.id\) \?\? i\.id/);
   });
 
   it('peça criada dentro de um kit nasce sem preço próprio', () => {
-    // Num kit o valor é do CONJUNTO. Preço individual inventado apareceria na
-    // aba de peças avulsas como se a peça fosse vendável sozinha por aquilo.
-    const trecho = corpo.slice(corpo.indexOf('const idsFinais'));
-    expect(trecho).toMatch(/rental_price: 0/);
+    // Num kit o valor é do CONJUNTO; a decoradora define o das peças depois.
+    expect(corpo).toMatch(/rental_price: 0/);
+  });
+});
+
+describe('grid de cartões não estica quando há poucos', () => {
+  const css = readFileSync(path.join(RAIZ, 'src/app/globals.css'), 'utf8');
+
+  it('lista de tamanho variável usa auto-FILL', () => {
+    // auto-fit colapsa as trilhas vazias: um kit sozinho esticava para a largura
+    // inteira da tela — pior que o problema que a conversão veio resolver.
+    const bloco = css.slice(css.indexOf('.acervo-product-grid {'));
+    expect(bloco.slice(0, 200)).toMatch(/repeat\(auto-fill, minmax\(260px, 1fr\)\)/);
+  });
+
+  it('linha de contagem fixa segue com auto-FIT', () => {
+    // Com auto-fill, um painel largo criaria uma trilha vazia e deixaria os
+    // campos do formulário estreitos com um buraco à direita.
+    const bloco = css.slice(css.indexOf('.grid-3 {'));
+    expect(bloco.slice(0, 200)).toMatch(/repeat\(auto-fit, minmax\(190px, 1fr\)\)/);
   });
 });
