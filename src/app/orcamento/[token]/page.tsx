@@ -10,6 +10,10 @@ import { Logo } from '@/components/ui/Logo';
 import { formatCurrency, whatsappUrl, isValidBrPhone, sanitizePhoneDigits } from '@/lib/utils';
 import { EVENT_STATUS } from '@/lib/event-status';
 import type { QuoteLinkData } from '@/types';
+import {
+  camposFaltando, cepValido, ufValida, mascararCep, buscarCep, formatarEndereco, ROTULO,
+  type CampoEndereco,
+} from '@/lib/endereco';
 
 export default function PublicQuotePage() {
   const params = useParams<{ token: string }>();
@@ -24,9 +28,22 @@ export default function PublicQuotePage() {
 
   const [form, setForm] = useState({
     name: '', phone: '', email: '', cpf: '', address: '',
+    cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '',
     event_date: '', setup_time: '', start_time: '', observation: '',
   });
   const phoneRef = useRef<HTMLInputElement>(null);
+  // Um ref por campo de endereço: a validação leva o foco ao PRIMEIRO inválido,
+  // no mesmo padrão do telefone.
+  const refsEndereco: Record<CampoEndereco, React.RefObject<HTMLInputElement | null>> = {
+    cep: useRef<HTMLInputElement>(null),
+    logradouro: useRef<HTMLInputElement>(null),
+    numero: useRef<HTMLInputElement>(null),
+    bairro: useRef<HTMLInputElement>(null),
+    cidade: useRef<HTMLInputElement>(null),
+    estado: useRef<HTMLInputElement>(null),
+  };
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [avisoCep, setAvisoCep] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -44,6 +61,13 @@ export default function PublicQuotePage() {
           email: data.email || '',
           cpf: data.cpf || '',
           address: data.address || '',
+          cep: data.cep || '',
+          logradouro: data.logradouro || '',
+          numero: data.numero || '',
+          complemento: data.complemento || '',
+          bairro: data.bairro || '',
+          cidade: data.cidade || '',
+          estado: data.estado || '',
           event_date: data.event_date || '',
           setup_time: data.setup_time || '',
           start_time: data.start_time || '',
@@ -58,6 +82,36 @@ export default function PublicQuotePage() {
     load();
   }, [token]);
 
+  // CEP: mascara a cada tecla e, com os 8 dígitos, consulta o ViaCEP.
+  //
+  // PREENCHE, NUNCA TRAVA. Os campos seguem editáveis: CEP de rua inteira não
+  // traz número, CEP genérico pode não trazer bairro, e a base pública erra. Um
+  // CEP sem retorno vira aviso, não impedimento — a decoradora digita à mão.
+  const handleCep = async (bruto: string) => {
+    const cep = mascararCep(bruto);
+    setForm((f) => ({ ...f, cep }));
+    setAvisoCep('');
+    if (!cepValido(cep)) return;
+
+    setBuscandoCep(true);
+    const achado = await buscarCep(cep);
+    setBuscandoCep(false);
+    if (!achado) {
+      setAvisoCep('Não encontramos este CEP. Você pode preencher o endereço à mão.');
+      return;
+    }
+    // Só preenche o que veio E o que ainda está vazio: se a decoradora já
+    // corrigiu um campo, a busca não desfaz a correção dela.
+    setForm((f) => ({
+      ...f,
+      logradouro: f.logradouro.trim() || achado.logradouro,
+      bairro: f.bairro.trim() || achado.bairro,
+      cidade: f.cidade.trim() || achado.cidade,
+      estado: f.estado.trim() || achado.estado,
+    }));
+    refsEndereco.numero.current?.focus();
+  };
+
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.event_date) {
       setErrorMsg('Preencha seu nome e a data do evento.');
@@ -68,6 +122,26 @@ export default function PublicQuotePage() {
       phoneRef.current?.focus();
       return;
     }
+    // ENDEREÇO: mensagem específica por campo e foco no PRIMEIRO inválido —
+    // mesmo padrão do telefone. Uma mensagem genérica obrigaria a decoradora a
+    // caçar qual dos seis está vazio.
+    const faltando = camposFaltando(form);
+    if (faltando.length) {
+      const campo = faltando[0];
+      setErrorMsg(`Preencha ${ROTULO[campo]} no endereço da montagem.`);
+      refsEndereco[campo].current?.focus();
+      return;
+    }
+    if (!cepValido(form.cep)) {
+      setErrorMsg('CEP incompleto. Use o formato 00000-000.');
+      refsEndereco.cep.current?.focus();
+      return;
+    }
+    if (!ufValida(form.estado)) {
+      setErrorMsg('Estado deve ser a sigla de duas letras, como MG.');
+      refsEndereco.estado.current?.focus();
+      return;
+    }
     setErrorMsg('');
     setIsSaving(true);
     try {
@@ -75,7 +149,7 @@ export default function PublicQuotePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Telefone salvo NORMALIZADO (só dígitos) — a normalização já existe.
-        body: JSON.stringify({ ...form, phone: sanitizePhoneDigits(form.phone) }),
+        body: JSON.stringify({ ...form, phone: sanitizePhoneDigits(form.phone), estado: form.estado.toUpperCase() }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -203,7 +277,7 @@ export default function PublicQuotePage() {
             <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 14, padding: 18 }}>
               <ReadRow label="Nome" value={form.name} />
               <ReadRow label="Telefone" value={form.phone} />
-              <ReadRow label="Endereço" value={form.address} />
+              <ReadRow label="Endereço" value={formatarEndereco(form)} />
               <ReadRow label="Data do evento" value={form.event_date} />
               <ReadRow label="Horário de chegada" value={form.setup_time} />
               <ReadRow label="Horário de início" value={form.start_time} />
@@ -234,8 +308,72 @@ export default function PublicQuotePage() {
             </div>
 
             <SectionTitle>Informações de montagem</SectionTitle>
-            <div style={{ marginBottom: 16 }}>
-              <Input label="Endereço da montagem" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Rua, número, bairro, cidade" />
+            <div className="quote-grid-2" style={{ marginBottom: 8 }}>
+              <Input
+                ref={refsEndereco.cep}
+                label="CEP"
+                value={form.cep}
+                onChange={(e) => handleCep(e.target.value)}
+                placeholder="00000-000"
+                inputMode="numeric"
+                required
+              />
+              <Input
+                ref={refsEndereco.logradouro}
+                label="Rua"
+                value={form.logradouro}
+                onChange={(e) => setForm({ ...form, logradouro: e.target.value })}
+                placeholder="Rua Ceará"
+                required
+              />
+            </div>
+            {(buscandoCep || avisoCep) && (
+              <p style={{ fontSize: 13, marginTop: -4, marginBottom: 12, color: avisoCep ? '#b45309' : 'var(--text-secondary)' }}>
+                {buscandoCep ? 'Buscando endereço pelo CEP…' : avisoCep}
+              </p>
+            )}
+            <div className="quote-grid-2" style={{ marginBottom: 8 }}>
+              <Input
+                ref={refsEndereco.numero}
+                label="Número"
+                value={form.numero}
+                onChange={(e) => setForm({ ...form, numero: e.target.value })}
+                placeholder="407"
+                required
+              />
+              <Input
+                label="Complemento (opcional)"
+                value={form.complemento}
+                onChange={(e) => setForm({ ...form, complemento: e.target.value })}
+                placeholder="Apto 2, fundos"
+              />
+            </div>
+            <div className="quote-grid-3" style={{ marginBottom: 24 }}>
+              <Input
+                ref={refsEndereco.bairro}
+                label="Bairro"
+                value={form.bairro}
+                onChange={(e) => setForm({ ...form, bairro: e.target.value })}
+                placeholder="Célvia"
+                required
+              />
+              <Input
+                ref={refsEndereco.cidade}
+                label="Cidade"
+                value={form.cidade}
+                onChange={(e) => setForm({ ...form, cidade: e.target.value })}
+                placeholder="Vespasiano"
+                required
+              />
+              <Input
+                ref={refsEndereco.estado}
+                label="Estado"
+                value={form.estado}
+                onChange={(e) => setForm({ ...form, estado: e.target.value.toUpperCase().slice(0, 2) })}
+                placeholder="MG"
+                maxLength={2}
+                required
+              />
             </div>
             <div className="quote-grid-3" style={{ marginBottom: 28 }}>
               {/* lang="pt-BR" e step=60: pedem ao navegador o formato brasileiro
