@@ -13,6 +13,7 @@ import { promoWhatsappEnabled, captchaEnabled } from '@/lib/feature-flags';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
 import { useAssinatura } from '@/components/providers/AssinaturaProvider';
+import { PublicLegalFooter } from '@/components/legal/PublicLegalFooter';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import type { Decorator } from '@/types';
@@ -387,6 +388,13 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Os documentos legais ficam SÓ aqui dentro do app. Repetir os links no
+          rodapé de toda tela era ruído: quem já está logada aceitou no cadastro,
+          e um link que aparece em tudo deixa de ser lido. Nas telas PÚBLICAS
+          (login, cadastro, recuperação e o formulário de orçamento que a cliente
+          final abre) eles continuam, porque ali são o único acesso. */}
+      <PublicLegalFooter />
 
       {/* Modal de redefinição de senha — substitui o prompt(), comporta o captcha */}
       <Modal
