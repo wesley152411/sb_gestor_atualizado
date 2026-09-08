@@ -10,6 +10,18 @@
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 
+
+// Primeira linha NAO VAZIA da mensagem de erro.
+//
+// Pegar a linha 0 parecia bastar e falhava calado: erro do Prisma comeca COM
+// uma quebra de linha, entao a linha 0 e "" e o script imprimia "ERRO:" sem
+// nada. Ja custou duas investigacoes neste projeto — uma delas com uma
+// transacao de producao revertida e nenhuma pista do motivo.
+function primeiraLinha(erro) {
+  const texto = String(erro && erro.message ? erro.message : erro);
+  const linha = texto.split(String.fromCharCode(10)).map((s) => s.trim()).filter(Boolean)[0];
+  return linha || '(erro sem mensagem)';
+}
 const args = process.argv.slice(2);
 const envMode = (args.find((a) => a.startsWith('--env=')) || '--env=test').split('=')[1];
 const expectRef = (args.find((a) => a.startsWith('--expect-ref=')) || '').split('=')[1];
@@ -65,7 +77,7 @@ let target = '(?)'; try { const u = new URL(url); target = `host=${u.hostname} u
     const deleted = await p.$executeRawUnsafe(`DELETE FROM auth.users WHERE ${where}`);
     console.log(`\n✅ removidas ${deleted} contas não confirmadas.`);
   } catch (e) {
-    console.error('ERRO:', String(e && e.message ? e.message : e).split('\n')[0]);
+    console.error('ERRO:', primeiraLinha(e));
     process.exitCode = 1;
   } finally {
     await p.$disconnect();

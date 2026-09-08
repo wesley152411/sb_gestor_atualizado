@@ -23,6 +23,18 @@ const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const { createClient } = require('@supabase/supabase-js');
 
+
+// Primeira linha NAO VAZIA da mensagem de erro.
+//
+// Pegar a linha 0 parecia bastar e falhava calado: erro do Prisma comeca COM
+// uma quebra de linha, entao a linha 0 e "" e o script imprimia "ERRO:" sem
+// nada. Ja custou duas investigacoes neste projeto — uma delas com uma
+// transacao de producao revertida e nenhuma pista do motivo.
+function primeiraLinha(erro) {
+  const texto = String(erro && erro.message ? erro.message : erro);
+  const linha = texto.split(String.fromCharCode(10)).map((s) => s.trim()).filter(Boolean)[0];
+  return linha || '(erro sem mensagem)';
+}
 // Comprovante da exclusão — gravado FORA do repo, junto dos backups
 // (~/sbgestor-backups/deletions/). Prova, se alguém questionar depois, o que foi
 // apagado em cada camada, com data/hora. Só é escrito em --apply (exclusão real).
@@ -163,7 +175,7 @@ async function listStorage(admin, id) {
       receipt.status = 'OK';
     } catch (stepErr) {
       receipt.status = 'FALHA';
-      receipt.error = String(stepErr && stepErr.message ? stepErr.message : stepErr).split('\n')[0];
+      receipt.error = primeiraLinha(stepErr);
       const rf = writeReceipt(receipt);
       console.error(`\n🛑 exclusão INCOMPLETA — comprovante (parcial) em: ${rf}`);
       throw stepErr;
