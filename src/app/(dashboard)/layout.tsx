@@ -4,7 +4,6 @@ import { FaixaDeAviso } from '@/components/layout/FaixaDeAviso';
 import { AssinaturaProvider } from '@/components/providers/AssinaturaProvider';
 import { AssinaturaGate } from '@/components/providers/AssinaturaGate';
 import { AuthProvider } from '@/components/providers/AuthProvider';
-import { PublicLegalFooter } from '@/components/legal/PublicLegalFooter';
 
 export default function DashboardLayout({
   children,
@@ -25,7 +24,6 @@ export default function DashboardLayout({
               {/* UM slot de faixa. A prioridade está em FaixaDeAviso. */}
               <FaixaDeAviso />
               {children}
-              <PublicLegalFooter />
             </div>
           </main>
         </div>

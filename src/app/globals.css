@@ -1504,7 +1504,7 @@ img { max-width: 100%; display: block; }
 
 .mypage-stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin: 32px 0;
 }
@@ -1522,7 +1522,7 @@ img { max-width: 100%; display: block; }
 
 .mypage-contact-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -1724,8 +1724,6 @@ img { max-width: 100%; display: block; }
   .chat-layout { grid-template-columns: 1fr; height: auto; }
   .party-form-layout { grid-template-columns: 1fr; }
   .charts-grid { grid-template-columns: 1fr; }
-  .mypage-stats-row { grid-template-columns: repeat(2, 1fr); }
-  .mypage-contact-row { grid-template-columns: 1fr; }
   .kit-modal-body { grid-template-columns: 1fr; }
 }
 
@@ -1768,7 +1766,7 @@ img { max-width: 100%; display: block; }
 /* Stats Grid */
 .acervo-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 20px;
   margin-bottom: 28px;
 }
@@ -1949,7 +1947,7 @@ img { max-width: 100%; display: block; }
 /* Product Grid */
 .acervo-product-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 24px;
 }
 
@@ -2181,8 +2179,6 @@ img { max-width: 100%; display: block; }
 
 /* ===== ACERVO RESPONSIVE ===== */
 @media (max-width: 1024px) {
-  .acervo-stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .acervo-product-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -2192,8 +2188,6 @@ img { max-width: 100%; display: block; }
 }
 
 @media (max-width: 640px) {
-  .acervo-stats-grid { grid-template-columns: 1fr; }
-  .acervo-product-grid { grid-template-columns: 1fr; }
   .acervo-stat-value { font-size: 24px; }
   .acervo-title { font-size: 22px; }
 }
@@ -2215,15 +2209,34 @@ img { max-width: 100%; display: block; }
   padding-left: 40px !important;
 }
 
+/* GRIDS DE CONTEÚDO — dimensionamento INTRÍNSECO, não por media query.
+   
+   O bug que isto conserta: media query mede a JANELA, mas o conteúdo do app vive
+   324px mais estreito (sidebar 260 + padding 32*2). Em 1366x768 a 100% de zoom a
+   janela tem 1366px e o conteúdo, 1042px — a query de 1024px não dispara, e um
+   `repeat(3, 1fr)` dentro do painel esquerdo do Formulário virava colunas de
+   160px. "Horário de Chegada (Montagem)" precisa de ~190px numa linha, quebrava
+   em duas e desalinhava os campos ao lado. A 90% de zoom a janela CSS vira
+   1518px, a coluna vai a 188px e o problema some — era essa a pista.
+   
+   Corrigir o número da media query não serve: o deslocamento não é constante.
+   Com o menu recolhido a sidebar tem 84px, e o conteúdo fica 176px MAIS LARGO.
+   Qualquer limiar fixo erra num dos dois estados.
+   
+   auto-fit + minmax não pergunta nada a ninguém: cada grid usa o espaço que
+   REALMENTE tem, seja qual for o zoom, o menu ou o aninhamento. Container query
+   resolveria também, mas exige `container-type`, que torna o elemento bloco
+   contenedor de `position: fixed` — e o Modal deste projeto é fixed sem portal,
+   então todo modal do app passaria a se posicionar dentro do container. */
 .grid-2 {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
 .grid-3 {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 16px;
 }
 
@@ -2712,7 +2725,7 @@ img { max-width: 100%; display: block; }
 /* Stats Row */
 .mypage-stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
 }
