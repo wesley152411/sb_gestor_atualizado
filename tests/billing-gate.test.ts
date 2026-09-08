@@ -154,6 +154,11 @@ describe('a cliente final da decoradora', () => {
     const token = await criarLinkDeOrcamento(SUSPENSA);
     const r = await post(`/api/public/quote/${token}`, null, {
       name: 'Cliente Final', phone: '11988887777', event_date: '2026-12-20',
+      // Endereço da montagem virou obrigatório (seis campos). A regra que este
+      // teste guarda continua sendo outra — a cliente consegue enviar mesmo com
+      // a assinatura da decoradora suspensa —, mas o corpo precisa ser válido.
+      cep: '33200-610', logradouro: 'Rua Ceará', numero: '407',
+      bairro: 'Célvia', cidade: 'Vespasiano', estado: 'MG',
     });
     expect(r.status, 'abrir sem poder responder deixaria a cliente no meio do caminho').toBeLessThan(300);
 
@@ -161,5 +166,37 @@ describe('a cliente final da decoradora', () => {
     // atendida de ponta a ponta, apesar de a assinatura estar vencida.
     const evento = await prisma.partyEvent.findUnique({ where: { public_token: token } });
     expect(evento?.client_name).toBe('Cliente Final');
+    // Os seis campos chegaram ESTRUTURADOS, não amassados num texto só.
+    expect(evento?.cep).toBe('33200-610');
+    expect(evento?.cidade).toBe('Vespasiano');
+  });
+
+  // O backstop de servidor do endereço. Mora aqui porque é onde vive o helper
+  // que cria link de orçamento; a regra em si não é de cobrança.
+  it('o servidor recusa endereço incompleto — a tela não é a única barreira', async () => {
+    const token = await criarLinkDeOrcamento(SUSPENSA);
+    const r = await post(`/api/public/quote/${token}`, null, {
+      name: 'Sem Endereco', phone: '11988887777', event_date: '2026-12-20',
+      cep: '33200-610', logradouro: 'Rua Ceará', // faltam número, bairro, cidade e estado
+    });
+    expect(r.status, 'um POST direto não passa pelo formulário').toBe(400);
+    const corpo = await r.json();
+    expect(corpo.campos, 'a resposta diz QUAIS campos faltam').toEqual(
+      expect.arrayContaining(['numero', 'bairro', 'cidade', 'estado']),
+    );
+    // E nada foi gravado pela metade.
+    const evento = await prisma.partyEvent.findUnique({ where: { public_token: token } });
+    expect(evento?.client_name).not.toBe('Sem Endereco');
+  });
+
+  it('CEP fora do formato do banco é recusado com mensagem, não com erro cru', async () => {
+    const token = await criarLinkDeOrcamento(SUSPENSA);
+    const r = await post(`/api/public/quote/${token}`, null, {
+      name: 'Cep Ruim', phone: '11988887777', event_date: '2026-12-20',
+      cep: '33200610', logradouro: 'Rua Ceará', numero: '407',
+      bairro: 'Célvia', cidade: 'Vespasiano', estado: 'MG',
+    });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error, 'sem isto o Postgres recusaria com erro cru').toMatch(/CEP/i);
   });
 });

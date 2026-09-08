@@ -225,8 +225,19 @@ describe('Isolamento — link de orçamento público (/api/public/quote)', () =>
     // A decoradora só expõe nome + whatsapp.
     expect(Object.keys(pub.decorator).sort()).toEqual(['name', 'whatsapp']);
     // Top-level restrito ao contrato — nada de clients/events/acervo.
-    const allowedTop = ['token', 'status', 'decorator', 'card', 'client_name', 'phone', 'address', 'event_date', 'setup_time', 'start_time', 'observation'];
-    expect(Object.keys(pub).every((k) => allowedTop.includes(k))).toBe(true);
+    //
+    // Esta lista é DELIBERADA: cada campo novo no payload público precisa ser
+    // acrescentado aqui à mão, e é o que impede um `select` largo demais de
+    // vazar sem ninguém notar. Os sete de endereço entraram junto com a
+    // estruturação — são o endereço que a própria cliente digita, e ela precisa
+    // vê-los de volta ao reabrir o link.
+    const allowedTop = [
+      'token', 'status', 'decorator', 'card', 'client_name', 'phone', 'address',
+      'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'estado',
+      'event_date', 'setup_time', 'start_time', 'observation',
+    ];
+    const inesperados = Object.keys(pub).filter((k) => !allowedTop.includes(k));
+    expect(inesperados, `campo(s) fora do contrato público: ${inesperados.join(', ')}`).toEqual([]);
     // Nunca vaza e-mail de login nem custo interno.
     const raw = JSON.stringify(pub);
     expect(raw).not.toContain('internal_cost');
