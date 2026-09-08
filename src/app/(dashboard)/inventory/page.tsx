@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Plus, Search, SlidersHorizontal, Package, LayoutGrid,
   DollarSign, TrendingUp, Pencil, Trash2, ImageIcon, ShoppingCart, Check
@@ -85,6 +85,12 @@ export default function InventoryPage() {
 
   // Create Kit Modal
   const [isKitModalOpen, setIsKitModalOpen] = useState(false);
+  // O QUE o modal está criando/editando. Antes isto era ADIVINHADO no Salvar,
+  // pela quantidade de itens na lista; agora a decoradora escolhe antes, e o
+  // código não precisa deduzir. Menos esperto e sem ambiguidade.
+  const [modalTipo, setModalTipo] = useState<'item' | 'kit'>('kit');
+  const [menuAdicionarAberto, setMenuAdicionarAberto] = useState(false);
+  const menuAdicionarRef = useRef<HTMLDivElement>(null);
   const [kitName, setKitName] = useState('');
   const [kitDescription, setKitDescription] = useState('');
   const [kitValue, setKitValue] = useState('');
@@ -101,6 +107,21 @@ export default function InventoryPage() {
   // Quando setado, o modal unificado está editando uma Peça Avulsa (InventoryItem)
   // em vez de um Kit — o salvar faz UPDATE da peça, não INSERT de kit.
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+
+  // Menu que não fecha ao clicar fora vira menu preso na tela.
+  useEffect(() => {
+    if (!menuAdicionarAberto) return;
+    const foraOuEsc = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent) { if (e.key === 'Escape') setMenuAdicionarAberto(false); return; }
+      if (!menuAdicionarRef.current?.contains(e.target as Node)) setMenuAdicionarAberto(false);
+    };
+    document.addEventListener('mousedown', foraOuEsc);
+    document.addEventListener('keydown', foraOuEsc);
+    return () => {
+      document.removeEventListener('mousedown', foraOuEsc);
+      document.removeEventListener('keydown', foraOuEsc);
+    };
+  }, [menuAdicionarAberto]);
 
   // Helper to count total pieces in a kit
   const getKitTotalPieces = (kit: Kit) => {
@@ -127,6 +148,7 @@ export default function InventoryPage() {
     setCoverImageUrl(item.image_url || '');
     setLinkedItems([]);
     setKitSearchQuery('');
+    setModalTipo('item');
     setEditingKitId(null);
     setEditingItem(item);
     setEditingItemId(item.id);
@@ -150,8 +172,10 @@ export default function InventoryPage() {
     }
   };
 
-  // Kit Modal Actions
-  const handleOpenKitModal = () => {
+  // Abre o modal de CRIAÇÃO já sabendo o que vai ser criado.
+  const handleOpenCreateModal = (tipo: 'item' | 'kit') => {
+    setModalTipo(tipo);
+    setMenuAdicionarAberto(false);
     setKitName('');
     setKitDescription('');
     setKitValue('');
@@ -185,6 +209,7 @@ export default function InventoryPage() {
     setLinkedItems(mappedItems);
     
     setKitSearchQuery('');
+    setModalTipo('kit');
     setEditingKitId(kit.id);
     setKitValueError(false);
     setIsKitModalOpen(true);
@@ -292,132 +317,111 @@ export default function InventoryPage() {
     setKitSearchQuery('');
   };
 
-  const handleSaveKit = async () => {
-    if (!decorator) return;
-    if (!kitName.trim()) {
-      alert('O Nome da Decoração é obrigatório.');
-      return;
-    }
+  // Valor do modal em reais, ou null quando vazio. Um lugar só para a conversão.
+  const valorDoModal = () => (kitValue.trim() !== '' ? Number(kitValue.replace(/\D/g, '')) / 100 : null);
 
-    // Modo edição de Peça Avulsa: faz UPDATE do InventoryItem existente
-    // (preservando campos não expostos no modal), em vez de criar um Kit.
+  // ---------------------------------------------------------------------------
+  // SALVAR: dois caminhos separados, escolhidos pelo BOTÃO, não deduzidos da
+  // lista. A regra antiga ("1 item vira peça, 2+ vira kit") não existe mais —
+  // ela obrigava a adivinhar a intenção e produzia o caso ambíguo de uma peça
+  // só, que ninguém sabia dizer se era peça ou kit de um item.
+  // ---------------------------------------------------------------------------
+
+  const salvarPeca = async () => {
+    if (!decorator) return;
+    const valor = valorDoModal();
+    if (!valor || valor <= 0) { setKitValueError(true); return; }
+    const nome = kitName.trim();
+
+    // EDIÇÃO de peça existente: preserva os campos que o modal não expõe.
     if (editingItemId) {
       try {
-        // "Valor (opcional)" mapeia para o preço de locação da peça.
-        const parsedPrice = kitValue.trim() !== ''
-          ? Number(kitValue.replace(/\D/g, '')) / 100
-          : (editingItem.rental_price ?? 0);
-        const updatedItem = {
+        await saveInventoryItem({
           ...editingItem,
           id: editingItemId,
           decorator_id: decorator.id,
-          name: kitName.trim(),
+          name: nome,
           description: kitDescription.trim(),
           image_url: coverImageUrl || '',
-          rental_price: parsedPrice,
-        } as InventoryItem;
-        await saveInventoryItem(updatedItem);
-        addNotification('Peça Salva', `A peça "${updatedItem.name}" foi atualizada com sucesso.`);
-        setIsKitModalOpen(false);
-        mutateItems();
+          rental_price: valor,
+        } as InventoryItem);
+        addNotification('Peça Salva', `A peça "${nome}" foi atualizada.`);
       } catch (err) {
         console.error('Falha ao atualizar peça:', err);
         addNotification('Erro ao Salvar', 'Não foi possível atualizar a peça.', true);
+        return;
       }
-      return;
-    }
-
-    const parsedValue = kitValue.trim() !== ''
-      ? Number(kitValue.replace(/\D/g, '')) / 100
-      : null;
-
-    // Valor OBRIGATÓRIO (> 0), seja peça ou kit. Validação ON SUBMIT: marca o
-    // erro e não salva. O vermelho some sozinho quando um valor > 0 é digitado.
-    if (!parsedValue || parsedValue <= 0) {
-      setKitValueError(true);
-      return;
-    }
-
-    if (!linkedItems.length) {
-      alert('Adicione pelo menos um item.');
-      return;
-    }
-
-    // O TIPO É DECIDIDO AQUI, PELA COMPOSIÇÃO — não por um botão apertado antes.
-    //
-    //   1 item  -> peça avulsa, com o valor NA PEÇA
-    //   2+      -> kit, com o valor NO KIT e as peças como composição
-    //
-    // Editar um kit existente NÃO muda de tipo: reduzir a lista para um item
-    // dentro da edição continua sendo o mesmo kit. Converter em silêncio apagaria
-    // um registro que já pode estar referenciado numa locação ou num orçamento.
-    if (linkedItems.length === 1 && !editingKitId) {
-      const unico = linkedItems[0];
-
-      if (ehPendente(unico.id)) {
-        // PEÇA NOVA. O nome vem do campo do modal (obrigatório), não do texto da
-        // busca: é ele que a decoradora entende como o nome do que está criando.
-        // E a capa vai PARA A PEÇA — sem kit, não há outro lugar para ela.
-        try {
-          await saveInventoryItem({
-            id: '',
-            decorator_id: decorator.id,
-            name: kitName.trim(),
-            description: kitDescription.trim(),
-            image_url: coverImageUrl || '',
-            status: 'Privado',
-            stock_quantity: unico.quantity,
-            rental_price: parsedValue,
-            internal_cost: 0,
-          } as InventoryItem);
-          addNotification('Peça Criada', `A peça "${kitName.trim()}" foi criada com valor.`);
-        } catch (err) {
-          console.error('Falha ao criar peça avulsa:', err);
-          addNotification('Erro ao Salvar', 'Não foi possível criar a peça.', true);
-          return;
-        }
-      } else {
-        // PEÇA QUE JÁ EXISTE. O gesto é "quero ajustar o valor desta peça", mas
-        // mudar preço em silêncio é o tipo de coisa que se descobre errado
-        // depois — então avisa antes, com os dois valores na tela.
-        const existente = items.find((i) => i.id === unico.id);
-        if (!existente) {
-          addNotification('Peça não encontrada', 'Atualize a página e tente de novo.', true);
-          return;
-        }
-        const de = Number(existente.rental_price ?? 0);
-        if (de !== parsedValue) {
-          const confirmou = window.confirm(
-            [
-              'Esta peça já existe no seu acervo.',
-              '',
-              `O valor de "${existente.name}" será atualizado de ${formatPriceLabel(de)} para ${formatCurrency(parsedValue)}.`,
-            ].join(String.fromCharCode(10)),
-          );
-          if (!confirmou) return;
-        }
-        try {
-          // SÓ o preço. O aviso prometeu isso e mais nada — renomear ou trocar a
-          // foto por tabela seria pior que a mudança de valor.
-          await saveInventoryItem({ ...existente, rental_price: parsedValue });
-          addNotification('Valor Atualizado', `"${existente.name}" agora vale ${formatCurrency(parsedValue)}.`);
-        } catch (err) {
-          console.error('Falha ao atualizar peça:', err);
-          addNotification('Erro ao Salvar', 'Não foi possível atualizar a peça.', true);
-          return;
-        }
-      }
-
       setIsKitModalOpen(false);
       setActiveTab('items');
       mutateItems();
       return;
     }
 
-    // KIT. As peças pendentes precisam virar linhas de verdade ANTES do kit,
-    // porque o kit as REFERENCIA por id — é assim que a locação B2B expande o
-    // kit em demanda por peça e não aluga a mesma peça física duas vezes.
-    // Nascem com preço ZERO de propósito: num kit, o valor é do conjunto.
+    // CRIAÇÃO. Se já existe peça com este nome, o gesto é ajustar o valor dela —
+    // criar uma segunda com o mesmo nome só produz o par duplicado que a
+    // decoradora não sabe distinguir. Mas trocar preço em silêncio é o que se
+    // descobre errado depois, então avisa com os dois valores na tela.
+    const existente = items.find((i) => i.name.trim().toLowerCase() === nome.toLowerCase());
+    if (existente) {
+      const de = Number(existente.rental_price ?? 0);
+      if (de !== valor) {
+        const confirmou = window.confirm(
+          [
+            'Esta peça já existe no seu acervo.',
+            '',
+            `O valor de "${existente.name}" será atualizado de ${formatPriceLabel(de)} para ${formatCurrency(valor)}.`,
+          ].join(String.fromCharCode(10)),
+        );
+        if (!confirmou) return;
+      }
+      try {
+        // SÓ o preço: o aviso prometeu isso e mais nada.
+        await saveInventoryItem({ ...existente, rental_price: valor });
+        addNotification('Valor Atualizado', `"${existente.name}" agora vale ${formatCurrency(valor)}.`);
+      } catch (err) {
+        console.error('Falha ao atualizar peça:', err);
+        addNotification('Erro ao Salvar', 'Não foi possível atualizar a peça.', true);
+        return;
+      }
+    } else {
+      try {
+        await saveInventoryItem({
+          id: '',
+          decorator_id: decorator.id,
+          name: nome,
+          description: kitDescription.trim(),
+          image_url: coverImageUrl || '',
+          status: 'Privado',
+          stock_quantity: 1,
+          rental_price: valor,
+          internal_cost: 0,
+        } as InventoryItem);
+        addNotification('Peça Criada', `A peça "${nome}" foi criada com valor.`);
+      } catch (err) {
+        console.error('Falha ao criar peça:', err);
+        addNotification('Erro ao Salvar', 'Não foi possível criar a peça.', true);
+        return;
+      }
+    }
+
+    setIsKitModalOpen(false);
+    setActiveTab('items');
+    mutateItems();
+  };
+
+  const salvarKit = async () => {
+    if (!decorator) return;
+    const valor = valorDoModal();
+    if (!valor || valor <= 0) { setKitValueError(true); return; }
+    if (!linkedItems.length) {
+      alert('Adicione pelo menos um item ao kit.');
+      return;
+    }
+
+    // As peças pendentes viram linhas ANTES do kit, porque o kit as REFERENCIA
+    // por id — é assim que a locação B2B expande o kit em demanda por peça e não
+    // aluga duas vezes a mesma peça física. Nascem SEM preço próprio: num kit o
+    // valor é do conjunto, e a decoradora define o das peças depois, uma a uma.
     const idsFinais = new Map<string, string>();
     try {
       for (const li of linkedItems.filter((i) => ehPendente(i.id))) {
@@ -440,36 +444,43 @@ export default function InventoryPage() {
       return;
     }
 
-    const kitData: Partial<Kit> = {
-      id: editingKitId || undefined,
-      decorator_id: decorator.id,
-      name: kitName.trim(),
-      description: kitDescription.trim(),
-      image_url: coverImageUrl || '',
-      value: parsedValue,
-      items: linkedItems.map((i) => ({
-        id: idsFinais.get(i.id) ?? i.id,
-        name: i.name,
-        quantity: i.quantity,
-      })),
-    };
-
-    // A capa NÃO é sincronizada para as peças: ela é do kit. Trocar a capa nunca
-    // altera peça nenhuma, e peça com foto própria fica intacta.
+    // A capa é do KIT e não é copiada para as peças: trocar a capa nunca altera
+    // peça nenhuma, e peça com foto própria fica intacta.
     try {
-      await saveKit(kitData);
+      await saveKit({
+        id: editingKitId || undefined,
+        decorator_id: decorator.id,
+        name: kitName.trim(),
+        description: kitDescription.trim(),
+        image_url: coverImageUrl || '',
+        value: valor,
+        items: linkedItems.map((i) => ({
+          id: idsFinais.get(i.id) ?? i.id,
+          name: i.name,
+          quantity: i.quantity,
+        })),
+      });
     } catch (err) {
       console.error('Falha ao salvar o kit:', err);
       addNotification('Erro ao Salvar', 'As peças foram criadas, mas o kit não. Tente salvar de novo.', true);
       return;
     }
-    addNotification('Kit Salvo', `O kit "${kitData.name}" foi registrado com sucesso.`);
+    addNotification('Kit Salvo', `O kit "${kitName.trim()}" foi registrado com sucesso.`);
 
     setIsKitModalOpen(false);
     setActiveTab('kits');
     mutateKits();
     if (idsFinais.size) mutateItems();
   };
+
+  const handleSaveKit = async () => {
+    if (!kitName.trim()) {
+      alert(modalTipo === 'item' ? 'O Nome da Peça é obrigatório.' : 'O Nome do Kit é obrigatório.');
+      return;
+    }
+    await (modalTipo === 'item' ? salvarPeca() : salvarKit());
+  };
+
 
   const handleAddKitToForm = (kit: Kit) => {
     clearPartyForm();
@@ -547,9 +558,38 @@ export default function InventoryPage() {
             Gerencie suas peças e kits de decoração disponíveis para locação.
           </p>
         </div>
-        <Button icon={Plus} bloqueiaEmLeitura onClick={handleOpenKitModal}>
-          Nova Peça
-        </Button>
+        {/* "Adicionar" com escolha EXPLÍCITA. Antes era um botão só e o tipo
+            saía da composição da lista no Salvar — a decoradora não escolhia
+            nada e o resultado dependia do que ela tinha adicionado. */}
+        <div className="acervo-adicionar" ref={menuAdicionarRef}>
+          <Button
+            icon={Plus}
+            bloqueiaEmLeitura
+            aria-haspopup="menu"
+            aria-expanded={menuAdicionarAberto}
+            onClick={() => setMenuAdicionarAberto((v) => !v)}
+          >
+            Adicionar
+          </Button>
+          {menuAdicionarAberto && (
+            <div className="acervo-adicionar-menu" role="menu">
+              <button type="button" role="menuitem" onClick={() => handleOpenCreateModal('item')}>
+                <Package size={16} aria-hidden="true" />
+                <span>
+                  <strong>Criar item</strong>
+                  <small>Uma peça, com valor próprio</small>
+                </span>
+              </button>
+              <button type="button" role="menuitem" onClick={() => handleOpenCreateModal('kit')}>
+                <LayoutGrid size={16} aria-hidden="true" />
+                <span>
+                  <strong>Criar kit</strong>
+                  <small>Várias peças, com valor do conjunto</small>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ===== STATS CARDS ===== */}
@@ -637,7 +677,7 @@ export default function InventoryPage() {
               <Package className="w-12 h-12" />
               <h3>Nenhuma peça encontrada</h3>
               <p>Adicione peças ao seu acervo para começar.</p>
-              <Button icon={Plus} bloqueiaEmLeitura onClick={handleOpenKitModal}>
+              <Button icon={Plus} bloqueiaEmLeitura onClick={() => handleOpenCreateModal('item')}>
                 Adicionar Peça
               </Button>
             </div>
@@ -890,7 +930,7 @@ export default function InventoryPage() {
       <Modal
         isOpen={isKitModalOpen}
         onClose={() => setIsKitModalOpen(false)}
-        title={editingItemId ? "Editar Peça" : editingKitId ? "Editar Kit" : "Criar Nova Peça/Kit"}
+        title={editingItemId ? 'Editar Peça' : editingKitId ? 'Editar Kit' : modalTipo === 'item' ? 'Criar item' : 'Criar kit'}
         className="max-w-xl"
         footer={
           <>
@@ -903,7 +943,7 @@ export default function InventoryPage() {
       >
         <div className="space-y-4">
           <Input
-            label={editingItemId ? "Nome da Peça" : "Nome da Decoração"}
+            label={modalTipo === 'item' ? 'Nome da Peça' : 'Nome do Kit'}
             placeholder="Digite o nome..."
             value={kitName}
             onChange={e => setKitName(e.target.value)}
@@ -925,7 +965,7 @@ export default function InventoryPage() {
               Erro só aparece ON SUBMIT (showKitValueError). */}
           <Input
             type="text"
-            label={editingItemId ? 'Valor de Locação (opcional)' : 'Valor do Kit *'}
+            label={modalTipo === 'item' ? 'Valor de Locação *' : 'Valor do Kit *'}
             placeholder="R$ 0,00"
             value={kitValue}
             onChange={handleKitValueChange}
@@ -980,8 +1020,10 @@ export default function InventoryPage() {
             )}
           </div>
 
-          {/* Seção Itens do Kit — apenas no fluxo de Kit (peças avulsas não têm sub-itens) */}
-          {/* Itens do Kit — mesma seção do modal "Nova Peça", exibida também na edição */}
+          {/* Itens do Kit — SÓ no fluxo de kit. Uma peça avulsa não tem sub-itens,
+              e mostrar esta seção ali era o que fazia a decoradora adicionar itens
+              sem saber que aquilo mudaria o TIPO do que estava criando. */}
+          {modalTipo === 'kit' && (
           <div className="border-t border-slate-100 pt-4">
             <label className="form-label font-bold text-slate-800" style={{ fontSize: '15px' }}>Itens do Kit</label>
             
@@ -1107,6 +1149,7 @@ export default function InventoryPage() {
             </div>
 
           </div>
+          )}
         </div>
       </Modal>
 

@@ -1520,9 +1520,11 @@ img { max-width: 100%; display: block; }
 .mypage-stat-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; display: block; }
 .mypage-stat-value { font-size: 24px; font-weight: 800; display: block; margin-top: 4px; }
 
+/* ATENÇÃO: o JSX desta linha traz style inline com repeat(2, 1fr), que VENCE
+   esta regra. O valor abaixo só passa a valer se aquele inline sair. */
 .mypage-contact-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -1945,9 +1947,22 @@ img { max-width: 100%; display: block; }
 }
 
 /* Product Grid */
+/* auto-FILL, não auto-FIT.
+   
+   A diferença só aparece quando há MENOS cartões que trilhas: auto-fit COLAPSA
+   as trilhas vazias e distribui tudo nos cartões existentes, então um kit
+   sozinho esticava para a largura inteira da tela — pior que o problema que a
+   conversão veio resolver. auto-fill mantém as trilhas vazias, e o cartão
+   solitário fica do tamanho dos outros.
+   
+   Vale AQUI e não nos grids de formulário: .grid-2 e .grid-3 têm sempre 2 e 3
+   campos, nunca sobra trilha, e ali auto-fit é o certo — com auto-fill um painel
+   largo criaria uma quarta trilha vazia e deixaria os campos estreitos com um
+   buraco à direita. A regra é: lista de tamanho variável usa auto-fill; linha de
+   contagem fixa usa auto-fit. */
 .acervo-product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 24px;
 }
 
@@ -4889,6 +4904,44 @@ img { max-width: 100%; display: block; }
   text-decoration: underline;
 }
 .assinatura-cancelar-link:hover { color: var(--text-secondary); }
+
+
+/* -------------------- Menu "Adicionar" do Acervo -------------------- */
+.acervo-adicionar { position: relative; }
+
+.acervo-adicionar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  min-width: 260px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acervo-adicionar-menu button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+}
+.acervo-adicionar-menu button:hover { background: var(--bg-input); }
+.acervo-adicionar-menu svg { color: var(--primary); flex-shrink: 0; margin-top: 2px; }
+.acervo-adicionar-menu strong { display: block; font-size: 14px; font-weight: 700; }
+.acervo-adicionar-menu small { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
 
 /* -------------------- Portão de quem nunca assinou -------------------- */
 /* Reaproveita a moldura do gate de aceite legal (.legal-gate-card): é o mesmo

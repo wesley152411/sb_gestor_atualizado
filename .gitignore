@@ -71,4 +71,5 @@ skills-lock.json
 
 # Comprovantes de semeadura de cortesia (contem ids de contas reais)
 cortesia-*.json
+limpeza-testes-*.json
 migracao-kits-*.json
