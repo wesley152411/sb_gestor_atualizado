@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // native = ambiente local (Windows); rhel-openssl = Netlify Functions (AWS Lambda).
   // Sem isso, o Prisma Client não roda no deploy.
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
@@ -11,21 +11,21 @@ datasource db {
 }
 
 model Decorator {
-  id                                                  String          @id @default(uuid())
+  id                                                  String               @id @default(uuid())
   name                                                String
   avatar_url                                          String?
-  membership_level                                    String?         @default("Membro")
+  membership_level                                    String?              @default("Membro")
   location                                            String?
-  created_at                                          DateTime        @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  created_at                                          DateTime             @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
   instagram                                           String?
   whatsapp                                            String?
   phone                                               String?
   about                                               String?
   cover_url                                           String?
   logo_url                                            String?
-  reach                                               Int?            @default(0)
-  contact_rate                                        Decimal?        @default(0.0) @db.Decimal
-  positive_reviews                                    Int?            @default(0)
+  reach                                               Int?                 @default(0)
+  contact_rate                                        Decimal?             @default(0.0) @db.Decimal
+  positive_reviews                                    Int?                 @default(0)
   // Template da mensagem promocional (reativação por WhatsApp). Variável: {nome}.
   promo_message_template                              String?
   // CNPJ (14 dígitos, sem máscara) e razão/nome da empresa. Movidos do metadata do
@@ -35,12 +35,12 @@ model Decorator {
   // Conta interna de teste: apenas OCULTA das listagens públicas (vitrine do
   // Marketplace e contatos do Chat). NUNCA é exceção de isolamento — a conta
   // continua sujeita a 401/403 como qualquer outra. Definível SÓ no banco.
-  is_internal                                         Boolean         @default(false)
+  is_internal                                         Boolean              @default(false)
   // Pedido explícito no gate de documentos legais. A exclusão é manual e feita
   // pelo script de exclusão total; este timestamp apenas põe a conta na fila.
-  deletion_requested_at                               DateTime?       @db.Timestamptz(6)
-  chat_messages_chat_messages_receiver_idTodecorators ChatMessage[]   @relation("chat_messages_receiver_idTodecorators")
-  chat_messages_chat_messages_sender_idTodecorators   ChatMessage[]   @relation("chat_messages_sender_idTodecorators")
+  deletion_requested_at                               DateTime?            @db.Timestamptz(6)
+  chat_messages_chat_messages_receiver_idTodecorators ChatMessage[]        @relation("chat_messages_receiver_idTodecorators")
+  chat_messages_chat_messages_sender_idTodecorators   ChatMessage[]        @relation("chat_messages_sender_idTodecorators")
   clients                                             Client[]
   consumables                                         consumables[]
   forum_posts                                         forum_posts[]
@@ -50,8 +50,8 @@ model Decorator {
   client_promo_messages                               ClientPromoMessage[]
   legal_acceptances                                   LegalAcceptance[]
   subscriptions                                       Subscription[]
-  rental_orders_rental_orders_owner_idTodecorators    RentalOrder[]   @relation("rental_orders_owner_idTodecorators")
-  rental_orders_rental_orders_renter_idTodecorators   RentalOrder[]   @relation("rental_orders_renter_idTodecorators")
+  rental_orders_rental_orders_owner_idTodecorators    RentalOrder[]        @relation("rental_orders_owner_idTodecorators")
+  rental_orders_rental_orders_renter_idTodecorators   RentalOrder[]        @relation("rental_orders_renter_idTodecorators")
 
   @@map("decorators")
 }
@@ -236,16 +236,26 @@ model ChatMessage {
 }
 
 model Client {
-  id           String       @id @default(uuid())
-  decorator_id String?
-  name         String
-  phone        String?
-  email        String?
-  cpf          String?
-  address      String?
-  created_at   DateTime     @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
-  decorators   Decorator?   @relation(fields: [decorator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  party_events PartyEvent[]
+  id                    String               @id @default(uuid())
+  decorator_id          String?
+  name                  String
+  phone                 String?
+  email                 String?
+  cpf                   String?
+  address               String?
+  // Endereço ESTRUTURADO. `address` acima continua sendo o formato antigo e o
+  // fallback de exibição: nada foi convertido, e a tela só usa estes campos
+  // quando os seis obrigatórios estão presentes (ver src/lib/endereco.ts).
+  cep                   String?              @db.VarChar(9)
+  logradouro            String?
+  numero                String?              @db.VarChar(20)
+  complemento           String?
+  bairro                String?
+  cidade                String?
+  estado                String?              @db.Char(2)
+  created_at            DateTime             @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  decorators            Decorator?           @relation(fields: [decorator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  party_events          PartyEvent[]
   client_promo_messages ClientPromoMessage[]
 
   @@index([decorator_id], map: "idx_clients_decorator")
@@ -290,6 +300,16 @@ model PartyEvent {
   source_kit_id         String?
   observation           String?
   submitted_at          DateTime?      @db.Timestamptz(6)
+  // Endereço ESTRUTURADO. `address` acima continua sendo o formato antigo e o
+  // fallback de exibição: nada foi convertido, e a tela só usa estes campos
+  // quando os seis obrigatórios estão presentes (ver src/lib/endereco.ts).
+  cep                   String?        @db.VarChar(9)
+  logradouro            String?
+  numero                String?        @db.VarChar(20)
+  complemento           String?
+  bairro                String?
+  cidade                String?
+  estado                String?        @db.Char(2)
   decorators            Decorator?     @relation(fields: [decorator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   clients               Client?        @relation(fields: [client_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   inventory_items_quote InventoryItem? @relation("party_event_source_item", fields: [source_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)

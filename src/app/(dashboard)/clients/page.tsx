@@ -5,6 +5,7 @@ import { Download, CheckSquare, FileText, ChevronDown, XCircle, Trash2, MessageC
 import { confirmPartyEvent, cancelPartyEvent, discardPartyEvent, getPromoMessages, sendPromoMessage, saveClient } from '@/services/api';
 import { usePartyEvents, useClients, useDecorators } from '@/hooks/swr-hooks';
 import { gerarDocumentoPDF } from '@/lib/documento-pdf';
+import { formatarEndereco } from '@/lib/endereco';
 import { Button } from '@/components/ui/Button';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Table } from '@/components/ui/TableAndTabs';
@@ -455,7 +456,7 @@ export default function ClientsPage() {
 
             {/* Informações de montagem */}
             <div className="quote-doc-section-title">Informações de montagem</div>
-            <QuoteField label="Endereço" value={previewEvent.address || previewClient?.address} />
+            <QuoteField label="Endereço" value={formatarEndereco(previewEvent.address ? previewEvent : previewClient)} />
             <QuoteField label="Data do evento" value={previewEvent.event_date ? formatDate(previewEvent.event_date) : ''} />
             <QuoteField label="Horário de chegada" value={previewEvent.setup_time} />
             <QuoteField label="Horário de início" value={previewEvent.start_time} />
@@ -510,7 +511,7 @@ export default function ClientsPage() {
                 Etapa B — Montagem (Chegada às {previewEvent.setup_time || '—'}):
               </div>
               <ul>
-                <li>Montagem no endereço: {previewEvent.address || previewClient?.address || '—'}.</li>
+                <li>Montagem no endereço: {formatarEndereco(previewEvent.address ? previewEvent : previewClient)}.</li>
                 <li>Montar tudo até às {previewEvent.start_time || '—'} (início da festa).</li>
               </ul>
             </div>

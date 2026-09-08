@@ -1,5 +1,6 @@
 import type { PartyEvent, Client, Decorator } from '@/types';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatarEndereco } from '@/lib/endereco';
 
 // ============================================================================
 // O ÚNICO GERADOR DE PDF DO SISTEMA.
@@ -61,6 +62,15 @@ export interface PDFMinimo {
 }
 
 type Doc = PDFMinimo;
+
+/**
+ * De onde ler o endereço: do EVENTO quando ele tem algum, senão do cliente.
+ * A escolha entre novo e antigo é do módulo de endereço, não daqui.
+ */
+function estruturadoOuAntigo(evento: PartyEvent, cliente: Client | null) {
+  const temNoEvento = Boolean(evento.address || evento.cep);
+  return temNoEvento ? evento : (cliente ?? evento);
+}
 
 /** Losango da marca, em vetor. cx/cy é o centro; `l` é a meia-diagonal. */
 function desenharLogo(doc: Doc, cx: number, cy: number, l: number) {
@@ -194,7 +204,10 @@ export function desenharDocumento(
     y += altura + 4;
   };
 
-  const endereco = evento.address || cliente?.address || '';
+  // TUDO OU NADA entre o formato novo e o antigo — a decisão vive em
+  // src/lib/endereco.ts, e é a MESMA das telas. Duas regras divergiriam.
+  const fonteEndereco = estruturadoOuAntigo(evento, cliente);
+  const endereco = formatarEndereco(fonteEndereco);
 
   // ---------- 1. O EVENTO ----------
   secao('Informações do evento');

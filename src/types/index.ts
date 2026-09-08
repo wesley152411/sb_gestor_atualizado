@@ -131,6 +131,13 @@ export interface Client {
   email?: string;
   cpf?: string;
   address?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  estado?: string;
   created_at?: string;
 }
 
@@ -146,6 +153,13 @@ export interface PartyEvent {
   client_name: string;
   phone: string;
   address: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  estado?: string;
   setup_time: string;
   start_time: string;
   theme: string;
@@ -192,7 +206,17 @@ export interface QuoteLinkData {
   phone: string;
   email?: string;
   cpf?: string;
+  // `address` é o formato ANTIGO e segue como fallback de exibição; os campos
+  // abaixo são o formato novo. A tela só usa os novos quando os seis
+  // obrigatórios estão presentes (src/lib/endereco.ts).
   address: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  estado?: string;
   event_date: string;
   setup_time: string;
   start_time: string;

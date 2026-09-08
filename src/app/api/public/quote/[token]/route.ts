@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { toDbDate } from '@/lib/utils';
 import { NextResponse } from 'next/server';
+import { camposFaltando, cepValido, ufValida, ROTULO } from '@/lib/endereco';
 import { EVENT_STATUS } from '@/lib/event-status';
 
 export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -49,6 +50,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
       client_name: quote.client_name,
       phone: quote.phone || '',
       address: quote.address || '',
+      cep: quote.cep || '',
+      logradouro: quote.logradouro || '',
+      numero: quote.numero || '',
+      complemento: quote.complemento || '',
+      bairro: quote.bairro || '',
+      cidade: quote.cidade || '',
+      estado: quote.estado || '',
       event_date: quote.event_date ? quote.event_date.toISOString().split('T')[0] : '',
       setup_time: quote.setup_time || '',
       start_time: quote.start_time || '',
@@ -59,6 +67,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   }
 }
 
+const limparTexto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params;
@@ -68,6 +78,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     // Telefone agora é OBRIGATÓRIO (habilita a reativação promocional depois).
     if (!name || !event_date || !phone || !String(phone).trim()) {
       return NextResponse.json({ error: 'Nome, telefone e data do evento são obrigatórios' }, { status: 400 });
+    }
+
+    // ENDEREÇO ESTRUTURADO. Backstop de SERVIDOR das validações da tela: o
+    // formulário já barra, mas um POST direto não passa por ele. Os seis campos
+    // são obrigatórios para QUEM ENVIA AGORA — as linhas antigas seguem com o
+    // `address` de texto livre, e nada foi convertido.
+    const endereco = {
+      cep: limparTexto(body.cep),
+      logradouro: limparTexto(body.logradouro),
+      numero: limparTexto(body.numero),
+      complemento: limparTexto(body.complemento) || null,
+      bairro: limparTexto(body.bairro),
+      cidade: limparTexto(body.cidade),
+      estado: limparTexto(body.estado).toUpperCase(),
+    };
+    const faltando = camposFaltando(endereco);
+    if (faltando.length) {
+      return NextResponse.json(
+        { error: `Preencha o endereço da montagem: ${faltando.map((c) => ROTULO[c]).join(', ')}.`, campos: faltando },
+        { status: 400 },
+      );
+    }
+    // O mesmo formato que o CHECK do banco exige — recusar aqui dá mensagem
+    // legível em vez do erro cru do Postgres.
+    if (!cepValido(endereco.cep)) {
+      return NextResponse.json({ error: 'CEP inválido. Use o formato 00000-000.', campos: ['cep'] }, { status: 400 });
+    }
+    if (!ufValida(endereco.estado)) {
+      return NextResponse.json({ error: 'Estado inválido. Use a sigla de duas letras, como MG.', campos: ['estado'] }, { status: 400 });
     }
 
     const quote = await prisma.partyEvent.findUnique({ where: { public_token: token } });
@@ -96,11 +135,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       if (client) {
         await prisma.client.update({
           where: { id: client.id },
-          data: { name, phone, email, cpf, address },
+          data: { name, phone, email, cpf, address, ...endereco },
         });
       } else {
         client = await prisma.client.create({
-          data: { id: `cli-${Date.now()}`, decorator_id: decoratorId, name, phone, email, cpf, address },
+          data: { id: `cli-${Date.now()}`, decorator_id: decoratorId, name, phone, email, cpf, address, ...endereco },
         });
       }
     }
@@ -111,7 +150,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
         client_id: client?.id,
         client_name: name,
         phone,
+        // `address` continua sendo gravada com o que a tela mandar: é o fallback
+        // se um dia faltar campo, e é o que os registros antigos usam.
         address,
+        ...endereco,
         event_date: toDbDate(event_date),
         setup_time,
         start_time,
