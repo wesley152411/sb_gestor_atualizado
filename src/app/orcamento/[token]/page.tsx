@@ -233,9 +233,9 @@ export default function PublicQuotePage() {
               <Input label="CPF" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} placeholder="000.000.000-00" />
             </div>
 
-            <SectionTitle>Informações de entrega</SectionTitle>
+            <SectionTitle>Informações de montagem</SectionTitle>
             <div style={{ marginBottom: 16 }}>
-              <Input label="Endereço de entrega" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Rua, número, bairro, cidade" />
+              <Input label="Endereço da montagem" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Rua, número, bairro, cidade" />
             </div>
             <div className="quote-grid-3" style={{ marginBottom: 28 }}>
               {/* lang="pt-BR" e step=60: pedem ao navegador o formato brasileiro

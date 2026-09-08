@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { Download, CheckSquare, FileText, ChevronDown, XCircle, Trash2, MessageCircle } from 'lucide-react';
 import { confirmPartyEvent, cancelPartyEvent, discardPartyEvent, getPromoMessages, sendPromoMessage, saveClient } from '@/services/api';
 import { usePartyEvents, useClients, useDecorators } from '@/hooks/swr-hooks';
-import { generateQuotePDF } from '@/lib/quote-pdf';
-import { generateLogisticsPDF } from '@/lib/pdf-generator';
+import { gerarDocumentoPDF } from '@/lib/documento-pdf';
 import { Button } from '@/components/ui/Button';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Table } from '@/components/ui/TableAndTabs';
@@ -116,7 +115,7 @@ export default function ClientsPage() {
     if (!previewEvent) return;
     setIsDownloading(true);
     try {
-      await generateQuotePDF(previewEvent, previewClient, previewOwner);
+      await gerarDocumentoPDF(previewEvent, previewClient, previewOwner, 'contrato');
       addNotification('PDF Gerado', `Documento de ${previewEvent.client_name} baixado.`);
       setPreviewEvent(null);
     } catch (error) {
@@ -127,20 +126,30 @@ export default function ClientsPage() {
     }
   };
 
+  // ITEM DE MENU explícito, no lugar do download automático ao confirmar.
+  const handleBaixarMontagem = async (e: PartyEvent) => {
+    setOpenMenuId(null);
+    try {
+      const cli = clients.find((c) => c.id === e.client_id) || null;
+      const dono = decorators.find((d) => d.id === e.decorator_id) || null;
+      await gerarDocumentoPDF(e, cli, dono, 'equipe');
+      addNotification('PDF Gerado', `Checklist de montagem de ${e.client_name} baixado.`);
+    } catch (err) {
+      console.error('Falha ao gerar o PDF de montagem:', err);
+      addNotification('Erro ao Gerar PDF', 'Não foi possível gerar o checklist de montagem.', true);
+    }
+  };
+
   // Confirmar: um clique, sem modal. IRREVERSÍVEL (não há caminho de volta).
   const handleConfirm = async (e: PartyEvent) => {
     setBusyId(e.id);
     try {
       await confirmPartyEvent(e.id);
-      addNotification('Evento confirmado', `"${e.client_name}" está confirmado — preparando a montagem.`);
-      // PDF logístico é gerado AO CONFIRMAR (não no envio): é aqui que o
-      // orçamento vira evento de verdade e a montagem começa a ser preparada.
-      try {
-        await generateLogisticsPDF({ ...e, status: EVENT_STATUS.CONFIRMADO });
-      } catch (pdfErr) {
-        console.error('Falha ao gerar PDF logístico na confirmação:', pdfErr);
-        addNotification('PDF não gerado', 'O evento foi confirmado, mas o PDF logístico falhou. Baixe pelo Calendário.', true);
-      }
+      // Confirmar NÃO baixa arquivo. Baixar sozinho é comportamento surpreendente:
+      // a pessoa clica em Confirmar e o navegador entrega um arquivo que ela não
+      // pediu — e quem quisesse o PDF depois não sabia onde procurar. Agora o
+      // download é um item explícito no menu da linha.
+      addNotification('Evento confirmado', `"${e.client_name}" está confirmado — baixe o PDF de montagem pelo menu da linha.`);
       mutate();
     } catch (err: any) {
       addNotification('Erro ao confirmar', err.message || 'Não foi possível confirmar.', true);
@@ -219,7 +228,7 @@ export default function ClientsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Meus Clientes e Eventos</h1>
-          <p className="page-subtitle">Acompanhe todos os contratos fechados e gerencie a logística de entrega.</p>
+          <p className="page-subtitle">Acompanhe todos os contratos fechados e gerencie a logística de montagem.</p>
         </div>
       </div>
 
@@ -273,7 +282,11 @@ export default function ClientsPage() {
             // Reativação: só para eventos passados (>1 mês). A seta é só para
             // eventos NÃO passados — os dois nunca convivem na mesma linha.
             const promo = isPromoEligible(event.event_date);
-            const hasMenu = (canCancel || draft) && !promo;
+            // O PDF de montagem vale para qualquer evento real (não rascunho de
+            // link, não linha de promoção) — inclusive já finalizado, porque a
+            // equipe pode precisar do checklist depois.
+            const podeBaixarMontagem = !draft && !promo;
+            const hasMenu = (canCancel || draft || podeBaixarMontagem) && !promo;
             const promoClient = clients.find(c => c.id === event.client_id) || null;
             const promoPhoneVal = promoClient?.phone || event.phone || '';
             const promoPhoneOk = isValidPromoPhone(promoPhoneVal);
@@ -356,6 +369,12 @@ export default function ClientsPage() {
                           {/* clique fora fecha o menu */}
                           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpenMenuId(null)} />
                           <div className="row-menu" style={{ position: 'absolute', right: 0, top: '110%', zIndex: 30, background: 'white', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, padding: 6 }}>
+                            {podeBaixarMontagem && (
+                              <button type="button" className="row-menu-item" onClick={() => handleBaixarMontagem(event)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                                <Download className="w-4 h-4" /> Baixar PDF de montagem
+                              </button>
+                            )}
                             {canCancel && (
                               <button type="button" className="row-menu-item" onClick={() => handleCancel(event)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', fontSize: 13, fontWeight: 600, color: '#dc2626', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
@@ -434,8 +453,8 @@ export default function ClientsPage() {
             <QuoteField label="E-mail" value={previewClient?.email} />
             <QuoteField label="CPF" value={previewClient?.cpf} />
 
-            {/* Informações de entrega */}
-            <div className="quote-doc-section-title">Informações de entrega</div>
+            {/* Informações de montagem */}
+            <div className="quote-doc-section-title">Informações de montagem</div>
             <QuoteField label="Endereço" value={previewEvent.address || previewClient?.address} />
             <QuoteField label="Data do evento" value={previewEvent.event_date ? formatDate(previewEvent.event_date) : ''} />
             <QuoteField label="Horário de chegada" value={previewEvent.setup_time} />
@@ -491,7 +510,7 @@ export default function ClientsPage() {
                 Etapa B — Montagem (Chegada às {previewEvent.setup_time || '—'}):
               </div>
               <ul>
-                <li>Entrega no endereço: {previewEvent.address || previewClient?.address || '—'}.</li>
+                <li>Montagem no endereço: {previewEvent.address || previewClient?.address || '—'}.</li>
                 <li>Montar tudo até às {previewEvent.start_time || '—'} (início da festa).</li>
               </ul>
             </div>

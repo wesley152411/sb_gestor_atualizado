@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/utils';
 import { EVENT_STATUS, effectiveStatus, showsInCalendar } from '@/lib/event-status';
-import { generateLogisticsPDF } from '@/lib/pdf-generator';
+import { gerarDocumentoPDF } from '@/lib/documento-pdf';
 import type { RentalOrder, PartyEvent } from '@/types';
 
 type ViewMode = 'month' | 'week' | 'day';
@@ -187,7 +187,8 @@ export default function CalendarPage() {
 
   const handleDownloadPDF = async (event: PartyEvent) => {
     try {
-      await generateLogisticsPDF(event);
+      // Variante 'equipe': o calendário é a tela de quem vai montar.
+      await gerarDocumentoPDF(event, null, decorator ?? null, 'equipe');
       addNotification('PDF Gerado', `Logística de ${event.client_name} baixada.`);
     } catch (err) {
       console.error('Falha ao gerar PDF logístico:', err);

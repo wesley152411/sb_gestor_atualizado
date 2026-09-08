@@ -12,7 +12,7 @@ import {
   getInventoryItems, getPartyEvents, savePartyEvent,
   getKits, saveInventoryItem
 } from '@/services/api';
-import { generateLogisticsPDF } from '@/lib/pdf-generator';
+import { gerarDocumentoPDF } from '@/lib/documento-pdf';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -110,7 +110,7 @@ export default function PartyFormPage() {
       addNotification('Evento Criado', `A festa para ${clientName} foi registrada.`);
 
       try {
-        await generateLogisticsPDF(savedEvent);
+        await gerarDocumentoPDF(savedEvent, null, decorator ?? null, 'equipe');
       } catch (pdfError) {
         console.error('Falha ao gerar PDF logístico:', pdfError);
         addNotification(
@@ -271,7 +271,7 @@ export default function PartyFormPage() {
           </div>
           
           <Input 
-            label="Endereço Completo da Entrega/Montagem" 
+            label="Endereço da Montagem" 
             placeholder="Ex: Av. Paulista, 1000 - Bela Vista, SP"
             value={address} 
             onChange={e => setAddress(e.target.value)} 
