@@ -19,6 +19,12 @@ import { useNotificationStore } from '@/stores/notification-store';
 import { formatCurrency, formatPriceLabel, hasPrice, getPlaceholderImage } from '@/lib/utils';
 import type { InventoryItem, Kit } from '@/types';
 
+// Peça ainda NÃO gravada: existe só na lista do modal até o Salvar. O prefixo
+// torna impossível confundir com id de verdade — e é o que permite ao Salvar
+// saber quem precisa ser criado e quem já está no acervo.
+const PREFIXO_PENDENTE = 'pendente:';
+const ehPendente = (id: string) => id.startsWith(PREFIXO_PENDENTE);
+
 export default function InventoryPage() {
   const router = useRouter();
   const { items: partyFormItems, addItem: addPartyFormItem, clear: clearPartyForm } = usePartyFormStore();
@@ -262,42 +268,28 @@ export default function InventoryPage() {
     setKitValue(formatted);
   };
 
-  const handleCreateKitInventoryItem = async () => {
+  // "Criar novo item" NÃO grava nada. Só põe a peça na lista como PENDENTE.
+  //
+  // Antes, gravava na hora: a peça nascia com preço zero, e o valor digitado
+  // depois ia para o KIT. A decoradora salvava, o card aparecia sem valor e
+  // parecia defeito. Pior, desistir no meio deixava a peça no acervo.
+  //
+  // Agora nada existe até o Salvar, e é lá que se decide o que criar — pela
+  // composição da lista, não por um botão apertado antes.
+  const handleCreateKitInventoryItem = () => {
     if (!kitSearchQuery.trim() || !decorator) return;
-    const name = kitSearchQuery.trim();
-    const newItem: InventoryItem = {
-      id: '',
-      decorator_id: decorator.id,
-      name: name,
-      description: 'Peça avulsa criada via kit',
-      // A foto de capa pertence AO KIT, não à peça. A peça nasce SEM imagem
-      // (placeholder no card); a decoradora sobe a foto dela depois pelo Editar.
-      image_url: '',
-      status: 'Privado',
-      // Preço/custo nascem ZERADOS (sem valor inventado) — a decoradora define
-      // depois pelo Editar. O ESTOQUE nasce com a quantidade do seletor (aqui, 1)
-      // e é reajustado ao salvar o kit com o valor final que ela deixar no modal.
-      // OBS: a quantidade do seletor é COMPOSIÇÃO do kit; para uma peça NOVA ela
-      // também semeia o estoque inicial. Para peça já existente, o estoque nunca
-      // é tocado (só as marcadas isNew são semeadas em handleSaveKit).
-      stock_quantity: 1,
-      rental_price: 0,
-      internal_cost: 0
-    };
-    try {
-      const saved = await saveInventoryItem(newItem);
-      // Vincula à lista do kit IMEDIATAMENTE, antes de qualquer revalidação:
-      // se o refetch em segundo plano falhar, ele não pode engolir a atualização
-      // do estado local (era esse o await abaixo que quebrava a adição na lista).
-      handleLinkKitItem({ id: saved.id, name: saved.name, quantity: 1, image_url: saved.image_url, isNew: true });
+    const nome = kitSearchQuery.trim();
+    // Digitar o mesmo nome duas vezes não deve virar duas peças. Comparação sem
+    // caixa e sem espaços das pontas, que é como a pessoa lê "é o mesmo".
+    const jaNaLista = linkedItems.some(
+      (i) => ehPendente(i.id) && i.name.trim().toLowerCase() === nome.toLowerCase(),
+    );
+    if (jaNaLista) {
       setKitSearchQuery('');
-      addNotification('Item Criado', `A peça "${saved.name}" foi salva e vinculada ao kit.`);
-      // Revalida o acervo em segundo plano; um erro aqui não deve bloquear o fluxo.
-      mutateItems().catch(() => {});
-    } catch (err) {
-      console.error('Falha ao criar item avulso para o kit:', err);
-      addNotification('Erro ao Criar Item', 'Não foi possível criar a peça. Tente novamente.', true);
+      return;
     }
+    handleLinkKitItem({ id: `${PREFIXO_PENDENTE}${crypto.randomUUID()}`, name: nome, quantity: 1, isNew: true });
+    setKitSearchQuery('');
   };
 
   const handleSaveKit = async () => {
@@ -339,11 +331,112 @@ export default function InventoryPage() {
       ? Number(kitValue.replace(/\D/g, '')) / 100
       : null;
 
-    // Valor do kit é OBRIGATÓRIO (> 0). Validação ON SUBMIT: ao clicar em Salvar
-    // sem valor válido, marca o erro (campo/rótulo vermelhos) e não salva. O
-    // vermelho some sozinho quando um valor > 0 é digitado (showKitValueError).
+    // Valor OBRIGATÓRIO (> 0), seja peça ou kit. Validação ON SUBMIT: marca o
+    // erro e não salva. O vermelho some sozinho quando um valor > 0 é digitado.
     if (!parsedValue || parsedValue <= 0) {
       setKitValueError(true);
+      return;
+    }
+
+    if (!linkedItems.length) {
+      alert('Adicione pelo menos um item.');
+      return;
+    }
+
+    // O TIPO É DECIDIDO AQUI, PELA COMPOSIÇÃO — não por um botão apertado antes.
+    //
+    //   1 item  -> peça avulsa, com o valor NA PEÇA
+    //   2+      -> kit, com o valor NO KIT e as peças como composição
+    //
+    // Editar um kit existente NÃO muda de tipo: reduzir a lista para um item
+    // dentro da edição continua sendo o mesmo kit. Converter em silêncio apagaria
+    // um registro que já pode estar referenciado numa locação ou num orçamento.
+    if (linkedItems.length === 1 && !editingKitId) {
+      const unico = linkedItems[0];
+
+      if (ehPendente(unico.id)) {
+        // PEÇA NOVA. O nome vem do campo do modal (obrigatório), não do texto da
+        // busca: é ele que a decoradora entende como o nome do que está criando.
+        // E a capa vai PARA A PEÇA — sem kit, não há outro lugar para ela.
+        try {
+          await saveInventoryItem({
+            id: '',
+            decorator_id: decorator.id,
+            name: kitName.trim(),
+            description: kitDescription.trim(),
+            image_url: coverImageUrl || '',
+            status: 'Privado',
+            stock_quantity: unico.quantity,
+            rental_price: parsedValue,
+            internal_cost: 0,
+          } as InventoryItem);
+          addNotification('Peça Criada', `A peça "${kitName.trim()}" foi criada com valor.`);
+        } catch (err) {
+          console.error('Falha ao criar peça avulsa:', err);
+          addNotification('Erro ao Salvar', 'Não foi possível criar a peça.', true);
+          return;
+        }
+      } else {
+        // PEÇA QUE JÁ EXISTE. O gesto é "quero ajustar o valor desta peça", mas
+        // mudar preço em silêncio é o tipo de coisa que se descobre errado
+        // depois — então avisa antes, com os dois valores na tela.
+        const existente = items.find((i) => i.id === unico.id);
+        if (!existente) {
+          addNotification('Peça não encontrada', 'Atualize a página e tente de novo.', true);
+          return;
+        }
+        const de = Number(existente.rental_price ?? 0);
+        if (de !== parsedValue) {
+          const confirmou = window.confirm(
+            [
+              'Esta peça já existe no seu acervo.',
+              '',
+              `O valor de "${existente.name}" será atualizado de ${formatPriceLabel(de)} para ${formatCurrency(parsedValue)}.`,
+            ].join(String.fromCharCode(10)),
+          );
+          if (!confirmou) return;
+        }
+        try {
+          // SÓ o preço. O aviso prometeu isso e mais nada — renomear ou trocar a
+          // foto por tabela seria pior que a mudança de valor.
+          await saveInventoryItem({ ...existente, rental_price: parsedValue });
+          addNotification('Valor Atualizado', `"${existente.name}" agora vale ${formatCurrency(parsedValue)}.`);
+        } catch (err) {
+          console.error('Falha ao atualizar peça:', err);
+          addNotification('Erro ao Salvar', 'Não foi possível atualizar a peça.', true);
+          return;
+        }
+      }
+
+      setIsKitModalOpen(false);
+      setActiveTab('items');
+      mutateItems();
+      return;
+    }
+
+    // KIT. As peças pendentes precisam virar linhas de verdade ANTES do kit,
+    // porque o kit as REFERENCIA por id — é assim que a locação B2B expande o
+    // kit em demanda por peça e não aluga a mesma peça física duas vezes.
+    // Nascem com preço ZERO de propósito: num kit, o valor é do conjunto.
+    const idsFinais = new Map<string, string>();
+    try {
+      for (const li of linkedItems.filter((i) => ehPendente(i.id))) {
+        const criada = await saveInventoryItem({
+          id: '',
+          decorator_id: decorator.id,
+          name: li.name,
+          description: 'Peça criada junto com um kit',
+          image_url: '',
+          status: 'Privado',
+          stock_quantity: li.quantity,
+          rental_price: 0,
+          internal_cost: 0,
+        } as InventoryItem);
+        idsFinais.set(li.id, criada.id);
+      }
+    } catch (err) {
+      console.error('Falha ao criar as peças do kit:', err);
+      addNotification('Erro ao Salvar', 'Não foi possível criar as peças do kit.', true);
       return;
     }
 
@@ -354,47 +447,28 @@ export default function InventoryPage() {
       description: kitDescription.trim(),
       image_url: coverImageUrl || '',
       value: parsedValue,
-      items: linkedItems.map(i => ({
-        id: i.id,
+      items: linkedItems.map((i) => ({
+        id: idsFinais.get(i.id) ?? i.id,
         name: i.name,
-        quantity: i.quantity
-      }))
+        quantity: i.quantity,
+      })),
     };
 
-    // A foto de capa NÃO é sincronizada para a peça vinculada — nem no kit de
-    // uma peça só. A capa fica exclusivamente no registro do kit; a peça mantém
-    // (ou não) a própria foto, editável separadamente. Assim, trocar a capa do
-    // kit nunca altera nenhuma peça, e uma peça com foto própria fica intacta.
-
-    // Semeia o ESTOQUE INICIAL das peças CRIADAS neste fluxo (isNew) com a
-    // quantidade final do seletor. Peças já existentes NÃO têm o estoque tocado —
-    // para elas a quantidade vale só como composição do kit.
-    const seededNew = linkedItems.filter(i => i.isNew);
-    for (const li of seededNew) {
-      const original = items.find(i => i.id === li.id);
-      const base: InventoryItem = original ?? {
-        id: li.id,
-        decorator_id: decorator.id,
-        name: li.name,
-        description: 'Peça avulsa criada via kit',
-        image_url: '',
-        status: 'Privado',
-        stock_quantity: 0,
-        rental_price: 0,
-        internal_cost: 0,
-      };
-      if (base.stock_quantity !== li.quantity) {
-        await saveInventoryItem({ ...base, stock_quantity: li.quantity });
-      }
+    // A capa NÃO é sincronizada para as peças: ela é do kit. Trocar a capa nunca
+    // altera peça nenhuma, e peça com foto própria fica intacta.
+    try {
+      await saveKit(kitData);
+    } catch (err) {
+      console.error('Falha ao salvar o kit:', err);
+      addNotification('Erro ao Salvar', 'As peças foram criadas, mas o kit não. Tente salvar de novo.', true);
+      return;
     }
-    if (seededNew.length) mutateItems();
-
-    await saveKit(kitData);
     addNotification('Kit Salvo', `O kit "${kitData.name}" foi registrado com sucesso.`);
-    
+
     setIsKitModalOpen(false);
     setActiveTab('kits');
     mutateKits();
+    if (idsFinais.size) mutateItems();
   };
 
   const handleAddKitToForm = (kit: Kit) => {
