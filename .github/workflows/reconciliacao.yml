@@ -34,7 +34,7 @@ jobs:
           [ -z "$TOKEN" ] && faltando="$faltando RECONCILE_TOKEN"
           if [ -n "$faltando" ]; then
             echo "🛑 Pré-condição — secret(s) ausente(s):$faltando"
-            echo "   RECONCILE_BASE_URL: https://www.sbgestor.com (sem barra no fim)"
+            echo "   RECONCILE_BASE_URL: https://sbgestor.com (APEX, sem www e sem barra no fim)"
             echo "   RECONCILE_TOKEN:    o mesmo valor da variável no ambiente da Netlify"
             echo "   Cadastre em: GitHub → repo → Settings → Secrets and variables → Actions"
             exit 1
@@ -53,6 +53,23 @@ jobs:
           echo "HTTP $codigo"
           cat "$corpo"
           echo
+          # 3xx é sempre configuração, nunca reconciliação. O canônico do site é o
+          # APEX: https://www.sbgestor.com devolve 308 e o curl não segue (nem
+          # deveria — ele descarta o Authorization ao trocar de host). Sem esta
+          # distinção o sintoma vira "retornou HTTP 308", que parece erro do job.
+          if [ "$codigo" -ge 300 ] && [ "$codigo" -lt 400 ]; then
+            echo "::error::RECONCILE_BASE_URL redireciona (HTTP $codigo) — a reconciliação nem chegou a rodar."
+            echo "Quase sempre é 'www': o canônico é o APEX."
+            echo "  errado: https://www.sbgestor.com"
+            echo "  certo:  https://sbgestor.com"
+            echo "Ajuste o secret em: GitHub → Settings → Secrets and variables → Actions → RECONCILE_BASE_URL"
+            exit 1
+          fi
+          if [ "$codigo" = "401" ]; then
+            echo "::error::RECONCILE_TOKEN não confere com o valor da Netlify (HTTP 401)."
+            echo "A rota existe e recusou o token — os dois lados precisam do MESMO valor."
+            exit 1
+          fi
           if [ "$codigo" != "200" ]; then
             echo "::error::Reconciliação retornou HTTP $codigo."
             echo "500 com divergentes = assinatura cobrando valor diferente do combinado."
