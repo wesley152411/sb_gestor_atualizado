@@ -95,6 +95,39 @@ export function modoMercadoPago(): ModoMP | 'ausente' {
   return token ? modoDoToken(token) : 'ausente';
 }
 
+/**
+ * Diagnóstico da credencial, SEM segredo, para o operador ler numa tela.
+ *
+ * Existe porque uma credencial errada derrubava a assinatura com 500 e a única
+ * pista ficava no log da Netlify — que a decoradora não abre e que exige achar a
+ * requisição certa. Aqui a mesma checagem de `credencial()` roda e devolve o
+ * VEREDITO: modo, ambiente esperado e o motivo da recusa quando há.
+ *
+ * O `motivo` vem de conferirCoerencia, que é escrito para ser lido por gente e
+ * não cita o token. Nenhum caminho aqui devolve o segredo.
+ */
+export async function diagnosticoCredencial(): Promise<{
+  ok: boolean;
+  modo: ModoMP | 'ausente';
+  esperado: ModoMP;
+  motivo?: string;
+}> {
+  const esperado = ambienteEsperado(process.env);
+  const token = process.env.MP_ACCESS_TOKEN;
+  if (!token) {
+    return { ok: false, modo: 'ausente', esperado, motivo: 'MP_ACCESS_TOKEN não está definido no ambiente do servidor.' };
+  }
+  const coerencia = conferirCoerencia(token, esperado);
+  if (coerencia.resultado === 'recusa') return { ok: false, modo: modoDoToken(token), esperado, motivo: coerencia.motivo };
+  if (coerencia.resultado === 'aceita') return { ok: true, modo: coerencia.modo, esperado };
+
+  // APP_USR- em ambiente de teste: só a tag test_user autoriza.
+  const ehTeste = await contaEhDeTeste(token);
+  return ehTeste
+    ? { ok: true, modo: 'teste', esperado }
+    : { ok: false, modo: 'producao', esperado, motivo: 'Token APP_USR- sem a tag test_user num ambiente marcado como teste.' };
+}
+
 export type RespostaMP<T> = { status: number; body: T };
 
 type OpcoesMP = {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireDecorator } from '@/lib/api-auth';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { criarAssinatura } from '@/lib/assinatura';
+import { redigirSegredos } from '@/lib/mercadopago-credencial';
 
 // Cria a preapproval no Mercado Pago e devolve o init_point para o redirect.
 //
@@ -33,7 +34,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Assinatura indisponível nesta configuração.' }, { status: 503 });
   }
 
-  const resultado = await criarAssinatura(acesso.decoratorId, email, origem.replace(/\/$/, ''));
+  // TRY/CATCH que faltava. Sem ele, qualquer exceção — credencial do Mercado
+  // Pago incoerente, MP fora do ar, erro do Prisma — escapava como 500 mudo: a
+  // decoradora via "Não foi possível iniciar a assinatura" e não sobrava pista
+  // nenhuma com contexto. Foi exatamente o que aconteceu na primeira decoradora
+  // real que tentou assinar.
+  let resultado: Awaited<ReturnType<typeof criarAssinatura>>;
+  try {
+    resultado = await criarAssinatura(acesso.decoratorId, email, origem.replace(/\/$/, ''));
+  } catch (motivo) {
+    const detalhe = motivo instanceof Error ? motivo.message : String(motivo);
+    // Etiqueta buscável no log da Netlify. O texto de ErroMercadoPago é escrito
+    // para ser lido por gente e não contém o token.
+    console.error(`[ASSINATURA-EXCECAO] decoradora=${acesso.decoratorId}: ${redigirSegredos(detalhe)}`);
+    return NextResponse.json(
+      { error: 'Não foi possível iniciar a assinatura agora. Tente novamente em alguns minutos.', code: 'FALHA_INTERNA' },
+      { status: 502 },
+    );
+  }
 
   if (!resultado.ok) {
     if (resultado.motivo === 'ja_tem_assinatura') {
