@@ -209,41 +209,36 @@ export function desenharDocumento(
   const fonteEndereco = estruturadoOuAntigo(evento, cliente);
   const endereco = formatarEndereco(fonteEndereco);
 
-  // ---------- 1. O EVENTO ----------
-  secao('Informações do evento');
-  bloco([
-    ['Cliente', evento.client_name],
-    ['Telefone', evento.phone || '—'],
-    ['Data', formatDate(evento.event_date)],
-    ['Tema', evento.theme || '—'],
-    ['Chegada para montagem', evento.setup_time || '—'],
-    ['Início da festa', evento.start_time || '—'],
-  ]);
-
-  // ---------- 2. MONTAGEM ----------
-  secao('Informações de montagem');
-  blocoLargo('Endereço da montagem', endereco);
-
-  // ---------- 3. CLIENTE E VALORES (só no contrato) ----------
-  // A variante 'equipe' pula esta seção inteira: quem carrega o caminhão não
-  // precisa do CPF da cliente nem do valor fechado.
-  if (!equipe) {
-    secao('Dados do cliente');
-    bloco([
-      ['Nome', cliente?.name || evento.client_name],
-      ['Telefone', cliente?.phone || evento.phone || '—'],
-      ['E-mail', cliente?.email || '—'],
-      ['CPF', cliente?.cpf || '—'],
-    ]);
+  // ---------- 1. INFORMAÇÕES GERAIS DO CONTRATO ----------
+  // A ORDEM e o agrupamento são os do documento antigo, que era o que a
+  // decoradora já sabia ler: um bloco só com os pares, o Local em seguida, e
+  // depois peças e escopo. A troca desta rodada foi de CORES, não de estrutura.
+  //
+  // "Dados do cliente" saiu: repetia Cliente e Telefone que já estão aqui, e
+  // duas seções dizendo a mesma coisa fazem procurar diferença onde não há.
+  secao('Informações gerais do contrato');
+  {
+    const campos: [string, string][] = [
+      ['Cliente', evento.client_name],
+      ['Telefone', evento.phone || '—'],
+      ['Tema', evento.theme || '—'],
+    ];
+    // Valor só no contrato — é a fronteira que justifica a variante existir.
+    if (!equipe) campos.push(['Valor', formatCurrency(Number(evento.total_value) || 0)]);
+    campos.push(['Data', formatDate(evento.event_date)]);
+    campos.push(['Status', evento.status || '—']);
+    campos.push(['Montagem', evento.setup_time || '—']);
+    campos.push(['Início', evento.start_time || '—']);
+    bloco(campos);
   }
+  blocoLargo('Local', endereco);
 
-  if (evento.observation) {
-    secao('Observações');
-    blocoLargo('Anotações', evento.observation);
-  }
+  // Observação é o que a cliente escreveu — não cabe descartar por causa do
+  // layout. Fica dentro da primeira seção, sem abrir seção nova.
+  if (evento.observation) blocoLargo('Observações', evento.observation);
 
   // ---------- TABELA DE ITENS ----------
-  secao(equipe ? 'Peças a carregar' : 'Itens inclusos');
+  secao(equipe ? 'Peças do acervo a serem carregadas' : 'Peças e valores');
   {
     espaco(18);
     const colQtd = MARGIN + 4;
@@ -322,7 +317,7 @@ export function desenharDocumento(
   }
 
   // ---------- ETAPAS EM CARTÕES ----------
-  secao('Escopo da montagem');
+  secao('Escopo logístico para a equipe');
   {
     const etapas: [string, string, string[]][] = [
       ['A', 'Carregamento', [

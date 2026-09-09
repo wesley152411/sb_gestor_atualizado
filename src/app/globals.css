@@ -3858,7 +3858,7 @@ img { max-width: 100%; display: block; }
   align-items: center;
   gap: 14px;
   padding-bottom: 16px;
-  border-bottom: 1px dashed #e4d5cd;
+  border-bottom: 1px solid var(--border);
 }
 
 .quote-doc-logo {
@@ -3870,7 +3870,7 @@ img { max-width: 100%; display: block; }
 }
 
 .quote-doc-logo-fallback {
-  background: #b85450;
+  background: #0088B0;
   color: #fff;
   display: flex;
   align-items: center;
@@ -3880,86 +3880,95 @@ img { max-width: 100%; display: block; }
 }
 
 .quote-doc-title {
-  font-family: Georgia, 'Times New Roman', serif;
   font-size: 20px;
-  font-weight: 700;
-  color: #2f2a26;
+  font-weight: 800;
+  color: #17202a;
+  letter-spacing: -0.01em;
 }
 
-.quote-doc-subtitle { font-size: 13px; color: #8a8078; }
-.quote-doc-date { font-size: 12px; color: #8a8078; white-space: nowrap; }
+.quote-doc-subtitle { font-size: 13px; color: #0088B0; font-weight: 600; }
+.quote-doc-date { font-size: 12px; color: #6e7a85; white-space: nowrap; }
 
 .quote-doc-section-title {
   position: relative;
   font-weight: 800;
-  font-size: 15px;
-  color: #2f2a26;
-  margin: 20px 0 10px;
-  padding-left: 30px;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #17202a;
+  margin: 22px 0 10px;
+  padding-left: 14px;
 }
 
 .quote-doc-section-title::before {
+  /* Marcador vertical petróleo — o mesmo do PDF, onde a seção numerada tem
+     uma barrinha à esquerda. A prévia e o documento têm de parecer o mesmo. */
   content: '';
   position: absolute;
   left: 0;
   top: 50%;
-  width: 22px;
-  height: 3px;
-  background: #b85450;
+  width: 3px;
+  height: 14px;
+  background: #0088B0;
   border-radius: 2px;
   transform: translateY(-50%);
 }
 
 .quote-doc-product {
-  background: #fbf7f2;
+  background: #f4f7f9;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px 16px;
 }
 
 .quote-doc-product-name {
-  font-family: Georgia, 'Times New Roman', serif;
   font-size: 17px;
-  font-weight: 700;
-  color: #2f2a26;
+  font-weight: 800;
+  color: #17202a;
 }
 
-.quote-doc-product-desc { font-size: 13px; color: #8a8078; margin-top: 2px; }
+.quote-doc-product-desc { font-size: 13px; color: #6e7a85; margin-top: 2px; }
 
 .quote-doc-field {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid #f1e9e3;
+  border-bottom: 1px solid #eef2f5;
 }
 
-.quote-doc-field-label { color: #8a8078; font-size: 13px; }
-.quote-doc-field-value { color: #2f2a26; font-size: 13px; font-weight: 700; text-align: right; }
+.quote-doc-field-label { color: #6e7a85; font-size: 13px; }
+.quote-doc-field-value { color: #17202a; font-size: 13px; font-weight: 700; text-align: right; }
 
 .quote-doc-obs {
-  background: #fbf7f2;
+  background: #f4f7f9;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 14px;
   font-size: 13px;
-  color: #2f2a26;
+  color: #17202a;
   white-space: pre-wrap;
 }
 
 .quote-doc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
 .quote-doc-table th {
+  /* Cabeçalho ESCURO e linhas alternadas, como no PDF. */
   text-align: left;
   font-size: 10.5px;
   letter-spacing: 0.4px;
-  color: #8a8078;
-  background: #fbf7f2;
-  padding: 7px 8px;
+  color: #fff;
+  background: #1e293b;
+  padding: 8px;
 }
+.quote-doc-table th:first-child { border-radius: 6px 0 0 6px; }
+.quote-doc-table th:last-child { border-radius: 0 6px 6px 0; }
+.quote-doc-table tbody tr:nth-child(even) { background: #fafbfc; }
 
 .quote-doc-table td {
   padding: 9px 8px;
-  border-bottom: 1px dashed #e4d5cd;
-  color: #2f2a26;
+  border-bottom: 1px solid #eef2f5;
+  color: #17202a;
 }
 
 .quote-doc-check {
@@ -3967,22 +3976,22 @@ img { max-width: 100%; display: block; }
   align-items: center;
   gap: 5px;
   font-size: 12px;
-  color: #8a8078;
+  color: #6e7a85;
   margin-left: 14px;
 }
 
 .quote-doc-box {
   width: 12px;
   height: 12px;
-  border: 1px solid #b0a69e;
+  border: 1px solid #9aa6b2;
   border-radius: 3px;
   display: inline-block;
 }
 
 .quote-doc-stage { margin-bottom: 12px; }
-.quote-doc-stage-title { font-weight: 700; font-size: 13.5px; color: #2f2a26; margin-bottom: 4px; }
+.quote-doc-stage-title { font-weight: 700; font-size: 13.5px; color: #17202a; margin-bottom: 4px; }
 .quote-doc-stage ul { margin: 0; padding-left: 18px; }
-.quote-doc-stage li { font-size: 13px; color: #8a8078; line-height: 1.6; }
+.quote-doc-stage li { font-size: 13px; color: #6e7a85; line-height: 1.6; }
 
 /* ==================== PÁGINA PÚBLICA DA PARCEIRA (Marketplace) ==================== */
 .partner-back-link {

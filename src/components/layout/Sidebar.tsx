@@ -15,7 +15,7 @@ const menuItems = [
   { href: '/inventory', label: 'Meu Acervo', icon: Package },
   { href: '/marketplace', label: 'Marketplace', icon: ShoppingBag },
   { href: '/marketplace/my-page', label: 'Minha Página', icon: Store },
-  { href: '/chat', label: 'Chat B2B', icon: MessageSquare },
+  { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/party-form', label: 'Formulário', icon: ShoppingCart },
   { href: '/calendar', label: 'Calendário', icon: CalendarDays },
   { href: '/clients', label: 'Clientes', icon: Users },

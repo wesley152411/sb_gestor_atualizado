@@ -127,20 +127,6 @@ export default function ClientsPage() {
     }
   };
 
-  // ITEM DE MENU explícito, no lugar do download automático ao confirmar.
-  const handleBaixarMontagem = async (e: PartyEvent) => {
-    setOpenMenuId(null);
-    try {
-      const cli = clients.find((c) => c.id === e.client_id) || null;
-      const dono = decorators.find((d) => d.id === e.decorator_id) || null;
-      await gerarDocumentoPDF(e, cli, dono, 'equipe');
-      addNotification('PDF Gerado', `Checklist de montagem de ${e.client_name} baixado.`);
-    } catch (err) {
-      console.error('Falha ao gerar o PDF de montagem:', err);
-      addNotification('Erro ao Gerar PDF', 'Não foi possível gerar o checklist de montagem.', true);
-    }
-  };
-
   // Confirmar: um clique, sem modal. IRREVERSÍVEL (não há caminho de volta).
   const handleConfirm = async (e: PartyEvent) => {
     setBusyId(e.id);
@@ -283,11 +269,7 @@ export default function ClientsPage() {
             // Reativação: só para eventos passados (>1 mês). A seta é só para
             // eventos NÃO passados — os dois nunca convivem na mesma linha.
             const promo = isPromoEligible(event.event_date);
-            // O PDF de montagem vale para qualquer evento real (não rascunho de
-            // link, não linha de promoção) — inclusive já finalizado, porque a
-            // equipe pode precisar do checklist depois.
-            const podeBaixarMontagem = !draft && !promo;
-            const hasMenu = (canCancel || draft || podeBaixarMontagem) && !promo;
+            const hasMenu = (canCancel || draft) && !promo;
             const promoClient = clients.find(c => c.id === event.client_id) || null;
             const promoPhoneVal = promoClient?.phone || event.phone || '';
             const promoPhoneOk = isValidPromoPhone(promoPhoneVal);
@@ -370,12 +352,6 @@ export default function ClientsPage() {
                           {/* clique fora fecha o menu */}
                           <div style={{ position: 'fixed', inset: 0, zIndex: 20 }} onClick={() => setOpenMenuId(null)} />
                           <div className="row-menu" style={{ position: 'absolute', right: 0, top: '110%', zIndex: 30, background: 'white', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 180, padding: 6 }}>
-                            {podeBaixarMontagem && (
-                              <button type="button" className="row-menu-item" onClick={() => handleBaixarMontagem(event)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-                                <Download className="w-4 h-4" /> Baixar PDF de montagem
-                              </button>
-                            )}
                             {canCancel && (
                               <button type="button" className="row-menu-item" onClick={() => handleCancel(event)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', fontSize: 13, fontWeight: 600, color: '#dc2626', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
@@ -440,26 +416,20 @@ export default function ClientsPage() {
               </div>
             </div>
 
-            {/* Produto / Serviço (sem valores) */}
-            <div className="quote-doc-section-title">Produto / Serviço</div>
-            <div className="quote-doc-product">
-              <div className="quote-doc-product-name">{previewEvent.theme || 'Evento'}</div>
-              <div className="quote-doc-product-desc">Orçamento gerado a partir do link enviado à cliente.</div>
-            </div>
-
-            {/* Dados do cliente */}
-            <div className="quote-doc-section-title">Dados do cliente</div>
-            <QuoteField label="Nome completo" value={previewEvent.client_name || previewClient?.name} />
+            {/* Pré-visualização = o que SAI no PDF. Mesma ordem e mesmas seções:
+                uma prévia com estrutura diferente do documento mente sobre o que
+                a decoradora vai receber. "Dados do cliente" saiu daqui junto com
+                o PDF — repetia Cliente e Telefone que já estão abaixo. */}
+            <div className="quote-doc-section-title">Informações gerais do contrato</div>
+            <QuoteField label="Cliente" value={previewEvent.client_name || previewClient?.name} />
             <QuoteField label="Telefone" value={previewEvent.phone || previewClient?.phone} />
-            <QuoteField label="E-mail" value={previewClient?.email} />
-            <QuoteField label="CPF" value={previewClient?.cpf} />
-
-            {/* Informações de montagem */}
-            <div className="quote-doc-section-title">Informações de montagem</div>
-            <QuoteField label="Endereço" value={formatarEndereco(previewEvent.address ? previewEvent : previewClient)} />
-            <QuoteField label="Data do evento" value={previewEvent.event_date ? formatDate(previewEvent.event_date) : ''} />
-            <QuoteField label="Horário de chegada" value={previewEvent.setup_time} />
-            <QuoteField label="Horário de início" value={previewEvent.start_time} />
+            <QuoteField label="Tema" value={previewEvent.theme} />
+            <QuoteField label="Valor" value={formatCurrency(Number(previewEvent.total_value) || 0)} />
+            <QuoteField label="Data" value={previewEvent.event_date ? formatDate(previewEvent.event_date) : ''} />
+            <QuoteField label="Status" value={previewEvent.status} />
+            <QuoteField label="Montagem" value={previewEvent.setup_time} />
+            <QuoteField label="Início" value={previewEvent.start_time} />
+            <QuoteField label="Local" value={formatarEndereco(previewEvent.address ? previewEvent : previewClient)} />
 
             {/* Observações */}
             {previewEvent.observation?.trim() && (
@@ -470,7 +440,7 @@ export default function ClientsPage() {
             )}
 
             {/* Itens inclusos — tabela de conferência */}
-            <div className="quote-doc-section-title">Itens inclusos</div>
+            <div className="quote-doc-section-title">Peças e valores</div>
             <table className="quote-doc-table">
               <thead>
                 <tr>
