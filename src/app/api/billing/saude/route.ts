@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireDecorator } from '@/lib/api-auth';
 import { saudeDoJob } from '@/lib/reconciliacao';
+import { diagnosticoCredencial } from '@/lib/mercadopago';
 
 // A faixa do dashboard lê daqui. Camada 1: quem está suspensa também precisa ver
 // — e, mais importante, o operador precisa ver de qualquer estado de assinatura.
@@ -18,5 +19,9 @@ export async function GET() {
   if (process.env.OPERADOR_DECORATOR_ID !== acesso.decoratorId) {
     return NextResponse.json({ operador: false });
   }
-  return NextResponse.json({ operador: true, ...(await saudeDoJob()) });
+  // A credencial do Mercado Pago entra aqui porque é o único lugar já restrito
+  // ao operador. Diz o MODO e o motivo da recusa — nunca o segredo. É o que
+  // transforma "o log da Netlify vai dizer" em "abra esta URL".
+  const [saude, mp] = await Promise.all([saudeDoJob(), diagnosticoCredencial()]);
+  return NextResponse.json({ operador: true, ...saude, mercadoPago: mp });
 }
