@@ -133,9 +133,42 @@ describe('confirmar um evento não baixa arquivo', () => {
       .not.toMatch(/gerarDocumentoPDF/);
   });
 
-  it('existe um item de menu explícito para baixar', () => {
-    expect(fonte).toMatch(/handleBaixarMontagem/);
-    expect(fonte).toMatch(/Baixar PDF de montagem/);
+  it('o download continua alcançável, pela pré-visualização', () => {
+    // A garantia é "nada baixa sozinho", não "existe um item de menu": o item
+    // dedicado foi removido por ser redundante — o botão de folha já abre a
+    // pré-visualização, e é de lá que sai o PDF. O que não pode é o caminho
+    // sumir junto com o download automático.
+    expect(fonte).toMatch(/handleDownloadFromPreview/);
+    expect(fonte).toMatch(/Baixar PDF/);
+    expect(fonte, 'a pré-visualização é o que abre antes de gerar').toMatch(/setPreviewEvent/);
+  });
+});
+
+describe('a pré-visualização mostra o que o PDF vai conter', () => {
+  const tela = ler('src/app/(dashboard)/clients/page.tsx');
+
+  it('as duas seções redundantes viraram uma, nos dois', () => {
+    // "Dados do cliente" repetia Cliente e Telefone de "Informações gerais".
+    // Duas seções dizendo o mesmo fazem procurar diferença onde não há.
+    expect(ler('src/lib/documento-pdf.ts')).not.toMatch(/secao\('Dados do cliente'\)/);
+    expect(tela, 'a prévia não pode mostrar seção que o PDF não tem')
+      .not.toMatch(/>Dados do cliente</);
+  });
+
+  it('a prévia usa a mesma primeira seção do documento', () => {
+    expect(tela).toMatch(/>Informações gerais do contrato</);
+    expect(ler('src/lib/documento-pdf.ts')).toMatch(/secao\('Informações gerais do contrato'\)/);
+  });
+
+  it('a prévia não usa mais a paleta do gerador antigo', () => {
+    // Terracota veio do quote-pdf, que não existe mais. Prévia com cor de
+    // documento morto é a pior pista possível sobre o que vai sair.
+    const css = ler('src/app/globals.css');
+    const bloco = css.slice(css.indexOf('.quote-doc {'), css.indexOf('.quote-doc-box'));
+    for (const antiga of ['#b85450', '#fbf7f2', '#8a8078', '#2f2a26', '#e4d5cd']) {
+      expect(bloco, `a prévia ainda usa ${antiga}`).not.toMatch(new RegExp(antiga, 'i'));
+    }
+    expect(bloco, 'a marca é petróleo').toMatch(/#0088B0/i);
   });
 });
 
