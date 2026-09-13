@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, ShoppingCart, CalendarCheck, ClipboardCheck, ShoppingBag, Trash2, Package } from 'lucide-react';
+import { Bell, ShoppingCart, CalendarCheck, ClipboardCheck, ShoppingBag, Trash2, Package, Menu } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useMenuStore } from '@/stores/menu-store';
 import { usePartyEvents, useRentalOrders } from '@/hooks/swr-hooks';
 import { formatCurrency } from '@/lib/utils';
 import { EVENT_STATUS, effectiveStatus } from '@/lib/event-status';
@@ -30,6 +31,7 @@ function fmtDate(d?: string) {
 export function Header() {
   const router = useRouter();
   const { decorator } = useAuthStore();
+  const { aberto: menuAberto, abrir: abrirMenu } = useMenuStore();
   const { items, removeItem, totalPrice, totalItems, clear, requestCheckout } = useCartStore();
   const { events } = usePartyEvents(decorator?.id);
   const { orders } = useRentalOrders(decorator?.id);
@@ -132,7 +134,22 @@ export function Header() {
 
   return (
     <header className="main-header">
-      <div className="header-title">Bem-vindo(a) ao SB GESTOR</div>
+      <div className="header-inicio">
+        {/* ☰ do celular: abaixo de 1024px a barra lateral sai da tela, e este é o
+            único jeito de chegar nela. No desktop fica escondido pelo CSS. */}
+        <button
+          type="button"
+          id="menu-abrir"
+          className="header-menu-btn"
+          onClick={abrirMenu}
+          aria-label="Abrir menu"
+          aria-expanded={menuAberto}
+          aria-controls="menu-lateral"
+        >
+          <Menu className="w-6 h-6" aria-hidden="true" />
+        </button>
+        <div className="header-title">Bem-vindo(a) ao SB GESTOR</div>
+      </div>
 
       <div className="header-actions">
         {/* Notificações (sino) */}

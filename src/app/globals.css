@@ -5178,3 +5178,115 @@ img { max-width: 100%; display: block; }
   .faixa { flex-wrap: wrap; }
   .faixa-acao { width: 100%; }
 }
+
+/* ==================== MENU NO CELULAR (painel deslizante) ==================== */
+/* Abaixo de 1024px a barra lateral sai da tela (regra em RESPONSIVE). Antes
+   não havia como abri-la de volta: a classe .open existia no CSS e nada no app
+   a aplicava. Agora o ☰ do cabeçalho abre a barra como painel por cima do
+   conteúdo, com fundo escurecido.
+
+   Camadas: cabeçalho 50 < fundo 90 < barra 100 < dropdowns 200 < modais 1000.
+   O fundo cobre o cabeçalho, e fica abaixo de qualquer modal. */
+
+.header-inicio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Escondido no desktop: lá a barra é fixa e o ☰ não teria o que abrir. */
+.header-menu-btn,
+.sidebar-v2-fechar {
+  display: none;
+  flex-shrink: 0;
+  width: 44px; /* alvo de toque mínimo */
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.header-menu-btn:hover,
+.sidebar-v2-fechar:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.header-menu-btn:focus-visible,
+.sidebar-v2-fechar:focus-visible {
+  outline: 2px solid #0b4f5e;
+  outline-offset: 2px;
+}
+
+.menu-fundo {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .header-menu-btn,
+  .sidebar-v2-fechar {
+    display: inline-flex;
+  }
+
+  /* "Recolher" é coisa do desktop: no painel, o botão dele dá lugar ao X. */
+  .sidebar-v2-toggle {
+    display: none;
+  }
+
+  /* Recolhida no desktop e depois estreitada: o conteúdo não pode ficar com a
+     margem de 84px da barra recolhida, que no celular está fora da tela. */
+  .sidebar-v2.collapsed + .main-area {
+    margin-left: 0;
+  }
+
+  /* Em telas muito estreitas o painel deixa uma faixa da página à vista:
+     é ela que diz "isto é um painel por cima", e é onde se toca para fechar. */
+  .sidebar-v2 {
+    max-width: 86vw;
+  }
+
+  .sidebar-v2.open {
+    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.28);
+  }
+
+  .menu-fundo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(15, 23, 42, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-normal);
+  }
+
+  .menu-fundo.visivel {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Celular estreito: o título do cabeçalho não pode empurrar o sininho e o
+   carrinho para fora. O texto é o mesmo; só corta com reticências. */
+@media (max-width: 640px) {
+  .header-title {
+    min-width: 0;
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Quem pediu menos movimento ao sistema recebe o painel sem deslizar. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-v2,
+  .menu-fundo {
+    transition: none;
+  }
+}
