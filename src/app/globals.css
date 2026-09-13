@@ -117,7 +117,24 @@ img { max-width: 100%; display: block; }
 }
 
 /* ==================== SIDEBAR V2 (Light) ==================== */
+/* Visual do print de referência aprovado: seções com rótulo, item ativo em
+   azul-petróleo sólido, contadores com dado real e bloco inferior separado.
+
+   Tokens LOCAIS à barra: a cor de destaque do resto do app (índigo) não muda.
+   Contraste medido antes de escolher:
+     branco sobre --sb-petroleo ........ 9,2:1
+     --sb-magenta sobre branco ......... 5,1:1
+     --sb-rotulo sobre branco .......... 4,8:1
+   O petróleo do logo (#0088B0) com texto branco dá 4,1:1 e reprova para 14px;
+   por isso o ativo usa o tom mais escuro, que é também o do print. */
 .sidebar-v2 {
+  --sb-petroleo: #0b4f5e;
+  --sb-petroleo-claro: #e3f1f4;
+  --sb-magenta: #d6006c;
+  --sb-tinta: #1e293b;
+  --sb-rotulo: #64748b;
+  --sb-hover: #f1f5f9;
+
   width: 260px;
   background: var(--bg-card);
   border-right: 1px solid var(--border);
@@ -130,10 +147,12 @@ img { max-width: 100%; display: block; }
   z-index: 100;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
   transition: width var(--transition-normal), transform var(--transition-normal);
 }
 
-/* Logo */
+/* Logo — inalterado: foto e nome da decoradora. */
 .sidebar-v2-logo {
   padding: 28px 20px 24px;
   display: flex;
@@ -198,15 +217,41 @@ img { max-width: 100%; display: block; }
   line-height: 1.3;
 }
 
-/* Navigation */
+/* Navegação: grupos separados por espaço, não por caixa. Dentro do grupo os
+   itens ficam juntos (2px); entre grupos, 20px. É o que faz a seção ler como
+   seção sem precisar de borda. */
 .sidebar-v2-nav {
   flex: 1;
-  padding: 8px 0;
+  padding: 4px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sidebar-v2-secao {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-v2-secao-rotulo {
+  margin: 0;
+  padding: 0 12px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sb-rotulo);
+}
+
+/* A rede é o grupo que conecta a decoradora a outras: leva a cor da marca. */
+.sidebar-v2-secao-rotulo.rede {
+  color: var(--sb-magenta);
 }
 
 .sidebar-v2-menu {
   list-style: none;
-  padding: 0 12px;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -216,27 +261,29 @@ img { max-width: 100%; display: block; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 16px;
+  min-height: 44px; /* alvo de toque mesmo com o texto pequeno */
+  padding: 0 12px;
   border-radius: var(--radius-md);
   font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
-  position: relative;
-  border-left: 3px solid transparent;
-  margin-left: -3px;
+  font-weight: 600;
+  color: var(--sb-tinta);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .sidebar-v2-link:hover {
-  color: var(--text-primary);
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--sb-hover);
 }
 
+.sidebar-v2-link:focus-visible,
+.sidebar-v2-bottom-link:focus-visible {
+  outline: 2px solid var(--sb-petroleo);
+  outline-offset: 2px;
+}
+
+/* Ativo: fundo sólido. Sem borda colorida à esquerda: o fundo já diz tudo. */
 .sidebar-v2-link.active {
-  color: var(--primary);
-  background: var(--primary-light);
-  font-weight: 600;
-  border-left-color: var(--primary);
+  background: var(--sb-petroleo);
+  color: #fff;
 }
 
 .sidebar-v2-link-icon {
@@ -245,10 +292,68 @@ img { max-width: 100%; display: block; }
   flex-shrink: 0;
 }
 
-/* Bottom */
+.sidebar-v2-link-rotulo {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Contagem de peças: pílula discreta, números alinhados. */
+.sidebar-v2-pilula {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--sb-petroleo-claro);
+  color: var(--sb-petroleo);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.sidebar-v2-link.active .sidebar-v2-pilula {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+/* Não lidas: círculo magenta. É o único número que pede ação. */
+.sidebar-v2-contador {
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--sb-magenta);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-v2-externo {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--sb-rotulo);
+}
+
+.sidebar-v2-link.active .sidebar-v2-externo {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Bloco inferior: FIXO (sticky) mesmo quando o menu rola, separado por linha. */
 .sidebar-v2-bottom {
-  padding: 16px 16px 24px;
+  position: sticky;
+  bottom: 0;
   margin-top: auto;
+  padding: 12px 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
 }
 
 .sidebar-v2-cta {
@@ -282,18 +387,23 @@ img { max-width: 100%; display: block; }
 .sidebar-v2-bottom-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sb-tinta);
   border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .sidebar-v2-bottom-link:hover {
-  color: var(--text-primary);
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--sb-hover);
+}
+
+.sidebar-v2-bottom-link.active {
+  background: var(--sb-petroleo);
+  color: #fff;
 }
 
 
@@ -3644,22 +3754,36 @@ img { max-width: 100%; display: block; }
   display: none;
 }
 
-/* Oculta os textos, mantendo apenas os ícones */
-.sidebar-v2.collapsed .sidebar-v2-link span,
+/* Recolhida: somem textos, rótulos de seção, pílula e ícone externo. O espaço
+   entre grupos continua separando as seções. O nome de cada link segue no
+   aria-label, então o leitor de tela não perde nada. */
+.sidebar-v2.collapsed .sidebar-v2-secao-rotulo,
+.sidebar-v2.collapsed .sidebar-v2-link-rotulo,
+.sidebar-v2.collapsed .sidebar-v2-pilula,
+.sidebar-v2.collapsed .sidebar-v2-externo,
 .sidebar-v2.collapsed .sidebar-v2-bottom-link span {
   display: none;
 }
 
-/* Centraliza os ícones dos links */
-.sidebar-v2.collapsed .sidebar-v2-menu {
-  padding: 0 12px;
-}
-
 .sidebar-v2.collapsed .sidebar-v2-link,
 .sidebar-v2.collapsed .sidebar-v2-bottom-link {
+  position: relative;
   justify-content: center;
   padding-left: 0;
   padding-right: 0;
+}
+
+/* Não lidas vira um ponto no canto do ícone: o número não cabe, o aviso cabe. */
+.sidebar-v2.collapsed .sidebar-v2-contador {
+  position: absolute;
+  top: 9px;
+  right: 16px;
+  min-width: 0;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  font-size: 0;
+  border: 2px solid var(--bg-card);
 }
 
 /* ==================== HEADER: DROPDOWNS (sino / carrinho) ==================== */
