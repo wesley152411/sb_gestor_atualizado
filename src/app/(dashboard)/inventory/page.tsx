@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useNotificationStore } from '@/stores/notification-store';
 import { formatCurrency, formatPriceLabel, hasPrice, getPlaceholderImage } from '@/lib/utils';
+import { totalDePecas } from '@/lib/menu-contadores';
 import type { InventoryItem, Kit } from '@/types';
 
 // Peça ainda NÃO gravada: existe só na lista do modal até o Salvar. O prefixo
@@ -536,7 +537,8 @@ export default function InventoryPage() {
     : items.filter(item => item.name.toLowerCase().includes(kitSearchQuery.toLowerCase()));
 
   // Calculate stats
-  const totalItems = items.reduce((sum, item) => sum + item.stock_quantity, 0);
+  // Mesma função da barra lateral: o número dela e o daqui não podem divergir.
+  const totalItems = totalDePecas(items);
   const totalValue = items.reduce((sum, item) => sum + (item.rental_price * item.stock_quantity), 0);
 
   if (isLoading) {
