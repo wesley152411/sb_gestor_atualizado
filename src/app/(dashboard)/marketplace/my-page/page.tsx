@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Camera, MapPin, AtSign, Phone, Info, Plus, Pencil,
-  Eye, EyeOff, Search, Smartphone, Download, Store, ToggleLeft, List, Link2
+  Eye, EyeOff, Search, Smartphone, Download, Store, List, Link2
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
@@ -12,8 +12,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { formatCurrency, formatPriceLabel, hasPrice, getInitials } from '@/lib/utils';
-import type { InventoryItem, Kit, RentalOrder, ChatMessage } from '@/types';
+import { formatCurrency, formatPriceLabel, hasPrice, getInitials, sanitizePhoneDigits, sanitizeInstagramHandle } from '@/lib/utils';
+import type { InventoryItem, Kit, RentalOrder, ChatMessage, Decorator } from '@/types';
 import {
   saveDecoratorProfile, saveInventoryItem, saveKit, createQuoteLink
 } from '@/services/api';
@@ -121,15 +121,23 @@ export default function MyPage() {
     setIsEditProfileOpen(true);
   };
 
+  // Única tela onde Sobre, WhatsApp e Instagram são editados (saíram de
+  // Configurações). Por isso a limpeza que Configurações fazia mora aqui agora:
+  // WhatsApp só com dígitos (vira o link wa.me), Instagram sem @ e sem URL.
+  // Vazio vira null, para que APAGAR um campo realmente grave. E vai só o que
+  // este formulário edita — o servidor mantém o resto do perfil.
   const handleSaveProfile = async () => {
     if (!decorator) return;
-    const updated = {
-      ...decorator,
-      ...editProfileForm
+    const campos = {
+      instagram: sanitizeInstagramHandle(editProfileForm.instagram) || null,
+      whatsapp: sanitizePhoneDigits(editProfileForm.whatsapp) || null,
+      phone: editProfileForm.phone.trim() || null,
+      location: editProfileForm.location.trim(),
+      about: editProfileForm.about.trim() || null,
     };
     try {
-      await saveDecoratorProfile(updated);
-      updateDecorator(editProfileForm);
+      const salvo = await saveDecoratorProfile(campos as unknown as Partial<Decorator>);
+      updateDecorator(salvo);
       setIsEditProfileOpen(false);
       addNotification('Perfil Atualizado', 'Suas informações públicas foram salvas no banco de dados!');
     } catch (err) {
@@ -459,30 +467,11 @@ export default function MyPage() {
               </span>
             </div>
 
-            {/* Lado Direito (Botões de Ação) */}
+            {/* Lado Direito. Havia aqui dois botões de ícone ("Alternar
+                Visualização" e "Visualizar como Lista") sem nenhum onClick:
+                prometiam uma troca de visualização que nunca existiu. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {/* Botão com formato de toggle/switch vazio */}
-              <button 
-                type="button"
-                className="btn-icon"
-                style={{ width: '38px', height: '38px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                title="Alternar Visualização"
-              >
-                <ToggleLeft className="w-5 h-5" style={{ color: 'var(--text-light)' }} />
-              </button>
-
-              {/* Botão com ícone de lista */}
-              <button 
-                type="button"
-                className="btn-icon"
-                style={{ width: '38px', height: '38px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                title="Visualizar como Lista"
-              >
-                <List className="w-5 h-5" style={{ color: 'var(--text-light)' }} />
-              </button>
-
-              {/* Botão Principal */}
-              <Button 
+              <Button
                 icon={Plus} 
                 onClick={() => setIsImportModalOpen(true)}
               >
