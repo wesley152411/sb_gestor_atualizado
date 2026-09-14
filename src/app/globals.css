@@ -5271,3 +5271,229 @@ img { max-width: 100%; display: block; }
     transition: none;
   }
 }
+
+/* ==================== CALENDÁRIO E CLIENTES NO CELULAR ==================== */
+/* No celular a página ficava mais larga que a tela: numa tela de 360px, o
+   Calendário media 592px e Clientes 748px. Causa comum: .main-area é item flex
+   com min-width:auto, então CRESCIA até caber o conteúdo mais largo (a grade
+   de 7 colunas, a tabela de 7 colunas) em vez de caber na tela. Os chips e o
+   "Novo Evento" cortados eram consequência disso.
+
+   Tudo aqui mora dentro de @media (max-width): o desktop não muda. */
+
+@media (max-width: 1024px) {
+  /* A causa raiz: o conteúdo se ajusta à tela, e não a tela ao conteúdo. */
+  .main-area {
+    min-width: 0;
+  }
+}
+
+/* ---- Calendário ---- */
+@media (max-width: 640px) {
+  .calendar-panel {
+    padding: 12px;
+    /* A cor de "Retirada" (--lp-primary) só é definida dentro da landing page
+       (.lp): no app, a pílula e o ponto da legenda ficavam sem cor nenhuma.
+       No celular o evento É o ponto colorido, então a cor tem de existir. */
+    --lp-primary: #006482;
+  }
+
+  /* Duas linhas: a navegação do período em cima; as visões e o "Novo Evento"
+     embaixo, com o botão na largura toda — nunca cortado. */
+  .calendar-toolbar-left,
+  .calendar-toolbar-right {
+    width: 100%;
+  }
+
+  .calendar-toolbar-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    text-align: center;
+  }
+
+  .calendar-toolbar-right {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .calendar-toolbar-right .acervo-segmented-control {
+    flex: 1 1 100%;
+  }
+
+  .calendar-toolbar-right .acervo-segment {
+    flex: 1;
+    padding: 9px 8px;
+  }
+
+  .calendar-toolbar-right > .btn-base {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  /* minmax(0, 1fr): a coluna não cresce para caber o texto de uma pílula. */
+  .calendar-weekday-header,
+  .calendar-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .calendar-weekday-header {
+    padding: 0;
+  }
+
+  .calendar-weekday-header span {
+    padding: 6px 0;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0;
+    color: var(--text-secondary);
+  }
+
+  .calendar-grid {
+    grid-template-rows: repeat(6, minmax(56px, auto));
+  }
+
+  .calendar-grid-week {
+    grid-template-rows: minmax(88px, auto);
+  }
+
+  .calendar-cell {
+    min-width: 0;
+    padding: 6px 2px;
+    align-items: center;
+  }
+
+  /* Numa coluna de ~43px o nome do evento não cabe nem cortado. Cada evento
+     vira um ponto na cor dele — as mesmas cores da legenda logo abaixo — e
+     tocar no dia abre o detalhe completo. Nenhuma informação sai da tela, e o
+     texto continua no HTML: leitor de tela ainda anuncia o evento. */
+  .calendar-cell-events {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  .calendar-pill {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+  }
+
+  .calendar-pill-internal {
+    border-color: var(--primary);
+  }
+
+  .calendar-pill-more {
+    flex-basis: 100%;
+    text-align: center;
+    font-size: 9px;
+    line-height: 1.2;
+    padding: 0;
+    color: var(--text-secondary);
+  }
+
+  .calendar-legend {
+    gap: 8px 16px;
+  }
+}
+
+/* ---- Clientes ---- */
+/* 820px: abaixo disso as 7 colunas da tabela já não cabem (medido: a tabela
+   pede ~720px + o respiro da página). */
+@media (max-width: 820px) {
+  /* Filtros empilhados, cada um na largura toda; os chips quebram linha. */
+  .clients-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .clients-filter-bar .search-bar,
+  .clients-filter-bar .month-filter-input {
+    width: 100%;
+  }
+
+  .clients-clear-filters {
+    align-self: flex-start;
+  }
+
+  /* A tabela vira uma lista de cartões, um por evento. Cada célula leva o nome
+     da coluna (data-label), então nada depende de rolagem lateral. */
+  .clients-table {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .clients-table .data-table,
+  .clients-table tbody,
+  .clients-table tr {
+    display: block;
+  }
+
+  .clients-table thead {
+    display: none;
+  }
+
+  .clients-table tr {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 4px 16px;
+    margin-bottom: 12px;
+  }
+
+  .clients-table tr:hover td {
+    background: transparent;
+  }
+
+  .clients-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .clients-table td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: left;
+  }
+
+  /* O nome do cliente é o título do cartão: sem rótulo, alinhado à esquerda. */
+  .clients-table td[data-label="Cliente"] {
+    justify-content: flex-start;
+    padding-top: 12px;
+    font-size: 15px;
+    text-align: left;
+  }
+
+  .clients-table td[data-label="Cliente"]::before {
+    display: none;
+  }
+
+  .clients-table td[data-label="Ações"] {
+    border-bottom: 0;
+  }
+
+  /* "Nenhum evento encontrado": sem rótulo, centralizado. */
+  .clients-table td:not([data-label]) {
+    display: block;
+    text-align: center;
+    border-bottom: 0;
+  }
+}
