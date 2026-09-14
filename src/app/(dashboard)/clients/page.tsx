@@ -254,7 +254,7 @@ export default function ClientsPage() {
         )}
       </div>
 
-      <Table headers={['Cliente', 'Telefone', 'Data do Evento', 'Tema', 'Status', 'Valor', 'Ações']}>
+      <Table className="clients-table" headers={['Cliente', 'Telefone', 'Data do Evento', 'Tema', 'Status', 'Valor', 'Ações']}>
         {filteredEvents.length === 0 ? (
           <tr>
             <td colSpan={7} className="text-center py-8 text-slate-500">Nenhum evento encontrado.</td>
@@ -275,18 +275,21 @@ export default function ClientsPage() {
             const promoPhoneOk = isValidPromoPhone(promoPhoneVal);
             const lastSent = event.client_id ? lastPromoByClient.get(event.client_id) : undefined;
             return (
+            // data-label = o nome da coluna. No celular a tabela vira cartões e
+            // cada valor aparece ao lado do seu rótulo (CSS em globals.css,
+            // "CALENDÁRIO E CLIENTES NO CELULAR"). Tem de ser igual ao cabeçalho.
             <tr key={event.id}>
-              <td className="font-bold">{event.client_name || <span className="text-slate-400">(link não preenchido)</span>}</td>
-              <td>{event.phone || '—'}</td>
-              <td>{event.event_date ? formatDate(event.event_date) : '—'}</td>
-              <td>
+              <td className="font-bold" data-label="Cliente">{event.client_name || <span className="text-slate-400">(link não preenchido)</span>}</td>
+              <td data-label="Telefone">{event.phone || '—'}</td>
+              <td data-label="Data do Evento">{event.event_date ? formatDate(event.event_date) : '—'}</td>
+              <td data-label="Tema">
                 <span className="category-pill">{event.theme}</span>
               </td>
-              <td>
+              <td data-label="Status">
                 <Badge variant={badge.variant}>{badge.label}</Badge>
               </td>
-              <td className="font-bold">{formatCurrency(event.total_value)}</td>
-              <td>
+              <td className="font-bold" data-label="Valor">{formatCurrency(event.total_value)}</td>
+              <td data-label="Ações">
                 <div className="flex gap-2" style={{ position: 'relative' }}>
                   {!draft && (
                     <Button variant="secondary" size="icon" title="Visualizar documento" onClick={() => setPreviewEvent(event)}>
