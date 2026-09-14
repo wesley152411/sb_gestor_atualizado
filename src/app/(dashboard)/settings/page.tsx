@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { saveDecoratorProfile, signOut, resetPassword, uploadImage } from '@/services/api';
 import { detectCity } from '@/lib/geolocation';
-import { getInitials, sanitizePhoneDigits, sanitizeInstagramHandle, defaultPromoTemplate, fillPromoTemplate, cnpjMask, sanitizeCnpjDigits, isValidCnpj } from '@/lib/utils';
+import { getInitials, defaultPromoTemplate, fillPromoTemplate, cnpjMask, sanitizeCnpjDigits, isValidCnpj } from '@/lib/utils';
 import { promoWhatsappEnabled, captchaEnabled } from '@/lib/feature-flags';
 import { CaptchaWidget } from '@/components/auth/CaptchaWidget';
 import { Button } from '@/components/ui/Button';
@@ -73,18 +73,17 @@ export default function SettingsPage() {
     }
     setCnpjError('');
     setIsLoading(true);
-    // Sanitiza os campos de contato ANTES de gravar (armazenamento limpo):
-    // - about: trim; - whatsapp: só dígitos (DDI/DDD); - instagram: handle sem @.
-    // Vazio => null (não undefined): o /api/decorators/me só sobrescreve quando a
-    // chave vem no corpo; enviar null garante que LIMPAR o campo realmente grava.
-    const sanitized = {
-      ...profile,
+    // Envia SÓ o que esta tela edita. O /api/decorators/me mantém o valor atual
+    // de toda chave que não vem no corpo — então Sobre, WhatsApp e Instagram,
+    // que agora são editados apenas na Minha Página, não podem ser sobrescritos
+    // daqui com uma cópia antiga.
+    const campos: Partial<Decorator> = {
+      name: profile.name,
       cnpj: cnpjDigits || null,
-      about: profile.about?.trim() || null,
-      whatsapp: sanitizePhoneDigits(profile.whatsapp) || null,
-      instagram: sanitizeInstagramHandle(profile.instagram) || null,
-    } as Record<string, unknown>;
-    const updated = await saveDecoratorProfile(sanitized as unknown as Decorator);
+      location: profile.location,
+      ...(promoWhatsappEnabled ? { promo_message_template: profile.promo_message_template } : {}),
+    };
+    const updated = await saveDecoratorProfile(campos);
     updateDecorator(updated);
     setProfile(updated);
     addNotification('Perfil Atualizado', 'Suas informações foram salvas com sucesso.');
@@ -120,9 +119,9 @@ export default function SettingsPage() {
     setIsUploadingAvatar(true);
     try {
       const avatar_url = await processAvatarUpload(file);
-      const updatedProfile = { ...profile, avatar_url };
-      setProfile(updatedProfile);
-      const saved = await saveDecoratorProfile(updatedProfile as Decorator);
+      setProfile(p => ({ ...p, avatar_url }));
+      // Só a foto: o resto do perfil fica como está no servidor.
+      const saved = await saveDecoratorProfile({ avatar_url });
       updateDecorator(saved);
       addNotification('Foto Atualizada', 'Sua foto de perfil foi alterada com sucesso.');
     } catch (err) {
@@ -216,15 +215,6 @@ export default function SettingsPage() {
                 {getInitials(profile.name)}
               </div>
             )}
-            <button
-              type="button"
-              className="settings-avatar-btn"
-              aria-label="Trocar foto"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingAvatar}
-            >
-              <Camera size={16} />
-            </button>
           </div>
 
           <div className="settings-profile-name">{profile.name || 'Minha Empresa'}</div>
@@ -284,29 +274,9 @@ export default function SettingsPage() {
               </button>
             </div>
 
-            {/* Apresentação e contato — exibidos na página pública da parceira. */}
-            <div className="form-group">
-              <label className="form-label">Sobre</label>
-              <textarea
-                className="form-input"
-                placeholder="Fale um pouco sobre a sua empresa de decoração..."
-                rows={4}
-                value={profile.about || ''}
-                onChange={e => setProfile({ ...profile, about: e.target.value })}
-              />
-            </div>
-            <Input
-              label="WhatsApp"
-              placeholder="(31) 99999-9999"
-              value={profile.whatsapp || ''}
-              onChange={e => setProfile({ ...profile, whatsapp: e.target.value })}
-            />
-            <Input
-              label="Instagram"
-              placeholder="@seu.perfil"
-              value={profile.instagram || ''}
-              onChange={e => setProfile({ ...profile, instagram: e.target.value })}
-            />
+            {/* Sobre, WhatsApp e Instagram ficam SÓ na Minha Página (Editar
+                Perfil): são dados da página pública, e editá-los em dois lugares
+                deixava uma tela sobrescrever a outra. */}
 
             <div className="settings-actions-end">
               <Button onClick={handleSaveProfile} isLoading={isLoading} bloqueiaEmLeitura>Salvar Alterações</Button>
