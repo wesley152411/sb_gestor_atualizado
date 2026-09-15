@@ -6,6 +6,7 @@ import { Bell, ShoppingCart, CalendarCheck, ClipboardCheck, ShoppingBag, Trash2,
 import { useCartStore } from '@/stores/cart-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useMenuStore } from '@/stores/menu-store';
+import { marketplaceLiberado } from '@/lib/marketplace-acesso';
 import { usePartyEvents, useRentalOrders } from '@/hooks/swr-hooks';
 import { formatCurrency } from '@/lib/utils';
 import { EVENT_STATUS, effectiveStatus } from '@/lib/event-status';
@@ -35,6 +36,9 @@ export function Header() {
   const { items, removeItem, totalPrice, totalItems, clear, requestCheckout } = useCartStore();
   const { events } = usePartyEvents(decorator?.id);
   const { orders } = useRentalOrders(decorator?.id);
+  // Marketplace oculto (flag): some o carrinho (só existe para locação B2B) e o
+  // aviso de pedido passa a levar ao Calendário, onde a locação continua visível.
+  const marketplaceAberto = marketplaceLiberado(decorator);
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -75,7 +79,7 @@ export function Header() {
         title: 'Novo pedido no Marketplace',
         message: `${o.renter?.name || 'Uma parceira'} solicitou uma locação${o.total_value ? ` • ${formatCurrency(o.total_value)}` : ''}.`,
         sortKey: o.created_at || '',
-        href: '/marketplace',
+        href: marketplaceAberto ? '/marketplace' : '/calendar',
       })),
   ].sort((a, b) => b.sortKey.localeCompare(a.sortKey)); // mais recente (que chegou por último) primeiro
 
@@ -199,7 +203,8 @@ export function Header() {
           )}
         </div>
 
-        {/* Carrinho */}
+        {/* Carrinho — só existe para locação B2B: some com o Marketplace oculto. */}
+        {marketplaceAberto && (
         <div className="relative" ref={cartRef}>
           <button
             className="header-icon-btn"
@@ -277,6 +282,7 @@ export function Header() {
             </div>
           )}
         </div>
+        )}
 
       </div>
     </header>

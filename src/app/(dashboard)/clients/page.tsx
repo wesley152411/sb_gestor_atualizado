@@ -430,8 +430,9 @@ export default function ClientsPage() {
             <QuoteField label="Valor" value={formatCurrency(Number(previewEvent.total_value) || 0)} />
             <QuoteField label="Data" value={previewEvent.event_date ? formatDate(previewEvent.event_date) : ''} />
             <QuoteField label="Status" value={previewEvent.status} />
-            <QuoteField label="Montagem" value={previewEvent.setup_time} />
-            <QuoteField label="Início" value={previewEvent.start_time} />
+            {/* Chegada saiu dos formulários: só eventos antigos a têm. */}
+            {previewEvent.setup_time && <QuoteField label="Montagem" value={previewEvent.setup_time} />}
+            <QuoteField label="Início da decoração" value={previewEvent.start_time} />
             <QuoteField label="Local" value={formatarEndereco(previewEvent.address ? previewEvent : previewClient)} />
 
             {/* Observações */}
@@ -481,11 +482,11 @@ export default function ClientsPage() {
             </div>
             <div className="quote-doc-stage">
               <div className="quote-doc-stage-title">
-                Etapa B — Montagem (Chegada às {previewEvent.setup_time || '—'}):
+                Etapa B — Montagem{previewEvent.setup_time ? ` (Chegada às ${previewEvent.setup_time})` : ''}:
               </div>
               <ul>
                 <li>Montagem no endereço: {formatarEndereco(previewEvent.address ? previewEvent : previewClient)}.</li>
-                <li>Montar tudo até às {previewEvent.start_time || '—'} (início da festa).</li>
+                <li>Início da decoração: {previewEvent.start_time || '—'}.</li>
               </ul>
             </div>
             <div className="quote-doc-stage">

@@ -32,3 +32,20 @@ export const rateLimitObserveOnly = (process.env.RATE_LIMIT_MODE || '').toLowerC
 export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 export const captchaEnabled =
   process.env.NEXT_PUBLIC_CAPTCHA_ENABLED === 'true' && TURNSTILE_SITE_KEY.length > 0;
+
+// Marketplace OCULTO. Com 'true', o Marketplace some do menu, do cabeçalho e das
+// rotas para todas as contas, menos as internas (is_internal — hoje, a Mosaico).
+// Default DESLIGADO em todo ambiente, inclusive dev — como o rate limit, e NÃO
+// como a promo: o harness da CI exercita o Marketplace com contas comuns em
+// `npm run dev`, e quebraria se ele sumisse sozinho. Ligar = 'true' na Netlify.
+// Quem decide o acesso é src/lib/marketplace-acesso.ts (tela) e
+// src/lib/marketplace-servidor.ts (rotas) — não compare esta flag solta.
+export const marketplaceOculto = process.env.NEXT_PUBLIC_FEATURE_OCULTAR_MARKETPLACE === 'true';
+
+// Vitrine pública (Minha Página → compartilhar): link sem login com as peças e
+// kits publicados com valor. Padrão da promo: ligada em dev, desligada em
+// produção até definirem NEXT_PUBLIC_FEATURE_VITRINE_PUBLICA='true' na Netlify.
+export const vitrinePublica =
+  process.env.NEXT_PUBLIC_FEATURE_VITRINE_PUBLICA === 'true' ||
+  (process.env.NEXT_PUBLIC_FEATURE_VITRINE_PUBLICA !== 'false' &&
+    process.env.NODE_ENV === 'development');

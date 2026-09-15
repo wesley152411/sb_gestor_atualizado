@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requireAssinaturaAtiva, requireLeitura } from '@/lib/api-auth';
 import { hasPrice } from '@/lib/utils';
+import { barrarMarketplace } from '@/lib/marketplace-servidor';
 
 export async function GET(request: Request) {
   try {
@@ -13,6 +14,11 @@ export async function GET(request: Request) {
     // Com ?decoratorId= => MEU acervo (o valor do param é ignorado, uso a sessão).
     // Sem param => feed do Marketplace: só itens PÚBLICOS de OUTRAS contas.
     const wantsOwn = new URL(request.url).searchParams.has('decoratorId');
+    // O feed É o Marketplace: com ele oculto, só conta interna o recebe.
+    if (!wantsOwn) {
+      const barrado = await barrarMarketplace(sessionId);
+      if (barrado) return barrado;
+    }
     const items = await prisma.inventoryItem.findMany({
       where: wantsOwn
         ? { decorator_id: sessionId }

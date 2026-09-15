@@ -34,7 +34,7 @@ export default function PartyFormPage() {
   const [clientName, setClientName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [setupTime, setSetupTime] = useState('');
+  // "Horário de chegada (montagem)" saiu do formulário; fica só o início da decoração.
   const [startTime, setStartTime] = useState('');
   const [theme, setTheme] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -93,7 +93,6 @@ export default function PartyFormPage() {
         client_name: clientName,
         phone,
         address,
-        setup_time: setupTime,
         start_time: startTime,
         theme,
         event_date: eventDate,
@@ -133,7 +132,6 @@ export default function PartyFormPage() {
     setClientName('');
     setPhone('');
     setAddress('');
-    setSetupTime('');
     setStartTime('');
     setTheme('');
     setEventDate('');
@@ -277,25 +275,19 @@ export default function PartyFormPage() {
             onChange={e => setAddress(e.target.value)} 
           />
           
-          <div className="grid-3">
-            <Input 
-              type="date" 
-              label="Data do Evento" 
-              value={eventDate} 
-              onChange={e => setEventDate(e.target.value)} 
-              required 
+          <div className="grid-2">
+            <Input
+              type="date"
+              label="Data do Evento"
+              value={eventDate}
+              onChange={e => setEventDate(e.target.value)}
+              required
             />
-            <Input 
-              type="time" 
-              label="Horário de Chegada (Montagem)" 
-              value={setupTime} 
-              onChange={e => setSetupTime(e.target.value)} 
-            />
-            <Input 
-              type="time" 
-              label="Horário de Início da Festa" 
-              value={startTime} 
-              onChange={e => setStartTime(e.target.value)} 
+            <Input
+              type="time"
+              label="Horário de início da decoração"
+              value={startTime}
+              onChange={e => setStartTime(e.target.value)}
             />
           </div>
 

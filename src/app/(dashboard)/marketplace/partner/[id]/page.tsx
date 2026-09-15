@@ -8,9 +8,19 @@ import { useNotificationStore } from '@/stores/notification-store';
 import { fetchPartnerPublicPage } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency, formatPriceLabel, whatsappUrl, instagramUrl, sanitizeInstagramHandle } from '@/lib/utils';
+import { PortaoMarketplace } from '@/components/marketplace/PortaoMarketplace';
 import type { InventoryItem, PartnerDecorator, PublicMarketplaceItem } from '@/types';
 
+// A página da parceira é tela do Marketplace: some junto com ele (flag).
 export default function PartnerPublicPage() {
+  return (
+    <PortaoMarketplace>
+      <PaginaDaParceira />
+    </PortaoMarketplace>
+  );
+}
+
+function PaginaDaParceira() {
   const params = useParams<{ id: string }>();
   const partnerId = params.id;
   const router = useRouter();

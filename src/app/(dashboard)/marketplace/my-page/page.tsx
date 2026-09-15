@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { CompartilharVitrine } from '@/components/vitrine/CompartilharVitrine';
+import { vitrinePublica } from '@/lib/feature-flags';
 import { formatCurrency, formatPriceLabel, hasPrice, getInitials, sanitizePhoneDigits, sanitizeInstagramHandle } from '@/lib/utils';
 import type { InventoryItem, Kit, RentalOrder, ChatMessage, Decorator } from '@/types';
 import {
@@ -163,7 +165,7 @@ export default function MyPage() {
         mutateKits();
         addNotification(
           nextStatus === 'Público' ? 'Kit Publicado' : 'Kit Removido',
-          `"${item.name}" foi ${nextStatus === 'Público' ? 'publicado no' : 'removido do'} Marketplace.`
+          `"${item.name}" foi ${nextStatus === 'Público' ? 'publicado' : 'despublicado'}.`
         );
       } catch (err) {
         addNotification('Erro', 'Falha ao alterar status do kit.');
@@ -174,7 +176,7 @@ export default function MyPage() {
       if (nextStatus === 'Público' && !hasPrice(item.rental_price)) {
         addNotification(
           'Defina o preço antes de publicar',
-          `Informe o preço de locação de "${item.name}" no Editar para publicá-la no Marketplace.`,
+          `Informe o preço de locação de "${item.name}" no Editar para publicá-la.`,
           true
         );
         return;
@@ -197,7 +199,7 @@ export default function MyPage() {
         mutateItems();
         addNotification(
           nextStatus === 'Público' ? 'Item Publicado' : 'Item Removido',
-          `"${item.name}" foi ${nextStatus === 'Público' ? 'publicado no' : 'removido do'} Marketplace.`
+          `"${item.name}" foi ${nextStatus === 'Público' ? 'publicado' : 'despublicado'}.`
         );
       } catch (err) {
         addNotification('Erro', 'Falha ao alterar status do item.');
@@ -207,7 +209,7 @@ export default function MyPage() {
 
   // Remove Item from Marketplace (tornar privado)
   const handleRemoveItem = async (item: any) => {
-    if (window.confirm(`Deseja remover "${item.name}" do Marketplace? O item continuará no seu inventário como Privado.`)) {
+    if (window.confirm(`Deseja despublicar "${item.name}"? O item continuará no seu inventário como Privado.`)) {
       if (item.isKit) {
         const updatedKit = {
           ...item.rawKit,
@@ -216,9 +218,9 @@ export default function MyPage() {
         try {
           await saveKit(updatedKit);
           mutateKits();
-          addNotification('Kit Removido do Marketplace', `"${item.name}" agora está como Privado.`);
+          addNotification('Kit Despublicado', `"${item.name}" agora está como Privado.`);
         } catch (err) {
-          addNotification('Erro', 'Falha ao remover kit do Marketplace.');
+          addNotification('Erro', 'Falha ao despublicar o kit.');
         }
       } else {
         const updatedItem = {
@@ -235,9 +237,9 @@ export default function MyPage() {
         try {
           await saveInventoryItem(updatedItem);
           mutateItems();
-          addNotification('Item Removido do Marketplace', `"${item.name}" agora está como Privado no seu inventário.`);
+          addNotification('Item Despublicado', `"${item.name}" agora está como Privado no seu inventário.`);
         } catch (err) {
-          addNotification('Erro', 'Falha ao remover item do Marketplace.');
+          addNotification('Erro', 'Falha ao despublicar o item.');
         }
       }
     }
@@ -274,7 +276,7 @@ export default function MyPage() {
     if (editingItem.status === 'Público' && !hasPrice(editingItem.rental_price)) {
       addNotification(
         'Defina o preço antes de publicar',
-        `Informe o preço de locação de "${editingItem.name}" para deixá-la pública no Marketplace.`,
+        `Informe o preço de locação de "${editingItem.name}" para deixá-la pública.`,
         true
       );
       return;
@@ -380,6 +382,12 @@ export default function MyPage() {
             <Button variant="secondary" icon={Pencil} onClick={handleOpenEditProfile}>
               Editar Perfil
             </Button>
+            {vitrinePublica && decorator && (
+              <CompartilharVitrine
+                decoradoraId={decorator.id}
+                nome={(decorator.company_name || '').trim() || decorator.name}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -461,7 +469,7 @@ export default function MyPage() {
             {/* Lado Esquerdo (Título e Badge) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Store className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-              <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>Meus Itens no Marketplace</h2>
+              <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: 'var(--text-primary)' }}>Meus Itens Publicados</h2>
               <span style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>
                 {unifiedPublicItems.length} {unifiedPublicItems.length === 1 ? 'visível' : 'visíveis'}
               </span>
@@ -482,7 +490,7 @@ export default function MyPage() {
           <div className="cards-grid">
             {unifiedPublicItems.length === 0 ? (
               <div className="col-span-full py-12 text-center text-slate-500 border border-dashed rounded-lg">
-                Nenhum item publicado. Clique em "Adicionar Item" para publicar seus itens no Marketplace.
+                Nenhum item publicado. Clique em "Adicionar Item" para publicar seus itens.
               </div>
             ) : (
               unifiedPublicItems.map(item => (
@@ -500,14 +508,14 @@ export default function MyPage() {
                   <div className="mp-card-status published">
                     <div className="mp-card-status-left">
                       <span className="mp-card-status-dot" />
-                      <span>Publicado no Marketplace</span>
+                      <span>Publicado</span>
                     </div>
                     <button
                       type="button"
                       className="mp-card-status-toggle"
                       onClick={() => handleRemoveItem(item)}
-                      title="Despublicar do Marketplace"
-                      aria-label="Despublicar do Marketplace"
+                      title="Despublicar"
+                      aria-label="Despublicar"
                     >
                       <EyeOff className="w-5 h-5" />
                     </button>
@@ -635,7 +643,7 @@ export default function MyPage() {
       >
         <div className="space-y-5">
           <p className="text-sm text-slate-500 font-normal leading-relaxed -mt-2">
-            Selecione os itens do seu inventário que deseja publicar no Marketplace. Ao importar, o item ficará visível para outras decoradoras alugarem.
+            Selecione os itens do seu inventário que deseja publicar. Os itens publicados aparecem na sua página.
           </p>
 
           <Input
@@ -756,14 +764,14 @@ export default function MyPage() {
           />
           <div className="grid grid-cols-2 gap-4">
             <div className="form-group">
-              <label className="form-label">Status no Marketplace</label>
+              <label className="form-label">Status de publicação</label>
               <select 
                 className="form-input"
                 value={editingItem.status || 'Privado'}
                 onChange={e => setEditingItem({...editingItem, status: e.target.value as 'Público' | 'Privado'})}
               >
                 <option value="Privado">Privado (Apenas eu)</option>
-                <option value="Público">Público (Visível B2B)</option>
+                <option value="Público">Público</option>
               </select>
             </div>
             <Input 
@@ -827,14 +835,14 @@ export default function MyPage() {
           />
           <div className="grid grid-cols-2 gap-4">
             <div className="form-group">
-              <label className="form-label">Status no Marketplace</label>
+              <label className="form-label">Status de publicação</label>
               <select 
                 className="form-input"
                 value={editingKit.status || 'Privado'}
                 onChange={e => setEditingKit({...editingKit, status: e.target.value as 'Público' | 'Privado'})}
               >
                 <option value="Privado">Privado (Apenas eu)</option>
-                <option value="Público">Público (Visível B2B)</option>
+                <option value="Público">Público</option>
               </select>
             </div>
             <Input 

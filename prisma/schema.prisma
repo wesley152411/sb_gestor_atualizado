@@ -35,6 +35,8 @@ model Decorator {
   // Conta interna de teste: apenas OCULTA das listagens públicas (vitrine do
   // Marketplace e contatos do Chat). NUNCA é exceção de isolamento — a conta
   // continua sujeita a 401/403 como qualquer outra. Definível SÓ no banco.
+  // Com NEXT_PUBLIC_FEATURE_OCULTAR_MARKETPLACE ligada, é também a única conta
+  // que ainda vê o Marketplace (src/lib/marketplace-acesso.ts).
   is_internal                                         Boolean              @default(false)
   // Pedido explícito no gate de documentos legais. A exclusão é manual e feita
   // pelo script de exclusão total; este timestamp apenas põe a conta na fila.

@@ -11,12 +11,23 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { formatCurrency, formatPriceLabel } from '@/lib/utils';
+import { PortaoMarketplace } from '@/components/marketplace/PortaoMarketplace';
 import type { InventoryItem, PartnerDecorator, PublicMarketplaceItem } from '@/types';
 
 // Chips de filtro exibidos na barra lateral (visual, alinhado ao layout aprovado).
 const REGION_CHIPS = ['Curitiba', 'Região Metro', 'Favoritas'];
 
+// Com o Marketplace oculto (flag), só conta interna passa do portão — e a tela
+// nem chega a buscar dados para quem fica de fora.
 export default function MarketplacePage() {
+  return (
+    <PortaoMarketplace>
+      <MarketplaceConteudo />
+    </PortaoMarketplace>
+  );
+}
+
+function MarketplaceConteudo() {
   const router = useRouter();
   const { decorator } = useAuthStore();
   const {
