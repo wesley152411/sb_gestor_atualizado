@@ -279,8 +279,9 @@ export default function PublicQuotePage() {
               <ReadRow label="Telefone" value={form.phone} />
               <ReadRow label="Endereço" value={formatarEndereco(form)} />
               <ReadRow label="Data do evento" value={form.event_date} />
-              <ReadRow label="Horário de chegada" value={form.setup_time} />
-              <ReadRow label="Horário de início" value={form.start_time} />
+              {/* Chegada saiu do formulário; só aparece em envio antigo que a tem. */}
+              {form.setup_time && <ReadRow label="Horário de chegada" value={form.setup_time} />}
+              <ReadRow label="Horário de início da decoração" value={form.start_time} />
               {form.observation?.trim() && <ReadRow label="Observações" value={form.observation} />}
             </div>
           </div>
@@ -375,12 +376,12 @@ export default function PublicQuotePage() {
                 required
               />
             </div>
-            <div className="quote-grid-3" style={{ marginBottom: 28 }}>
+            <div className="quote-grid-2" style={{ marginBottom: 28 }}>
               {/* lang="pt-BR" e step=60: pedem ao navegador o formato brasileiro
-                  (dd/mm/aaaa e 24h) e removem o segmento de segundos. */}
+                  (dd/mm/aaaa e 24h) e removem o segmento de segundos.
+                  "Horário de chegada" saiu: fica só o início da decoração. */}
               <Input label="Data do evento" type="date" lang="pt-BR" value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} required />
-              <Input label="Horário de chegada" type="time" lang="pt-BR" step={60} value={form.setup_time} onChange={(e) => setForm({ ...form, setup_time: e.target.value })} />
-              <Input label="Horário de início" type="time" lang="pt-BR" step={60} value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
+              <Input label="Horário de início da decoração" type="time" lang="pt-BR" step={60} value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
             </div>
 
             <SectionTitle>Observações</SectionTitle>

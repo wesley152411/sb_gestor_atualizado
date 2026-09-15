@@ -227,8 +227,10 @@ export function desenharDocumento(
     if (!equipe) campos.push(['Valor', formatCurrency(Number(evento.total_value) || 0)]);
     campos.push(['Data', formatDate(evento.event_date)]);
     campos.push(['Status', evento.status || '—']);
-    campos.push(['Montagem', evento.setup_time || '—']);
-    campos.push(['Início', evento.start_time || '—']);
+    // "Horário de chegada (montagem)" saiu dos formulários. Só eventos antigos o
+    // têm — para eles a linha continua; para os novos, não aparece um "—" à toa.
+    if (evento.setup_time) campos.push(['Montagem', evento.setup_time]);
+    campos.push(['Início da decoração', evento.start_time || '—']);
     bloco(campos);
   }
   blocoLargo('Local', endereco);
@@ -324,9 +326,9 @@ export function desenharDocumento(
         'Conferir todas as quantidades antes de embarcar.',
         'Usar mantas de proteção para mobiliários.',
       ]],
-      ['B', `Montagem — chegada às ${evento.setup_time || '—'}`, [
+      ['B', evento.setup_time ? `Montagem — chegada às ${evento.setup_time}` : 'Montagem', [
         `Montagem no endereço: ${endereco || '—'}.`,
-        `Concluir até ${evento.start_time || '—'}, início da festa.`,
+        `Início da decoração: ${evento.start_time || '—'}.`,
       ]],
       ['C', 'Desmontagem e retorno', [
         'Contabilizar todas as peças na presença do responsável.',

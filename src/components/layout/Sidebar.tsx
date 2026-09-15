@@ -11,6 +11,7 @@ import {
 import { cn, getInitials } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 import { useMenuStore } from '@/stores/menu-store';
+import { marketplaceLiberado } from '@/lib/marketplace-acesso';
 import { useInventory, useDecoratorChats } from '@/hooks/swr-hooks';
 import {
   totalDePecas, rotuloDePecas, rotuloDeNaoLidas, formatarContador, contarNaoLidas,
@@ -186,6 +187,15 @@ export function Sidebar() {
   // sempre inteira, com os textos, mesmo que tenha sido recolhida lá em cima.
   const recolhida = collapsed && !aberto;
 
+  // Marketplace oculto (flag): o item sai do menu para quem não é conta interna.
+  // Seção que ficar vazia sai junto — não sobra rótulo sem item embaixo.
+  const secoesVisiveis = secoes
+    .map((secao) => ({
+      ...secao,
+      itens: secao.itens.filter((item) => item.href !== '/marketplace' || marketplaceLiberado(decorator)),
+    }))
+    .filter((secao) => secao.itens.length > 0);
+
   return (
     <>
       {/* Fundo escuro do painel: tocar fora fecha. Só aparece no celular. */}
@@ -230,7 +240,7 @@ export function Sidebar() {
         </div>
 
         <nav className="sidebar-v2-nav" aria-label="Menu principal">
-          {secoes.map((secao) => (
+          {secoesVisiveis.map((secao) => (
             <div key={secao.id} className="sidebar-v2-secao">
               <p id={`menu-secao-${secao.id}`} className={cn('sidebar-v2-secao-rotulo', secao.tom === 'rede' && 'rede')}>
                 {secao.rotulo}

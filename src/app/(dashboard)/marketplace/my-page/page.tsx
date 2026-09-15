@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { CompartilharVitrine } from '@/components/vitrine/CompartilharVitrine';
+import { vitrinePublica } from '@/lib/feature-flags';
 import { formatCurrency, formatPriceLabel, hasPrice, getInitials, sanitizePhoneDigits, sanitizeInstagramHandle } from '@/lib/utils';
 import type { InventoryItem, Kit, RentalOrder, ChatMessage, Decorator } from '@/types';
 import {
@@ -380,6 +382,12 @@ export default function MyPage() {
             <Button variant="secondary" icon={Pencil} onClick={handleOpenEditProfile}>
               Editar Perfil
             </Button>
+            {vitrinePublica && decorator && (
+              <CompartilharVitrine
+                decoradoraId={decorator.id}
+                nome={(decorator.company_name || '').trim() || decorator.name}
+              />
+            )}
           </div>
         </div>
       </div>

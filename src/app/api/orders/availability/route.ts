@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requireAssinaturaAtiva } from '@/lib/api-auth';
 import { availableForLine } from '@/lib/rental-availability';
+import { barrarMarketplace } from '@/lib/marketplace-servidor';
 
 // Disponível de uma peça/kit num período — o modal chama ao escolher as datas
 // para mostrar "X de Y disponíveis para DD/MM–DD/MM". É só uma DICA de UI: a
@@ -9,6 +10,9 @@ import { availableForLine } from '@/lib/rental-availability';
 export async function GET(request: Request) {
   const acesso = await requireAssinaturaAtiva();
   if (!acesso.ok) return acesso.response;
+  // Existe só para montar pedido do Marketplace: some junto com ele.
+  const barrado = await barrarMarketplace(acesso.decoratorId);
+  if (barrado) return barrado;
 
   const { searchParams } = new URL(request.url);
   const itemId = searchParams.get('itemId');

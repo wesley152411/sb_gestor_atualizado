@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { toDbDate, hasPrice } from '@/lib/utils';
 import { NextResponse } from 'next/server';
 import { requireAssinaturaAtiva, requireLeitura } from '@/lib/api-auth';
+import { barrarMarketplace } from '@/lib/marketplace-servidor';
 import { loadKitComponents, expandToItemDemand, findShortfalls } from '@/lib/rental-availability';
 
 // Backstop de servidor das validações de data do modal (retirada/devolução).
@@ -89,6 +90,13 @@ export async function POST(request: Request) {
     // só um participante (dono ou locatário) pode alterar.
     const existing = await prisma.rentalOrder.findUnique({ where: { id } });
     const isCreate = !existing;
+    // Pedido NOVO é Marketplace: com ele oculto, só conta interna cria. Alterar
+    // um pedido que já existe continua liberado — ninguém fica preso numa
+    // locação em andamento (devolver e cancelar têm rotas próprias, também livres).
+    if (isCreate) {
+      const barrado = await barrarMarketplace(sessionId);
+      if (barrado) return barrado;
+    }
     // Retirada/devolução da criação (string YYYY-MM-DD) — guardadas antes do
     // toDbDate para a checagem de disponibilidade.
     let pickupStr = '', returnStr = '';

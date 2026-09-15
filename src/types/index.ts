@@ -19,6 +19,7 @@ export interface Decorator {
   promo_message_template?: string; // template da mensagem promocional; variável {nome}
   cnpj?: string | null;            // 14 dígitos, sem máscara
   company_name?: string | null;    // razão/nome da empresa
+  is_internal?: boolean;           // conta interna (definida só no banco); também libera o Marketplace oculto
 }
 
 // Registro de mensagem promocional ABERTA no WhatsApp (histórico completo).

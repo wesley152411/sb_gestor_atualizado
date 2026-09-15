@@ -28,6 +28,7 @@ const HELPER: Record<'autenticada' | 'leitura' | 'operacao', string> = {
 const CAMADAS: Record<string, { get?: Camada; escrita?: Camada; motivo?: string }> = {
   // --- CAMADA 0: pública. Não consulta assinatura, de propósito. -------------
   'public/decorator/[id]/route.ts': { get: 'publica', motivo: 'página pública da parceira' },
+  'public/vitrine/[id]/route.ts': { get: 'publica', motivo: 'vitrine compartilhável da decoradora (Minha Página → compartilhar): só itens publicados e com valor' },
   'public/quote/[token]/route.ts': {
     get: 'publica', escrita: 'publica',
     motivo: 'a cliente final não deve nada: um link já enviado é compromisso assumido, e quebrá-lo puniria quem não atrasou. Criar link NOVO exige assinatura (quote-links)',

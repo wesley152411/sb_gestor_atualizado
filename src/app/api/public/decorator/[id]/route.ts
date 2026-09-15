@@ -1,11 +1,23 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { getSessionUser } from '@/lib/supabase/server';
+import { marketplaceOculto } from '@/lib/feature-flags';
+import { barrarMarketplace } from '@/lib/marketplace-servidor';
 
 // Rota PÚBLICA: perfil de uma decoradora + apenas o acervo com status "Público".
 // Não expõe custo interno nem itens privados — segura para a página da parceira.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+
+    // A página da parceira é tela do Marketplace: com ele oculto, só abre para
+    // conta interna. A sessão só é lida com a flag ligada — desligada, a rota
+    // continua pública e sem custo extra, como sempre foi.
+    if (marketplaceOculto) {
+      const sessao = await getSessionUser();
+      const barrado = await barrarMarketplace(sessao?.id);
+      if (barrado) return barrado;
+    }
 
     // Conta interna de teste NÃO tem página pública acessível (mesma flag da
     // listagem do Marketplace). findFirst com o filtro => internal vira 404.
