@@ -146,9 +146,8 @@ export function LandingMarketplaceBanner() {
             Multiplique suas possibilidades de locação acessando o acervo de decoradoras da sua região.
             Alugue de forma segura e aumente seu faturamento.
           </p>
-          <div className="lp-mkt-btn">
-            <Link href="/marketplace" className="lp-btn lp-btn-onteal lp-btn-lg">Explorar Marketplace</Link>
-          </div>
+          {/* O botão "Explorar Marketplace" saiu: o Marketplace ficou oculto
+              para as decoradoras (flag), e o link levaria a uma tela fechada. */}
         </div>
         <div className="lp-mkt-media">
           <Image

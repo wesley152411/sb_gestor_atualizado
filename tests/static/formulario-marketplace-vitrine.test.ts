@@ -123,6 +123,18 @@ describe('4. Marketplace oculto (flag), menos para conta interna', () => {
       .not.toMatch(/PortaoMarketplace/);
   });
 
+  it('Minha Página e landing não prometem um Marketplace que ficou oculto', () => {
+    // Publicar continua valendo (alimenta a vitrine); o que não pode é o texto
+    // dizer "no Marketplace" nem "visível para outras decoradoras alugarem".
+    const minha = ler('src/app/(dashboard)/marketplace/my-page/page.tsx');
+    const semComentarios = minha.split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    expect(semComentarios).not.toMatch(/Marketplace|decoradoras alugarem|Visível B2B/);
+    expect(minha).toMatch(/>Meus Itens Publicados</);
+    expect(minha).toMatch(/<span>Publicado<\/span>/);
+    expect(ler('src/components/landing/sections.tsx'), 'botão "Explorar Marketplace" saiu')
+      .not.toMatch(/href="\/marketplace"/);
+  });
+
   it('o portão espera o perfil chegar antes de mandar a conta embora', () => {
     expect(ler('src/components/marketplace/PortaoMarketplace.tsx')).toMatch(/const recusado = !!decorator && !liberado;/);
   });

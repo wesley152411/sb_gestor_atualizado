@@ -4475,7 +4475,6 @@ img { max-width: 100%; display: block; }
 .lp-mkt-tag { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; background: rgba(255, 255, 255, 0.15); padding: 5px 12px; border-radius: 999px; }
 .lp-mkt h2 { font-family: var(--lp-serif); font-size: 36px; font-weight: 700; margin-top: 16px; }
 .lp-mkt p { margin-top: 14px; font-size: 16px; opacity: 0.9; max-width: 420px; line-height: 1.55; }
-.lp-mkt-btn { margin-top: 24px; }
 .lp-mkt-media img { width: 100%; border-radius: var(--lp-r-lg); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
 
 /* Depoimentos (componente pronto; renderizado só quando houver reais) */
