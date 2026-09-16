@@ -57,6 +57,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
       bairro: quote.bairro || '',
       cidade: quote.cidade || '',
       estado: quote.estado || '',
+      // LINK DE ALUGUEL: a cliente LÊ quando retirar e quando devolver. Estes
+      // três campos são só de leitura para ela — quem os definiu foi a
+      // decoradora ao gerar o link, e o POST abaixo não os escreve.
+      tipo_link: quote.tipo_link,
+      retirada_em: quote.retirada_em ? quote.retirada_em.toISOString() : '',
+      devolucao_em: quote.devolucao_em ? quote.devolucao_em.toISOString() : '',
       event_date: quote.event_date ? quote.event_date.toISOString().split('T')[0] : '',
       setup_time: quote.setup_time || '',
       start_time: quote.start_time || '',
@@ -73,6 +79,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   try {
     const { token } = await params;
     const body = await request.json();
+    // Só estes campos saem do corpo. tipo_link, retirada_em e devolucao_em NÃO
+    // estão aqui de propósito: são da decoradora, e um POST forjado não os muda.
     const { name, phone, email, cpf, address, event_date, setup_time, start_time, observation } = body;
 
     // Telefone agora é OBRIGATÓRIO (habilita a reativação promocional depois).

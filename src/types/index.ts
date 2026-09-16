@@ -176,6 +176,11 @@ export interface PartyEvent {
   observation?: string;
   created_at?: string;
   submitted_at?: string; // quando a cliente ENVIOU o link (POST público); null nos rascunhos
+  // LINK DE ALUGUEL: 'decoracao' (padrão) ou 'aluguel'. No aluguel, retirada_em e
+  // devolucao_em (ISO) vêm da decoradora e a cliente só lê.
+  tipo_link?: string;
+  retirada_em?: string;
+  devolucao_em?: string;
 }
 
 // Ciclo de vida do PartyEvent (orçamento por link e evento interno) — vocabulário
@@ -222,6 +227,11 @@ export interface QuoteLinkData {
   setup_time: string;
   start_time: string;
   observation?: string;
+  // LINK DE ALUGUEL: 'decoracao' (padrão) ou 'aluguel'. No aluguel, retirada_em e
+  // devolucao_em (ISO) vêm da decoradora e a cliente só lê.
+  tipo_link?: string;
+  retirada_em?: string;
+  devolucao_em?: string;
 }
 
 export interface CalendarMonthData {

@@ -636,11 +636,18 @@ export const discardPartyEvent = (id: string) => partyEventAction(id, 'discard')
 
 // ==================== QUOTE LINKS ====================
 
-export async function createQuoteLink(decoratorId: string, source: { itemId?: string; kitId?: string }): Promise<string> {
+//  só vai quando o link é de ALUGUEL: tipo e o período (retirada e
+// devolução) que a decoradora definiu. O servidor valida de novo — aqui é só o
+// transporte.
+export async function createQuoteLink(
+  decoratorId: string,
+  source: { itemId?: string; kitId?: string },
+  aluguel?: { tipo: string; retirada: string; devolucao: string },
+): Promise<string> {
   const res = await fetch('/api/quote-links', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decoratorId, ...source }),
+    body: JSON.stringify({ decoratorId, ...source, ...(aluguel || {}) }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

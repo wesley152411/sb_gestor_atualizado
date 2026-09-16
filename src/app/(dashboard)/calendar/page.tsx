@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { formatCurrency } from '@/lib/utils';
 import { EVENT_STATUS, effectiveStatus, showsInCalendar } from '@/lib/event-status';
+import { TIPO_LINK, diaDoInstante, formatarDataHora } from '@/lib/aluguel';
 import { gerarDocumentoPDF } from '@/lib/documento-pdf';
 import type { RentalOrder, PartyEvent } from '@/types';
 
@@ -25,9 +26,16 @@ interface RentalCommitment {
   order: RentalOrder;
   kind: 'pickup' | 'return';
 }
+// Link de ALUGUEL: a retirada e a devolução são dois compromissos, cada um no
+// seu dia — como já acontece com a locação B2B.
+interface AluguelCommitment {
+  event: PartyEvent;
+  kind: 'pickup' | 'return';
+}
 interface DayBucket {
   rentals: RentalCommitment[];
   partyEvents: PartyEvent[];
+  alugueis: AluguelCommitment[];
 }
 
 // Texto INEQUÍVOCO: diz o que fazer no dia sem abrir nada. Nomeia a contraparte.
@@ -155,7 +163,7 @@ export default function CalendarPage() {
     const getBucket = (key: string) => {
       let bucket = map.get(key);
       if (!bucket) {
-        bucket = { rentals: [], partyEvents: [] };
+        bucket = { rentals: [], partyEvents: [], alugueis: [] };
         map.set(key, bucket);
       }
       return bucket;
@@ -176,10 +184,27 @@ export default function CalendarPage() {
         pushCommit(o.return_date, 'return');
       });
       partyEvents.forEach((e) => {
-        // Fora do Calendário: rascunho de link (sem data) e cancelado.
+        // Fora do Calendário: tudo que ainda não foi CONFIRMADO, e o cancelado.
         if (!showsInCalendar(e)) return;
         const key = toDateKey(e.event_date);
-        if (key) getBucket(key).partyEvents.push(e);
+        if (key && !seenCommit.has(`ev:${e.id}`)) {
+          seenCommit.add(`ev:${e.id}`);
+          getBucket(key).partyEvents.push(e);
+        }
+        // ALUGUEL: a peça sai na retirada e volta na devolução. Cada uma é um
+        // compromisso no seu dia (horário de Brasília), além da data do evento.
+        if (e.tipo_link === TIPO_LINK.ALUGUEL) {
+          const dias: [string, 'pickup' | 'return'][] = [
+            [diaDoInstante(e.retirada_em), 'pickup'],
+            [diaDoInstante(e.devolucao_em), 'return'],
+          ];
+          for (const [dia, kind] of dias) {
+            const sig = `al:${e.id}:${kind}`;
+            if (!dia || seenCommit.has(sig)) continue;
+            seenCommit.add(sig);
+            getBucket(dia).alugueis.push({ event: e, kind });
+          }
+        }
       });
     });
     return map;
@@ -309,6 +334,10 @@ export default function CalendarPage() {
                     label: e.theme || e.client_name || 'Evento',
                     variant: 'internal' as const,
                   })) || []),
+                  ...(bucket?.alugueis.map((a) => ({
+                    label: `${a.kind === 'pickup' ? 'Retirada' : 'Devolução'} · ${a.event.theme || a.event.client_name || 'aluguel'}`,
+                    variant: a.kind,
+                  })) || []),
                 ];
                 const visibleEvents = viewMode === 'week' ? events : events.slice(0, 2);
                 const overflow = events.length - visibleEvents.length;
@@ -412,6 +441,24 @@ function DayDetails({ bucket, decoratorId, onDownloadPDF, onMarkReturned, return
         );
       })}
 
+      {/* ALUGUEL: o que fazer no dia é receber a cliente (retirada) ou conferir
+          a devolução. O horário exato vem do que a decoradora definiu no link. */}
+      {bucket?.alugueis.map((a) => (
+        <DetailCard
+          key={`aluguel-${a.event.id}-${a.kind}`}
+          eyebrow={`Aluguel · ${a.kind === 'pickup' ? 'Retirada' : 'Devolução'}`}
+          title={
+            a.kind === 'pickup'
+              ? `${a.event.client_name || 'A cliente'} retira ${a.event.theme || 'o kit'}`
+              : `${a.event.client_name || 'A cliente'} devolve ${a.event.theme || 'o kit'}`
+          }
+          status={effectiveStatus(a.event)}
+          items={a.event.items}
+          phone={a.event.phone}
+          quando={formatarDataHora(a.kind === 'pickup' ? a.event.retirada_em : a.event.devolucao_em)}
+        />
+      ))}
+
       {bucket?.partyEvents.map((event) => (
         <DetailCard
           key={event.id}
@@ -435,17 +482,18 @@ function DayDetails({ bucket, decoratorId, onDownloadPDF, onMarkReturned, return
   );
 }
 
-function DetailCard({ eyebrow, title, status, items, phone, amount, action }: {
+function DetailCard({ eyebrow, title, status, items, phone, amount, quando, action }: {
   eyebrow: string;
   title?: string;
   status?: string;
   items?: { name: string; quantity: number }[];
   phone?: string;
   amount?: number; // valor B2B da locação (Marketplace) — permitido aos dois lados
+  quando?: string; // hora marcada da retirada/devolução do aluguel
   action?: React.ReactNode;
 }) {
   const { key, Icon: StatusIcon, label } = statusMeta(status);
-  const hasFoot = !!phone || !!action || amount != null;
+  const hasFoot = !!phone || !!action || !!quando || amount != null;
 
   return (
     <div className={`detail-card detail-card--${key}`}>
@@ -477,6 +525,9 @@ function DetailCard({ eyebrow, title, status, items, phone, amount, action }: {
 
       {hasFoot && (
         <div className="detail-card-foot">
+          {quando && (
+            <span className="detail-contact-line"><Clock className="w-3.5 h-3.5" />{quando}</span>
+          )}
           {amount != null && (
             <span className="detail-amount-line">Locação B2B: <strong>{formatCurrency(amount)}</strong></span>
           )}

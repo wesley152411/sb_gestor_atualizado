@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { formatCurrency, whatsappUrl, isValidBrPhone, sanitizePhoneDigits } from '@/lib/utils';
 import { EVENT_STATUS } from '@/lib/event-status';
+import { TIPO_LINK, formatarDataHora } from '@/lib/aluguel';
 import type { QuoteLinkData } from '@/types';
 import {
   camposFaltando, cepValido, ufValida, mascararCep, buscarCep, formatarEndereco, ROTULO,
@@ -198,6 +199,7 @@ export default function PublicQuotePage() {
   // se já veio enviado/confirmado/finalizado) → tela de agradecimento em leitura.
   // Cancelado → mensagem própria de orçamento inativo.
   const isCancelled = quote.status === EVENT_STATUS.CANCELADO;
+  const ehAluguel = quote.tipo_link === TIPO_LINK.ALUGUEL;
   const isDraft = quote.status === EVENT_STATUS.AGUARDANDO_PREENCHIMENTO;
   const showForm = isDraft && !submitted;
   const waLink = whatsappUrl(quote.decorator.whatsapp);
@@ -256,6 +258,20 @@ export default function PublicQuotePage() {
             </strong>
           </div>
         </div>
+
+        {/* LINK DE ALUGUEL: a cliente precisa saber quando retirar e quando
+            devolver. Quem definiu foi a decoradora — aqui é só leitura, em
+            todos os estados da página (antes e depois de enviar os dados). */}
+        {ehAluguel && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 28 }}>
+            <div style={itemsLabelStyle}>Retirada e devolução</div>
+            <ReadRow label="Retirar em" value={formatarDataHora(quote.retirada_em)} />
+            <ReadRow label="Devolver em" value={formatarDataHora(quote.devolucao_em)} />
+            <p style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 10 }}>
+              Combinado com {quote.decorator.name}. Para mudar, fale com ela.
+            </p>
+          </div>
+        )}
 
         {isCancelled ? (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>

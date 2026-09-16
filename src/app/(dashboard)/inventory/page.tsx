@@ -18,6 +18,8 @@ import { Modal } from '@/components/ui/Modal';
 import { useNotificationStore } from '@/stores/notification-store';
 import { formatCurrency, formatPriceLabel, hasPrice, getPlaceholderImage } from '@/lib/utils';
 import { totalDePecas } from '@/lib/menu-contadores';
+import { TIPO_LINK, diaDoInstante } from '@/lib/aluguel';
+import { EVENT_STATUS } from '@/lib/event-status';
 import type { InventoryItem, Kit } from '@/types';
 
 // Peça ainda NÃO gravada: existe só na lista do modal até o Salvar. O prefixo
@@ -36,9 +38,11 @@ export default function InventoryPage() {
   const { items, isLoading: isItemsLoading, mutate: mutateItems } = useInventory(decorator?.id);
   const { kits, isLoading: isKitsLoading, mutate: mutateKits } = useKits(decorator?.id);
 
-  // Peças BLOQUEADAS por locação B2B ativa (como locadora): peça -> locações que a
-  // reservam, com datas. Expande kits usando os kits carregados. Um clique leva ao
-  // DIA certo no calendário (ou à lista, se houver mais de uma).
+  // Peças BLOQUEADAS, de duas origens: locação B2B ativa (como locadora) e
+  // ALUGUEL para a cliente final (link de aluguel confirmado). Nos dois casos a
+  // peça está fora do ateliê no período, e o Acervo precisa dizer isso.
+  // peça -> reservas, com datas. Expande kits usando os kits carregados. Um
+  // clique leva ao DIA certo no calendário (ou à lista, se houver mais de uma).
   type BlockRow = { orderId: string; pickup: string; ret: string; renter: string };
   const [rentalsByItem, setRentalsByItem] = useState<Record<string, BlockRow[]>>({});
   const [blockedModal, setBlockedModal] = useState<{ itemName: string; rentals: BlockRow[] } | null>(null);
@@ -62,6 +66,27 @@ export default function InventoryPage() {
           for (const it of (o.items || [])) {
             if (it.item_id) add(it.item_id, o);
             else if (it.kit_id) (kits.find((k) => k.id === it.kit_id)?.items || []).forEach((c) => add(c.id, o));
+          }
+        }
+        // ALUGUEL PARA A CLIENTE: a peça sai na retirada e volta na devolução.
+        // Só CONFIRMADO segura (a mesma régua do Calendário) e só o que ainda
+        // não venceu — aluguel já devolvido não bloqueia nada.
+        const resEventos = await fetch('/api/party-events');
+        if (resEventos.ok) {
+          const eventos = await resEventos.json();
+          const agora = Date.now();
+          for (const ev of eventos) {
+            if (ev.tipo_link !== TIPO_LINK.ALUGUEL || ev.status !== EVENT_STATUS.CONFIRMADO) continue;
+            if (!ev.devolucao_em || new Date(ev.devolucao_em).getTime() < agora) continue;
+            for (const it of (ev.items || [])) {
+              if (!it?.id) continue;
+              (map[it.id] ||= []).push({
+                orderId: ev.id,
+                pickup: diaDoInstante(ev.retirada_em),
+                ret: diaDoInstante(ev.devolucao_em),
+                renter: ev.client_name || 'cliente',
+              });
+            }
           }
         }
         if (!cancelled) setRentalsByItem(map);
