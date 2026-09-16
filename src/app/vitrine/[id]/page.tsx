@@ -3,14 +3,17 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Package } from 'lucide-react';
+import { Package, Plus } from 'lucide-react';
 import { formatCurrency, getInitials } from '@/lib/utils';
 import { carregarVitrine, rotaDoItem, type Vitrine } from '@/lib/vitrine';
 
-// VITRINE PÚBLICA — o que a decoradora compartilha pela Minha Página. Grade no
-// jeito de perfil do Instagram: quem abre vê as peças e os kits publicados, com
-// foto e valor, e toca num item para ver o detalhe. Sem carrinho, sem pedido e
-// sem botão de contato: é só para olhar e passar o link adiante.
+// VITRINE PÚBLICA — o que a decoradora compartilha pela Minha Página. Quem abre
+// vê a marca dela (capa da Minha Página ao fundo, logo na frente) e os temas
+// publicados, com foto e valor; tocar num tema abre o detalhe. Sem carrinho, sem
+// pedido e sem botão de contato: é só para olhar e passar o link adiante.
+//
+// O rótulo embaixo do nome é o que o dado diz — Kit ou Peça. Nada de categoria
+// inventada: a vitrine só mostra o que existe no acervo.
 export default function VitrinePage() {
   const { id } = useParams<{ id: string }>();
   const [vitrine, setVitrine] = useState<Vitrine | null>(null);
@@ -48,42 +51,63 @@ export default function VitrinePage() {
 
   return (
     <main className="vitrine-page">
-      <header className="vitrine-perfil">
-        {vitrine.avatar ? (
-          <img className="vitrine-avatar" src={vitrine.avatar} alt="" />
-        ) : (
-          <div className="vitrine-avatar vitrine-avatar-iniciais" aria-hidden="true">
-            {getInitials(vitrine.nome)}
+      {/* Topo: a capa que ela escolheu na Minha Página, com a logo por cima. O véu
+          escuro existe para o nome continuar legível sobre qualquer foto. */}
+      <header
+        className="vitrine-capa"
+        style={vitrine.capa ? { backgroundImage: `url(${vitrine.capa})` } : undefined}
+      >
+        <div className="vitrine-capa-veu" aria-hidden="true" />
+        <div className="vitrine-marca">
+          <span className="vitrine-logo">
+            {vitrine.avatar
+              ? <img src={vitrine.avatar} alt="" />
+              : <span aria-hidden="true">{getInitials(vitrine.nome)}</span>}
+          </span>
+          <div className="vitrine-marca-texto">
+            <h1 className="vitrine-titulo">{vitrine.nome}</h1>
+            {vitrine.local && <p className="vitrine-local">{vitrine.local}</p>}
           </div>
-        )}
-        <div className="vitrine-perfil-texto">
-          <h1 className="vitrine-nome">{vitrine.nome}</h1>
-          {vitrine.local && <p className="vitrine-local">{vitrine.local}</p>}
-          <p className="vitrine-contagem">{total} {total === 1 ? 'item' : 'itens'}</p>
         </div>
       </header>
 
-      {total === 0 ? (
-        <p className="vitrine-aviso">Nenhum item publicado ainda.</p>
-      ) : (
-        <ul className="vitrine-grade">
-          {vitrine.itens.map((item) => (
-            <li key={`${item.tipo}-${item.id}`}>
-              <Link href={rotaDoItem(id, item)} className="vitrine-tile">
-                <span className="vitrine-foto">
-                  {item.imagem ? (
-                    <img src={item.imagem} alt="" loading="lazy" />
-                  ) : (
-                    <Package className="vitrine-foto-vazia" aria-hidden="true" />
-                  )}
-                </span>
-                <span className="vitrine-tile-nome">{item.nome}</span>
-                <span className="vitrine-tile-preco">{formatCurrency(item.preco)}</span>
-              </Link>
+      <section className="vitrine-corpo">
+        <div className="vitrine-secao">
+          <h2 className="vitrine-secao-titulo">Temas disponíveis</h2>
+          <span className="vitrine-secao-contagem">{total} {total === 1 ? 'item' : 'itens'}</span>
+        </div>
+
+        {total === 0 ? (
+          <p className="vitrine-aviso">Nenhum item publicado ainda.</p>
+        ) : (
+          <ul className="vitrine-grade">
+            {vitrine.itens.map((item) => (
+              <li key={`${item.tipo}-${item.id}`}>
+                <Link href={rotaDoItem(id, item)} className="vitrine-card">
+                  <span className="vitrine-foto">
+                    {item.imagem ? (
+                      <img src={item.imagem} alt="" loading="lazy" />
+                    ) : (
+                      <Package className="vitrine-foto-vazia" aria-hidden="true" />
+                    )}
+                    <span className="vitrine-preco">{formatCurrency(item.preco)}</span>
+                  </span>
+                  <span className="vitrine-card-nome">{item.nome}</span>
+                  <span className="vitrine-card-tipo">{item.tipo === 'kit' ? 'Kit' : 'Peça'}</span>
+                </Link>
+              </li>
+            ))}
+            {/* Vaga do próximo tema: mantém a grade com o desenho de duas colunas
+                mesmo com poucos temas publicados. */}
+            <li aria-hidden="true">
+              <div className="vitrine-vaga">
+                <Plus className="vitrine-vaga-sinal" />
+                <span>Espaço para o próximo tema do catálogo</span>
+              </div>
             </li>
-          ))}
-        </ul>
-      )}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }

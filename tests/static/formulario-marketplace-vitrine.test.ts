@@ -173,6 +173,32 @@ describe('5. vitrine pública', () => {
     expect(grade).toMatch(/item\.imagem \? \([\s\S]*?\) : \(\s*<Package className="vitrine-foto-vazia"/);
   });
 
+  it('o topo é a marca da decoradora: capa da Minha Página e logo dela', () => {
+    // A capa é a MESMA foto que ela escolheu na Minha Página (cover_url), e a
+    // logo é o avatar da conta. Nada de imagem do SB Gestor na página dela.
+    expect(rota).toMatch(/cover_url: true/);
+    expect(rota).toMatch(/capa: dona\.cover_url \|\| ''/);
+    expect(grade).toMatch(/style=\{vitrine\.capa \? \{ backgroundImage: `url\(\$\{vitrine\.capa\}\)` \} : undefined\}/);
+    expect(grade).toMatch(/<img src=\{vitrine\.avatar\}/);
+  });
+
+  it('o rótulo do item é o DADO (Kit ou Peça), não uma categoria inventada', () => {
+    for (const tela of [grade, detalhe]) {
+      expect(tela).toMatch(/item\.tipo === 'kit' \? 'Kit' : 'Peça'/);
+    }
+    // Textos do print de referência que seriam invenção: categoria que o acervo
+    // não tem, e um "a partir de" que o preço não é.
+    for (const tela of [grade, detalhe]) {
+      expect(tela, 'categoria inventada').not.toMatch(/TEMA INFANTIL|Tema infantil/i);
+      expect(tela, 'o valor é o da locação, não um mínimo').not.toMatch(/A PARTIR DE|A partir de/i);
+    }
+  });
+
+  it('o preço aparece sobre a foto e o kit lista o que vem dentro', () => {
+    expect(grade).toMatch(/<span className="vitrine-preco">\{formatCurrency\(item\.preco\)\}<\/span>/);
+    expect(detalhe).toMatch(/item\.tipo === 'kit' && item\.pecas\.length > 0/);
+  });
+
   it('botão de compartilhar: só o ícone, com nome acessível, atrás da flag', () => {
     const botao = ler('src/components/vitrine/CompartilharVitrine.tsx');
     expect(botao).toMatch(/aria-label="Compartilhar minha página"/);
@@ -182,6 +208,12 @@ describe('5. vitrine pública', () => {
       .toMatch(/\{vitrinePublica && decorator && \(\s*<CompartilharVitrine/);
   });
 
+  it('o compartilhar não fica colado no Editar Perfil', () => {
+    // Sem o gap explícito os dois botões encostam: a classe utilitária gap-2
+    // não existe no CSS próprio do projeto.
+    expect(ler('src/app/(dashboard)/marketplace/my-page/page.tsx'))
+      .toMatch(/marginTop: '8px', display: 'flex', gap: '10px'/);
+  });
   it('a prévia do link leva o nome da decoradora, não o do SB Gestor', () => {
     const layout = ler('src/app/vitrine/[id]/layout.tsx');
     expect(layout).toMatch(/siteName: titulo/);

@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Package } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getInitials } from '@/lib/utils';
 import { carregarVitrine, rotaDaVitrine, type Vitrine } from '@/lib/vitrine';
 
-// Detalhe de um item da vitrine: foto maior, valor e descrição — e o que vem
+// Detalhe de um tema da vitrine: foto grande, valor, descrição e o que vem
 // dentro, quando é kit. Rota própria em vez de janela sobreposta: o link de um
 // item pode ser enviado sozinho, e o "voltar" do celular volta para a grade.
 export default function VitrineItemPage() {
@@ -39,10 +39,17 @@ export default function VitrineItemPage() {
   return (
     <main className="vitrine-page">
       {vitrine && (
-        <Link href={rotaDaVitrine(id)} className="vitrine-voltar">
-          <ArrowLeft aria-hidden="true" />
-          {vitrine.nome}
-        </Link>
+        <header className="vitrine-barra">
+          <Link href={rotaDaVitrine(id)} className="vitrine-voltar" aria-label={`Voltar para ${vitrine.nome}`}>
+            <ArrowLeft aria-hidden="true" />
+          </Link>
+          <span className="vitrine-barra-nome">{vitrine.nome}</span>
+          <span className="vitrine-logo vitrine-logo-pequena">
+            {vitrine.avatar
+              ? <img src={vitrine.avatar} alt="" />
+              : <span aria-hidden="true">{getInitials(vitrine.nome)}</span>}
+          </span>
+        </header>
       )}
 
       {!item ? (
@@ -60,7 +67,8 @@ export default function VitrineItemPage() {
             )}
           </div>
 
-          <div>
+          <div className="vitrine-detalhe-texto">
+            <p className="vitrine-detalhe-tipo">{item.tipo === 'kit' ? 'Kit' : 'Peça'}</p>
             <h1 className="vitrine-detalhe-nome">{item.nome}</h1>
             <p className="vitrine-detalhe-preco">{formatCurrency(item.preco)}</p>
             {item.descricao && <p className="vitrine-detalhe-descricao">{item.descricao}</p>}
@@ -68,14 +76,15 @@ export default function VitrineItemPage() {
             {item.tipo === 'kit' && item.pecas.length > 0 && (
               <>
                 <h2 className="vitrine-detalhe-sub">Itens do kit</h2>
-                <ul className="vitrine-detalhe-pecas">
+                <ol className="vitrine-detalhe-pecas">
                   {item.pecas.map((p, i) => (
                     <li key={i}>
-                      <span>{p.nome}</span>
-                      <span>×{p.quantidade}</span>
+                      <span className="vitrine-peca-ordem" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                      <span className="vitrine-peca-nome">{p.nome}</span>
+                      <span className="vitrine-peca-qtd">×{p.quantidade}</span>
                     </li>
                   ))}
-                </ul>
+                </ol>
               </>
             )}
           </div>

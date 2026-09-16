@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+/* Serifada da VITRINE PÚBLICA (só lá): é a voz da marca da decoradora. */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap');
 
 :root {
   /* Colors */
@@ -5273,210 +5275,338 @@ img { max-width: 100%; display: block; }
 
 /* ==================== VITRINE PÚBLICA ==================== */
 /* Página aberta a qualquer pessoa (/vitrine/[id]), compartilhada pela Minha
-   Página. Grade no jeito de perfil do Instagram: três colunas de fotos
-   quadradas, com nome e valor embaixo; tocar abre o detalhe do item. */
+   Página. O topo é a marca da DECORADORA: a capa que ela escolheu na Minha
+   Página ao fundo e a logo dela na frente — quem manda o link é ela, e quem
+   recebe é a cliente dela.
+
+   Tokens LOCAIS, como na barra lateral: o índigo do sistema não entra aqui.
+   Contraste medido: branco sobre #0b4f5e = 9,2:1; #b6005b sobre branco = 5,1:1;
+   #5b7079 sobre branco = 5,4:1. */
 
 .vitrine-shell {
+  --vit-fundo: #0b4f5e;
+  --vit-preco: #b6005b;
+  --vit-papel: #ffffff;
+  --vit-tinta: #17323a;
+  --vit-tinta-fraca: #5b7079;
+  --vit-linha: #e4e9ea;
+  --vit-serifada: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
   min-height: 100vh;
-  background: var(--bg-card);
+  background: var(--vit-papel);
+  color: var(--vit-tinta);
 }
 
 .vitrine-page {
-  max-width: 935px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 40px 20px 56px;
+  padding-bottom: 40px;
 }
 
-.vitrine-perfil {
+/* ---------- topo: capa da Minha Página + logo ---------- */
+.vitrine-capa {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 190px;
+  padding: 24px 20px;
+  background-color: var(--vit-fundo);
+  background-size: cover;
+  background-position: center;
+}
+
+/* Véu: a capa é foto de festa, e sem ele o nome some no fundo claro. */
+.vitrine-capa-veu {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11, 79, 94, 0.55) 0%, rgba(11, 79, 94, 0.92) 100%);
+}
+
+.vitrine-marca {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding-bottom: 28px;
-  margin-bottom: 28px;
-  border-bottom: 1px solid var(--border);
-}
-
-.vitrine-avatar {
-  width: 96px;
-  height: 96px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  object-fit: cover;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-}
-
-.vitrine-avatar-iniciais {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary);
-  border: 0;
-  color: #fff;
-  font-size: 32px;
-  font-weight: 800;
-}
-
-.vitrine-perfil-texto {
+  gap: 16px;
   min-width: 0;
 }
 
-.vitrine-nome {
-  font-size: 24px;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
+.vitrine-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  font-family: var(--vit-serifada);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--vit-fundo);
+}
+
+.vitrine-logo img {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  object-fit: contain;
+}
+
+.vitrine-marca-texto {
+  min-width: 0;
+}
+
+.vitrine-titulo {
+  font-family: var(--vit-serifada);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.05;
+  color: #fff;
   overflow-wrap: anywhere;
 }
 
 .vitrine-local {
-  margin-top: 4px;
-  font-size: 14px;
-  color: var(--text-secondary);
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
 }
 
-.vitrine-contagem {
-  margin-top: 8px;
-  font-size: 14px;
+/* ---------- seção ---------- */
+.vitrine-corpo {
+  padding: 0 20px;
+}
+
+.vitrine-secao {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 26px 0 16px;
+}
+
+.vitrine-secao-titulo {
+  font-family: var(--vit-serifada);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--vit-tinta);
+}
+
+.vitrine-secao-contagem {
+  font-size: 11px;
   font-weight: 700;
-  color: var(--text-primary);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vit-tinta-fraca);
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- grade dos temas ---------- */
 .vitrine-grade {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 16px;
 }
 
-.vitrine-tile {
+.vitrine-grade > li {
+  display: flex;
+}
+
+.vitrine-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  width: 100%;
   color: inherit;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
 }
 
-.vitrine-tile:focus-visible {
-  outline: 2px solid var(--primary);
+.vitrine-card:focus-visible {
+  outline: 2px solid var(--vit-fundo);
   outline-offset: 4px;
 }
 
 .vitrine-foto {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 1 / 1;
-  border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f2f5f6;
+  border: 1px solid var(--vit-linha);
 }
 
 .vitrine-foto img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Sem foto: o espaço fica reservado, em cinza, como no Acervo. */
 .vitrine-foto-vazia {
-  width: 32px;
-  height: 32px;
-  color: var(--text-light);
+  width: 30px;
+  height: 30px;
+  color: #9fb0b6;
 }
 
 @media (hover: hover) {
-  .vitrine-tile:hover .vitrine-foto img {
+  .vitrine-card:hover .vitrine-foto img {
     transform: scale(1.04);
   }
 }
 
-.vitrine-tile-nome {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.vitrine-tile-preco {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--primary);
+/* Preço sobre a foto, como no print: encostado na borda esquerda. */
+.vitrine-preco {
+  position: absolute;
+  left: 0;
+  bottom: 12px;
+  padding: 5px 12px;
+  border-radius: 0 4px 4px 0;
+  background: var(--vit-preco);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.vitrine-aviso {
-  padding: 48px 0;
+.vitrine-card-nome {
+  font-family: var(--vit-serifada);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--vit-tinta);
+  overflow-wrap: anywhere;
+}
+
+/* Rótulo do DADO — Kit ou Peça. Nada de categoria que o acervo não tem. */
+.vitrine-card-tipo {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vit-tinta-fraca);
+}
+
+/* Vaga do próximo tema: segura o desenho de duas colunas com poucos temas. */
+.vitrine-vaga {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  border: 1px dashed var(--vit-linha);
+  border-radius: 10px;
   text-align: center;
-  font-size: 15px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--vit-tinta-fraca);
 }
 
-.vitrine-vazia {
-  padding: 80px 0;
-  text-align: center;
+.vitrine-vaga-sinal {
+  width: 22px;
+  height: 22px;
+  color: #a9bcc2;
 }
 
-.vitrine-vazia h1 {
-  margin-bottom: 8px;
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text-primary);
+/* ---------- detalhe do tema ---------- */
+.vitrine-barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--vit-linha);
 }
 
-.vitrine-vazia p {
-  font-size: 15px;
-  color: var(--text-secondary);
-}
-
-/* Detalhe do item */
 .vitrine-voltar {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  margin-bottom: 16px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--vit-linha);
+  border-radius: 50%;
+  color: var(--vit-tinta-fraca);
 }
 
 .vitrine-voltar:hover {
-  color: var(--text-primary);
+  color: var(--vit-tinta);
+  border-color: var(--vit-tinta-fraca);
 }
 
 .vitrine-voltar:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--vit-fundo);
   outline-offset: 2px;
 }
 
 .vitrine-voltar svg {
   width: 18px;
   height: 18px;
-  flex-shrink: 0;
+}
+
+.vitrine-barra-nome {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vit-tinta-fraca);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vitrine-logo-pequena {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--vit-fundo);
+  box-shadow: none;
+  color: #fff;
+  font-size: 14px;
+}
+
+.vitrine-logo-pequena img {
+  padding: 4px;
 }
 
 .vitrine-detalhe {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 40px;
-  align-items: start;
+  padding: 20px;
+}
+
+.vitrine-detalhe-foto {
+  aspect-ratio: 1 / 1;
+}
+
+.vitrine-detalhe-texto {
+  padding-top: 22px;
+}
+
+.vitrine-detalhe-tipo {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vit-fundo);
 }
 
 .vitrine-detalhe-nome {
-  font-size: 28px;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
+  margin-top: 8px;
+  font-family: var(--vit-serifada);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--vit-tinta);
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
@@ -5484,104 +5614,128 @@ img { max-width: 100%; display: block; }
 .vitrine-detalhe-preco {
   margin-top: 10px;
   font-size: 24px;
-  font-weight: 800;
-  color: var(--primary);
+  font-weight: 700;
+  color: var(--vit-preco);
   font-variant-numeric: tabular-nums;
 }
 
 .vitrine-detalhe-descricao {
-  margin-top: 20px;
+  margin-top: 16px;
   max-width: 65ch;
   font-size: 15px;
   line-height: 1.65;
-  color: var(--text-secondary);
+  color: var(--vit-tinta-fraca);
   white-space: pre-line;
 }
 
 .vitrine-detalhe-sub {
-  margin-top: 32px;
-  margin-bottom: 10px;
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--text-primary);
+  margin: 28px 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vit-tinta-fraca);
 }
 
 .vitrine-detalhe-pecas {
   list-style: none;
-  border-top: 1px solid var(--border);
 }
 
 .vitrine-detalhe-pecas li {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 0;
-  font-size: 14px;
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--vit-linha);
+  font-size: 15px;
 }
 
-.vitrine-detalhe-pecas li span:last-child {
-  color: var(--text-secondary);
+.vitrine-peca-ordem {
+  font-family: var(--vit-serifada);
+  font-size: 13px;
+  color: var(--vit-tinta-fraca);
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 640px) {
-  .vitrine-page {
-    padding: 24px 12px 40px;
+.vitrine-peca-nome {
+  flex: 1;
+  min-width: 0;
+  color: var(--vit-tinta);
+}
+
+.vitrine-peca-qtd {
+  font-size: 13px;
+  color: var(--vit-preco);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- estados ---------- */
+.vitrine-aviso {
+  padding: 48px 0;
+  text-align: center;
+  font-size: 15px;
+  color: var(--vit-tinta-fraca);
+}
+
+.vitrine-vazia {
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.vitrine-vazia h1 {
+  margin-bottom: 8px;
+  font-family: var(--vit-serifada);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--vit-tinta);
+}
+
+.vitrine-vazia p {
+  font-size: 15px;
+  color: var(--vit-tinta-fraca);
+}
+
+/* ---------- tela larga ---------- */
+@media (min-width: 720px) {
+  .vitrine-capa {
+    min-height: 240px;
+    padding: 32px;
   }
 
-  .vitrine-perfil {
-    gap: 16px;
-    padding-bottom: 20px;
-    margin-bottom: 16px;
+  /* Só a do topo cresce: a da barra de detalhe continua pequena (esta regra
+     vem depois, e sem o .vitrine-capa ela venceria por ser a última). */
+  .vitrine-capa .vitrine-logo {
+    width: 88px;
+    height: 88px;
   }
 
-  .vitrine-avatar {
-    width: 72px;
-    height: 72px;
+  .vitrine-titulo {
+    font-size: 44px;
   }
 
-  .vitrine-avatar-iniciais {
-    font-size: 24px;
-  }
-
-  .vitrine-nome {
-    font-size: 20px;
+  .vitrine-corpo {
+    padding: 0 32px;
   }
 
   .vitrine-grade {
-    gap: 16px 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 28px 20px;
   }
 
-  .vitrine-foto {
-    border-radius: var(--radius-sm);
-  }
-
-  .vitrine-tile-nome,
-  .vitrine-tile-preco {
-    font-size: 12px;
-  }
-
-  /* Numa coluna de ~110px, uma linha cortava o nome antes de dizer o que é
-     ("Kit Fazendinha ro…"). Duas linhas, com altura fixa para os preços das
-     três colunas continuarem alinhados. */
-  .vitrine-tile-nome {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    white-space: normal;
-    min-height: calc(1.35em * 2);
+  .vitrine-barra,
+  .vitrine-detalhe {
+    padding: 20px 32px;
   }
 
   .vitrine-detalhe {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 40px;
+    align-items: start;
   }
 
-  .vitrine-detalhe-nome {
-    font-size: 22px;
+  .vitrine-detalhe-texto {
+    padding-top: 0;
   }
 }
 

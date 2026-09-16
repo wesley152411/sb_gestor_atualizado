@@ -419,7 +419,7 @@ export default function MyPage() {
               <Badge variant="success">{decorator?.membership_level || 'Membro'}</Badge>
             </div>
           </div>
-          <div className="flex gap-2" style={{ marginTop: '8px' }}>
+          <div className="flex gap-2" style={{ marginTop: '8px', display: 'flex', gap: '10px' }}>
             <Button variant="secondary" icon={Pencil} onClick={handleOpenEditProfile}>
               Editar Perfil
             </Button>

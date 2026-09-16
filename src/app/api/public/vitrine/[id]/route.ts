@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const dona = await prisma.decorator.findFirst({
       where: { id, is_internal: false },
-      select: { name: true, company_name: true, avatar_url: true, location: true },
+      select: { name: true, company_name: true, avatar_url: true, cover_url: true, location: true },
     });
     if (!dona) {
       return NextResponse.json({ error: 'Página não encontrada' }, { status: 404 });
@@ -67,6 +67,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       // O nome da EMPRESA quando houver — é quem aparece para a cliente.
       nome: (dona.company_name || '').trim() || dona.name,
       avatar: dona.avatar_url || '',
+      // A capa é a mesma foto que ela escolheu na Minha Página.
+      capa: dona.cover_url || '',
       local: dona.location || '',
       itens: comData.map(([, item]) => item),
     };
