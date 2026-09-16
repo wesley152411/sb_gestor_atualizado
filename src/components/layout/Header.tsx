@@ -152,7 +152,9 @@ export function Header() {
         >
           <Menu className="w-6 h-6" aria-hidden="true" />
         </button>
-        <div className="header-title">Bem-vindo(a) ao SB GESTOR</div>
+        {/* Só o nome do sistema, igual em toda conta. Quem diz em qual conta a
+            decoradora está é a barra lateral, com a logo e o nome da empresa dela. */}
+        <div className="header-title">SB GESTOR</div>
       </div>
 
       <div className="header-actions">
