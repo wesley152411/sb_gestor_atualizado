@@ -18,10 +18,12 @@ async function nomeDaDecoradora(id: string): Promise<string | null> {
   try {
     const dona = await prisma.decorator.findFirst({
       where: { id, is_internal: false },
-      select: { name: true, company_name: true },
+      select: { name: true },
     });
     if (!dona) return null;
-    return (dona.company_name || '').trim() || (dona.name || '').trim() || null;
+    // O nome da CONTA, o mesmo que a vitrine mostra. O company_name do cadastro
+    // fica congelado e já fez o link chegar com outro nome.
+    return (dona.name || '').trim() || null;
   } catch {
     // Banco fora do ar não pode derrubar a página: a prévia perde o nome, a
     // vitrine continua abrindo.

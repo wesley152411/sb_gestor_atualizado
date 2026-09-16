@@ -194,6 +194,33 @@ describe('5. vitrine pública', () => {
     }
   });
 
+  it('o nome é o da CONTA, não o company_name congelado do cadastro', () => {
+    // O link chegou a mostrar "SB FESTA" para uma conta chamada "SB GESTOR":
+    // company_name guarda o que foi digitado no cadastro e nunca mais muda.
+    // Comentário citando o campo é permitido; o que não pode é código lendo.
+    const semComentarios = (fonte: string) =>
+      fonte.split(/\r?\n/).filter((l) => !l.trim().startsWith('//')).join('\n');
+    expect(rota).toMatch(/nome: dona\.name,/);
+    expect(semComentarios(rota)).not.toMatch(/company_name/);
+    expect(semComentarios(ler('src/app/vitrine/[id]/layout.tsx')), 'prévia do link da vitrine')
+      .not.toMatch(/company_name/);
+    expect(ler('src/app/(dashboard)/marketplace/my-page/page.tsx'), 'o botão de compartilhar')
+      .toMatch(/nome=\{decorator\.name\}/);
+  });
+
+  it('o "Sobre" da Minha Página aparece no link público', () => {
+    expect(rota).toMatch(/about: true/);
+    expect(rota).toMatch(/sobre: dona.about/);
+    expect(grade).toMatch(/vitrine.sobre && <p className="vitrine-sobre">/);
+  });
+
+  it('sem rodapé legal e com a fonte do site', () => {
+    expect(ler('src/app/vitrine/layout.tsx'), 'a vitrine não pede dado nenhum').not.toMatch(/PublicLegalFooter/);
+    const css = ler('src/app/globals.css');
+    expect(css, 'nada de fonte própria').not.toMatch(/Cormorant/);
+    const bloco = css.slice(css.indexOf('/* ==================== VITRINE PÚBLICA'), css.indexOf('/* ==================== CALENDÁRIO E CLIENTES NO CELULAR'));
+    expect(bloco, 'a vitrine herda a fonte do site').not.toMatch(/font-family/);
+  });
   it('a vitrine não fala com a decoradora — quem abre é a cliente final', () => {
     // Quem recebe este link é o cliente da decoradora: ele só OLHA. Texto de
     // convite para publicar (a vaga do próximo tema) é conversa com a dona da

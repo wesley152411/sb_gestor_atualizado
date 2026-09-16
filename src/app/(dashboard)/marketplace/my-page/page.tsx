@@ -426,7 +426,7 @@ export default function MyPage() {
             {vitrinePublica && decorator && (
               <CompartilharVitrine
                 decoradoraId={decorator.id}
-                nome={(decorator.company_name || '').trim() || decorator.name}
+                nome={decorator.name}
               />
             )}
           </div>
