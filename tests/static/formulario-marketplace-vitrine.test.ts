@@ -194,6 +194,16 @@ describe('5. vitrine pública', () => {
     }
   });
 
+  it('a vitrine não fala com a decoradora — quem abre é a cliente final', () => {
+    // Quem recebe este link é o cliente da decoradora: ele só OLHA. Texto de
+    // convite para publicar (a vaga do próximo tema) é conversa com a dona da
+    // página, e ali não cabe — ele não insere nada.
+    for (const tela of [grade, detalhe]) {
+      expect(tela).not.toMatch(/próximo tema do catálogo|Adicionar item|Publicar/i);
+    }
+    expect(ler('src/app/globals.css')).not.toMatch(/vitrine-vaga/);
+  });
+
   it('o preço aparece sobre a foto e o kit lista o que vem dentro', () => {
     expect(grade).toMatch(/<span className="vitrine-preco">\{formatCurrency\(item\.preco\)\}<\/span>/);
     expect(detalhe).toMatch(/item\.tipo === 'kit' && item\.pecas\.length > 0/);

@@ -5494,29 +5494,6 @@ img { max-width: 100%; display: block; }
   color: var(--vit-tinta-fraca);
 }
 
-/* Vaga do próximo tema: segura o desenho de duas colunas com poucos temas. */
-.vitrine-vaga {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 20px;
-  border: 1px dashed var(--vit-linha);
-  border-radius: 10px;
-  text-align: center;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--vit-tinta-fraca);
-}
-
-.vitrine-vaga-sinal {
-  width: 22px;
-  height: 22px;
-  color: #a9bcc2;
-}
-
 /* ---------- detalhe do tema ---------- */
 .vitrine-barra {
   display: flex;

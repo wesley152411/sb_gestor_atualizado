@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Package, Plus } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { formatCurrency, getInitials } from '@/lib/utils';
 import { carregarVitrine, rotaDoItem, type Vitrine } from '@/lib/vitrine';
 
@@ -97,14 +97,6 @@ export default function VitrinePage() {
                 </Link>
               </li>
             ))}
-            {/* Vaga do próximo tema: mantém a grade com o desenho de duas colunas
-                mesmo com poucos temas publicados. */}
-            <li aria-hidden="true">
-              <div className="vitrine-vaga">
-                <Plus className="vitrine-vaga-sinal" />
-                <span>Espaço para o próximo tema do catálogo</span>
-              </div>
-            </li>
           </ul>
         )}
       </section>
