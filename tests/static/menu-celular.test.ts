@@ -112,8 +112,14 @@ describe('o desktop continua como está', () => {
 });
 
 describe('o que não podia mudar', () => {
-  it('o título do cabeçalho é o mesmo texto', () => {
-    expect(cabecalho).toMatch(/<div className="header-title">Bem-vindo\(a\) ao SB GESTOR<\/div>/);
+  it('o cabeçalho mostra só o nome do sistema, igual em toda conta', () => {
+    // Era "Bem-vindo(a) ao SB GESTOR". A dona tirou a saudação (16/09/2026):
+    // quem diz em qual conta ela está é a barra lateral, com a logo e o nome
+    // da empresa dela — e isso continua valendo (asserção abaixo).
+    expect(cabecalho).toMatch(/<div className="header-title">SB GESTOR<\/div>/);
+    expect(cabecalho).not.toMatch(/Bem-vindo/);
+    expect(barra, 'a barra lateral continua identificando a conta')
+      .toMatch(/\{decorator\?\.name \|\| 'SB GESTOR'\}/);
   });
 
   it('o Suporte continua sem destino — fica para depois, por decisão da dona', () => {
