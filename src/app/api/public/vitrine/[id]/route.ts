@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const dona = await prisma.decorator.findFirst({
       where: { id, is_internal: false },
-      select: { name: true, company_name: true, avatar_url: true, cover_url: true, location: true },
+      select: { name: true, avatar_url: true, cover_url: true, location: true, about: true },
     });
     if (!dona) {
       return NextResponse.json({ error: 'Página não encontrada' }, { status: 404 });
@@ -64,12 +64,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     comData.sort((a, b) => b[0] - a[0]);
 
     const vitrine: Vitrine = {
-      // O nome da EMPRESA quando houver — é quem aparece para a cliente.
-      nome: (dona.company_name || '').trim() || dona.name,
+      // O nome da CONTA (o campo "Nome da Empresa" das Configurações). O
+      // company_name do cadastro NÃO serve: ele fica congelado no que foi
+      // digitado no signup, e o link chegou a mostrar "SB FESTA" para uma conta
+      // que hoje se chama "SB GESTOR".
+      nome: dona.name,
       avatar: dona.avatar_url || '',
       // A capa é a mesma foto que ela escolheu na Minha Página.
       capa: dona.cover_url || '',
       local: dona.location || '',
+      // O "Sobre" que ela escreveu na Minha Página: é a apresentação dela.
+      sobre: dona.about || '',
       itens: comData.map(([, item]) => item),
     };
     return NextResponse.json(vitrine);

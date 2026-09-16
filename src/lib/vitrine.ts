@@ -20,6 +20,8 @@ export interface Vitrine {
   /** Foto de capa da Minha Página — fundo do topo da vitrine. */
   capa: string;
   local: string;
+  /** Texto "Sobre" da Minha Página. */
+  sobre: string;
   itens: ItemVitrine[];
 }
 

@@ -1,6 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-/* Serifada da VITRINE PÚBLICA (só lá): é a voz da marca da decoradora. */
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap');
 
 :root {
   /* Colors */
@@ -5276,8 +5274,11 @@ img { max-width: 100%; display: block; }
 /* ==================== VITRINE PÚBLICA ==================== */
 /* Página aberta a qualquer pessoa (/vitrine/[id]), compartilhada pela Minha
    Página. O topo é a marca da DECORADORA: a capa que ela escolheu na Minha
-   Página ao fundo e a logo dela na frente — quem manda o link é ela, e quem
-   recebe é a cliente dela.
+   Página ao fundo e a logo dela na frente.
+
+   TIPOGRAFIA: a mesma do resto do site (Plus Jakarta Sans, herdada do body).
+   Aqui não entra fonte própria — a vitrine é uma tela do produto, não um
+   folheto à parte.
 
    Tokens LOCAIS, como na barra lateral: o índigo do sistema não entra aqui.
    Contraste medido: branco sobre #0b4f5e = 9,2:1; #b6005b sobre branco = 5,1:1;
@@ -5290,16 +5291,15 @@ img { max-width: 100%; display: block; }
   --vit-tinta: #17323a;
   --vit-tinta-fraca: #5b7079;
   --vit-linha: #e4e9ea;
-  --vit-serifada: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
   min-height: 100vh;
   background: var(--vit-papel);
   color: var(--vit-tinta);
 }
 
 .vitrine-page {
-  max-width: 960px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding-bottom: 40px;
+  padding-bottom: 56px;
 }
 
 /* ---------- topo: capa da Minha Página + logo ---------- */
@@ -5307,7 +5307,7 @@ img { max-width: 100%; display: block; }
   position: relative;
   display: flex;
   align-items: flex-end;
-  min-height: 190px;
+  min-height: 180px;
   padding: 24px 20px;
   background-color: var(--vit-fundo);
   background-size: cover;
@@ -5334,15 +5334,14 @@ img { max-width: 100%; display: block; }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 72px;
-  height: 72px;
+  width: 68px;
+  height: 68px;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #fff;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-  font-family: var(--vit-serifada);
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 800;
   color: var(--vit-fundo);
 }
 
@@ -5358,26 +5357,36 @@ img { max-width: 100%; display: block; }
 }
 
 .vitrine-titulo {
-  font-family: var(--vit-serifada);
-  font-size: 34px;
-  font-weight: 600;
-  line-height: 1.05;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: #fff;
   overflow-wrap: anywhere;
 }
 
 .vitrine-local {
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
+  font-weight: 700;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* ---------- seção ---------- */
+/* ---------- corpo ---------- */
 .vitrine-corpo {
   padding: 0 20px;
+}
+
+/* O "Sobre" da Minha Página: a apresentação dela para quem abre o link. */
+.vitrine-sobre {
+  max-width: 70ch;
+  margin-top: 22px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--vit-tinta-fraca);
+  white-space: pre-line;
 }
 
 .vitrine-secao {
@@ -5389,9 +5398,9 @@ img { max-width: 100%; display: block; }
 }
 
 .vitrine-secao-titulo {
-  font-family: var(--vit-serifada);
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--vit-tinta);
 }
 
@@ -5462,7 +5471,7 @@ img { max-width: 100%; display: block; }
   }
 }
 
-/* Preço sobre a foto, como no print: encostado na borda esquerda. */
+/* Preço sobre a foto, encostado na borda esquerda. */
 .vitrine-preco {
   position: absolute;
   left: 0;
@@ -5477,10 +5486,10 @@ img { max-width: 100%; display: block; }
 }
 
 .vitrine-card-nome {
-  font-family: var(--vit-serifada);
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1.2;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   color: var(--vit-tinta);
   overflow-wrap: anywhere;
 }
@@ -5535,7 +5544,7 @@ img { max-width: 100%; display: block; }
   min-width: 0;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--vit-tinta-fraca);
   white-space: nowrap;
@@ -5550,7 +5559,7 @@ img { max-width: 100%; display: block; }
   background: var(--vit-fundo);
   box-shadow: none;
   color: #fff;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .vitrine-logo-pequena img {
@@ -5579,19 +5588,19 @@ img { max-width: 100%; display: block; }
 
 .vitrine-detalhe-nome {
   margin-top: 8px;
-  font-family: var(--vit-serifada);
-  font-size: 32px;
-  font-weight: 600;
-  line-height: 1.1;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--vit-tinta);
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
 
 .vitrine-detalhe-preco {
-  margin-top: 10px;
-  font-size: 24px;
-  font-weight: 700;
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 800;
   color: var(--vit-preco);
   font-variant-numeric: tabular-nums;
 }
@@ -5600,7 +5609,7 @@ img { max-width: 100%; display: block; }
   margin-top: 16px;
   max-width: 65ch;
   font-size: 15px;
-  line-height: 1.65;
+  line-height: 1.7;
   color: var(--vit-tinta-fraca);
   white-space: pre-line;
 }
@@ -5628,8 +5637,8 @@ img { max-width: 100%; display: block; }
 }
 
 .vitrine-peca-ordem {
-  font-family: var(--vit-serifada);
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--vit-tinta-fraca);
   font-variant-numeric: tabular-nums;
 }
@@ -5642,6 +5651,7 @@ img { max-width: 100%; display: block; }
 
 .vitrine-peca-qtd {
   font-size: 13px;
+  font-weight: 700;
   color: var(--vit-preco);
   font-variant-numeric: tabular-nums;
 }
@@ -5661,9 +5671,9 @@ img { max-width: 100%; display: block; }
 
 .vitrine-vazia h1 {
   margin-bottom: 8px;
-  font-family: var(--vit-serifada);
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--vit-tinta);
 }
 
@@ -5672,47 +5682,63 @@ img { max-width: 100%; display: block; }
   color: var(--vit-tinta-fraca);
 }
 
-/* ---------- tela larga ---------- */
+/* ---------- tela larga ----------
+   No celular a grade de duas colunas preenche a tela. Numa janela larga, duas
+   colunas esticariam o card até virar um cartaz, e um tema só ficava perdido no
+   meio do branco. auto-fill com largura máxima mantém o card do mesmo tamanho e
+   vai enchendo a linha conforme a janela cresce. */
 @media (min-width: 720px) {
   .vitrine-capa {
-    min-height: 240px;
-    padding: 32px;
+    min-height: 210px;
+    padding: 32px 40px;
   }
 
-  /* Só a do topo cresce: a da barra de detalhe continua pequena (esta regra
-     vem depois, e sem o .vitrine-capa ela venceria por ser a última). */
-  .vitrine-capa .vitrine-logo {
-    width: 88px;
-    height: 88px;
+  .vitrine-logo {
+    width: 84px;
+    height: 84px;
+    border-radius: 18px;
+    font-size: 26px;
   }
 
   .vitrine-titulo {
-    font-size: 44px;
+    font-size: 36px;
   }
 
   .vitrine-corpo {
-    padding: 0 32px;
+    padding: 0 40px;
+  }
+
+  .vitrine-secao {
+    padding: 30px 0 18px;
   }
 
   .vitrine-grade {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
     gap: 28px 20px;
   }
 
   .vitrine-barra,
   .vitrine-detalhe {
-    padding: 20px 32px;
+    padding: 20px 40px;
   }
 
   .vitrine-detalhe {
     display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    gap: 40px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 44px;
     align-items: start;
+  }
+
+  .vitrine-detalhe-foto {
+    max-width: 520px;
   }
 
   .vitrine-detalhe-texto {
     padding-top: 0;
+  }
+
+  .vitrine-detalhe-nome {
+    font-size: 30px;
   }
 }
 

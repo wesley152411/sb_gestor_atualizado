@@ -72,6 +72,10 @@ export default function VitrinePage() {
       </header>
 
       <section className="vitrine-corpo">
+        {/* O "Sobre" que ela escreveu na Minha Página: é a apresentação dela
+            para quem abre o link. */}
+        {vitrine.sobre && <p className="vitrine-sobre">{vitrine.sobre}</p>}
+
         <div className="vitrine-secao">
           <h2 className="vitrine-secao-titulo">Temas disponíveis</h2>
           <span className="vitrine-secao-contagem">{total} {total === 1 ? 'item' : 'itens'}</span>
