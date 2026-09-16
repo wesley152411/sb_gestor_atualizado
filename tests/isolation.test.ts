@@ -235,6 +235,10 @@ describe('Isolamento — link de orçamento público (/api/public/quote)', () =>
       'token', 'status', 'decorator', 'card', 'client_name', 'phone', 'address',
       'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'estado',
       'event_date', 'setup_time', 'start_time', 'observation',
+      // LINK DE ALUGUEL: a cliente precisa LER quando retirar e quando devolver.
+      // São da decoradora (ela define ao gerar o link) e o POST público não os
+      // escreve — o teste estático link-aluguel guarda essa parte.
+      'tipo_link', 'retirada_em', 'devolucao_em',
     ];
     const inesperados = Object.keys(pub).filter((k) => !allowedTop.includes(k));
     expect(inesperados, `campo(s) fora do contrato público: ${inesperados.join(', ')}`).toEqual([]);

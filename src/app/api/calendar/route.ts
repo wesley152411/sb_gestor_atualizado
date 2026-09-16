@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { requireLeitura } from '@/lib/api-auth';
+import { TIPO_LINK } from '@/lib/aluguel';
 
 export async function GET(request: Request) {
   try {
@@ -18,6 +19,12 @@ export async function GET(request: Request) {
 
     const rangeStart = new Date(Date.UTC(year, month - 1, 1));
     const rangeEnd = new Date(Date.UTC(year, month, 1));
+    // Retirada e devolução são instantes (timestamptz), e o mês aqui é contado em
+    // UTC: uma retirada às 22h do dia 30 cai no dia seguinte em UTC. Um dia de
+    // folga de cada lado evita perder essas pontas; a tela põe cada compromisso
+    // no dia certo pelo horário de Brasília.
+    const folgaInicio = new Date(rangeStart.getTime() - 24 * 60 * 60 * 1000);
+    const folgaFim = new Date(rangeEnd.getTime() + 24 * 60 * 60 * 1000);
 
     const [rentalOrdersRaw, partyEvents] = await Promise.all([
       prisma.rentalOrder.findMany({
@@ -43,7 +50,13 @@ export async function GET(request: Request) {
       prisma.partyEvent.findMany({
         where: {
           decorator_id: decoratorId,
-          event_date: { gte: rangeStart, lt: rangeEnd },
+          OR: [
+            { event_date: { gte: rangeStart, lt: rangeEnd } },
+            // Link de ALUGUEL: a retirada e a devolução são compromissos do mês,
+            // mesmo quando a data do evento cai em outro.
+            { tipo_link: TIPO_LINK.ALUGUEL, retirada_em: { gte: folgaInicio, lt: folgaFim } },
+            { tipo_link: TIPO_LINK.ALUGUEL, devolucao_em: { gte: folgaInicio, lt: folgaFim } },
+          ],
         },
         orderBy: { event_date: 'asc' },
       }),

@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/Modal';
 import { CompartilharVitrine } from '@/components/vitrine/CompartilharVitrine';
 import { vitrinePublica } from '@/lib/feature-flags';
 import { formatCurrency, formatPriceLabel, hasPrice, getInitials, sanitizePhoneDigits, sanitizeInstagramHandle } from '@/lib/utils';
+import { TIPO_LINK, type TipoLink, instanteDoCampo, validarPeriodo } from '@/lib/aluguel';
 import type { InventoryItem, Kit, RentalOrder, ChatMessage, Decorator } from '@/types';
 import {
   saveDecoratorProfile, saveInventoryItem, saveKit, createQuoteLink
@@ -56,6 +57,17 @@ export default function MyPage() {
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
+
+  // LINK PARA A CLIENTE: decoração (o de sempre) ou aluguel. No aluguel é a
+  // DECORADORA quem define retirada e devolução, aqui, antes de gerar o link —
+  // a cliente lê e não edita. Os estados ficam aqui em cima, antes do retorno
+  // de carregamento: hook não pode nascer depois de um return.
+  const [linkModal, setLinkModal] = useState<{ id: string; name: string; isKit: boolean } | null>(null);
+  const [tipoLink, setTipoLink] = useState<TipoLink>(TIPO_LINK.DECORACAO);
+  const [retirada, setRetirada] = useState('');
+  const [devolucao, setDevolucao] = useState('');
+  const [erroLink, setErroLink] = useState('');
+  const [gerandoLink, setGerandoLink] = useState(false);
 
 
 
@@ -245,16 +257,45 @@ export default function MyPage() {
     }
   };
 
-  // Send public quote link to end client
-  const handleSendLink = async (item: any) => {
-    if (!decorator) return;
+  // Abre a escolha do tipo de link. O link só nasce depois, em gerarLink.
+  const abrirModalDeLink = (item: any) => {
+    setLinkModal({ id: item.id, name: item.name, isKit: !!item.isKit });
+    setTipoLink(TIPO_LINK.DECORACAO);
+    setRetirada('');
+    setDevolucao('');
+    setErroLink('');
+  };
+
+  // Gera o link e copia. A validação do período roda aqui para a decoradora ver
+  // o problema na hora; o servidor valida de novo, porque a autoridade é ele.
+  const gerarLink = async () => {
+    if (!decorator || !linkModal) return;
+    const ehAluguel = tipoLink === TIPO_LINK.ALUGUEL;
+    if (ehAluguel) {
+      const problema = validarPeriodo(instanteDoCampo(retirada), instanteDoCampo(devolucao));
+      if (problema) { setErroLink(problema); return; }
+    }
+    setErroLink('');
+    setGerandoLink(true);
     try {
-      const token = await createQuoteLink(decorator.id, item.isKit ? { kitId: item.id } : { itemId: item.id });
+      const token = await createQuoteLink(
+        decorator.id,
+        linkModal.isKit ? { kitId: linkModal.id } : { itemId: linkModal.id },
+        ehAluguel ? { tipo: TIPO_LINK.ALUGUEL, retirada, devolucao } : undefined,
+      );
       const url = `${window.location.origin}/orcamento/${token}`;
       await navigator.clipboard.writeText(url);
-      addNotification('Link Copiado!', `Envie este link para a cliente preencher os dados de "${item.name}".`);
+      addNotification(
+        'Link Copiado!',
+        ehAluguel
+          ? `Link de aluguel de "${linkModal.name}" copiado. A cliente vê a retirada e a devolução que você definiu.`
+          : `Envie este link para a cliente preencher os dados de "${linkModal.name}".`,
+      );
+      setLinkModal(null);
     } catch (err: any) {
-      addNotification('Erro', err.message || 'Falha ao gerar o link de orçamento.');
+      setErroLink(err.message || 'Falha ao gerar o link de orçamento.');
+    } finally {
+      setGerandoLink(false);
     }
   };
 
@@ -552,9 +593,9 @@ export default function MyPage() {
                     <button
                       type="button"
                       className="mp-card-link-btn"
-                      onClick={() => handleSendLink(item)}
-                      title="Copiar link do item"
-                      aria-label="Copiar link do item"
+                      onClick={() => abrirModalDeLink(item)}
+                      title="Gerar link para a cliente"
+                      aria-label="Gerar link para a cliente"
                     >
                       <Link2 className="w-5 h-5" />
                     </button>
@@ -621,6 +662,67 @@ export default function MyPage() {
               placeholder="Fale um pouco sobre a sua empresa de decoração..."
             />
           </div>
+        </div>
+      </Modal>
+
+      {/* Tipo do link para a cliente. O formulário que ela preenche é o mesmo
+          nos dois casos; o aluguel só acrescenta o período, definido aqui. */}
+      <Modal
+        isOpen={!!linkModal}
+        onClose={() => setLinkModal(null)}
+        title={linkModal ? `Gerar link — ${linkModal.name}` : ''}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setLinkModal(null)}>Cancelar</Button>
+            <Button icon={Link2} isLoading={gerandoLink} onClick={gerarLink} bloqueiaEmLeitura>
+              Gerar e copiar link
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="acervo-segmented-control" role="radiogroup" aria-label="Tipo do link">
+            {([TIPO_LINK.DECORACAO, TIPO_LINK.ALUGUEL] as TipoLink[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="radio"
+                aria-checked={tipoLink === t}
+                className={`acervo-segment ${tipoLink === t ? 'active' : ''}`}
+                onClick={() => { setTipoLink(t); setErroLink(''); }}
+                style={{ flex: 1 }}
+              >
+                {t === TIPO_LINK.DECORACAO ? 'Decoração' : 'Aluguel'}
+              </button>
+            ))}
+          </div>
+
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+            {tipoLink === TIPO_LINK.DECORACAO
+              ? 'Você monta a decoração no endereço da cliente, na data do evento.'
+              : 'A cliente leva a peça e devolve depois. Defina quando ela retira e quando devolve: ela vê esses horários e não pode alterá-los.'}
+          </p>
+
+          {tipoLink === TIPO_LINK.ALUGUEL && (
+            <div className="quote-grid-2">
+              <Input
+                type="datetime-local"
+                label="Retirada"
+                value={retirada}
+                onChange={(e) => { setRetirada(e.target.value); setErroLink(''); }}
+              />
+              <Input
+                type="datetime-local"
+                label="Devolução"
+                value={devolucao}
+                onChange={(e) => { setDevolucao(e.target.value); setErroLink(''); }}
+              />
+            </div>
+          )}
+
+          {erroLink && (
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger)', margin: 0 }}>{erroLink}</p>
+          )}
         </div>
       </Modal>
 

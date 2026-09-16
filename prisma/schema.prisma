@@ -302,6 +302,13 @@ model PartyEvent {
   source_kit_id         String?
   observation           String?
   submitted_at          DateTime?      @db.Timestamptz(6)
+  // LINK DE ALUGUEL (migração 20260915120000). tipo_link: 'decoracao' (padrão,
+  // o que todo link era até aqui) ou 'aluguel'. No aluguel, retirada_em e
+  // devolucao_em são obrigatórias e a devolução vem depois da retirada — quem
+  // garante isso é o CHECK party_events_aluguel_periodo, no banco, não a tela.
+  tipo_link             String         @default("decoracao")
+  retirada_em           DateTime?      @db.Timestamptz(6)
+  devolucao_em          DateTime?      @db.Timestamptz(6)
   // Endereço ESTRUTURADO. `address` acima continua sendo o formato antigo e o
   // fallback de exibição: nada foi convertido, e a tela só usa estes campos
   // quando os seis obrigatórios estão presentes (ver src/lib/endereco.ts).

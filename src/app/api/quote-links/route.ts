@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { requireAssinaturaAtiva } from '@/lib/api-auth';
 import { EVENT_STATUS } from '@/lib/event-status';
+import { TIPO_LINK, ehTipoLink, instanteDoCampo, validarPeriodo } from '@/lib/aluguel';
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +14,21 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { itemId, kitId } = body;
+
+    // TIPO DO LINK. "decoracao" é o de sempre. No "aluguel" a cliente leva a peça
+    // e devolve depois: quem define retirada e devolução é a DECORADORA, aqui, e
+    // a cliente só lê (o POST público não escreve estes campos).
+    const tipo = body.tipo === undefined || body.tipo === null ? TIPO_LINK.DECORACAO : body.tipo;
+    if (!ehTipoLink(tipo)) {
+      return NextResponse.json({ error: 'Tipo de link inválido.' }, { status: 400 });
+    }
+    const ehAluguel = tipo === TIPO_LINK.ALUGUEL;
+    const retirada = ehAluguel ? instanteDoCampo(body.retirada) : null;
+    const devolucao = ehAluguel ? instanteDoCampo(body.devolucao) : null;
+    if (ehAluguel) {
+      const problema = validarPeriodo(retirada, devolucao);
+      if (problema) return NextResponse.json({ error: problema }, { status: 400 });
+    }
 
     if (!itemId && !kitId) {
       return NextResponse.json({ error: 'itemId or kitId is required' }, { status: 400 });
@@ -65,6 +81,9 @@ export async function POST(request: Request) {
         theme: name,
         total_value: price,
         status: EVENT_STATUS.AGUARDANDO_PREENCHIMENTO,
+        tipo_link: tipo,
+        retirada_em: retirada,
+        devolucao_em: devolucao,
         items,
       },
     });

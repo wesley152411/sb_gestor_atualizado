@@ -66,10 +66,17 @@ export function countsAsRevenue(event: StatusInput): boolean {
   return s === EVENT_STATUS.CONFIRMADO || s === EVENT_STATUS.FINALIZADO;
 }
 
-// Aparece no Calendário (tem data e é um evento ativo — nem rascunho nem cancelado).
+// Aparece no Calendário: SÓ depois de CONFIRMADO. Antes disso não é compromisso
+// — a decoradora ainda não fechou, e o Calendário existe para dizer o que ela
+// tem de fazer no dia. Com o link de ALUGUEL a mesma regra passou a valer para
+// a retirada e a devolução, por decisão da dona (15/09/2026).
+//
+// "Finalizado" continua aparecendo: é um Confirmado cuja data já passou, e o mês
+// que passou não pode esvaziar. A reserva de estoque de "Aguardando confirmação"
+// não muda — ela vive em reservesStock, não aqui.
 export function showsInCalendar(event: StatusInput): boolean {
   const s = effectiveStatus(event);
-  return s !== EVENT_STATUS.AGUARDANDO_PREENCHIMENTO && s !== EVENT_STATUS.CANCELADO;
+  return s === EVENT_STATUS.CONFIRMADO || s === EVENT_STATUS.FINALIZADO;
 }
 
 // Estoque: "Confirmado" bloqueia (reserva firme); "Aguardando confirmação" é

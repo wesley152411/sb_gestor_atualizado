@@ -3,6 +3,8 @@
 // das quantidades da peça em locações ATIVAS cujo [pickup,return] SOBREPÕE o período.
 // Kits expandem nos componentes (KitItem = { id(=item), quantity }).
 import type { Prisma } from '@prisma/client';
+import { TIPO_LINK } from '@/lib/aluguel';
+import { EVENT_STATUS } from '@/lib/event-status';
 
 export type OrderLine = { item_id?: string | null; kit_id?: string | null; quantity: number };
 type KitComponent = { id: string; quantity: number };
@@ -10,6 +12,15 @@ type KitComponent = { id: string; quantity: number };
 // Datas @db.Date: comparo em meia-noite UTC para não escorregar de fuso.
 function d(dateStr: string): Date {
   return new Date(`${dateStr.slice(0, 10)}T00:00:00Z`);
+}
+
+// Já o aluguel da cliente guarda INSTANTE (timestamptz). O período pedido chega
+// como dia (YYYY-MM-DD), então viram as bordas do dia no horário de Brasília.
+function inicioDoDiaBR(dateStr: string): Date {
+  return new Date(`${dateStr.slice(0, 10)}T00:00:00-03:00`);
+}
+function fimDoDiaBR(dateStr: string): Date {
+  return new Date(`${dateStr.slice(0, 10)}T23:59:59-03:00`);
 }
 
 // Expande linhas do pedido (item ou kit) em demanda por peça de inventário.
@@ -65,6 +76,29 @@ export async function computeReserved(
     if (r.item_id) add(r.item_id, r.quantity);
     else if (r.kit_id) for (const c of kitComponents.get(r.kit_id) || []) add(c.id, c.quantity * r.quantity);
   }
+
+  // ALUGUEL PARA A CLIENTE FINAL (link de aluguel). A peça sai na retirada e só
+  // volta na devolução: nesse período ela NÃO está livre para mais ninguém — nem
+  // para outra cliente, nem para locação B2B. Sem isto, o sistema contaria como
+  // disponível uma peça que está na casa da cliente.
+  //
+  // Só CONFIRMADO segura, a mesma régua do Calendário: antes disso o orçamento
+  // ainda pode não fechar. Os itens do evento já são peças de inventário — o kit
+  // foi expandido quando o link nasceu.
+  const alugueis = await tx.partyEvent.findMany({
+    where: {
+      tipo_link: TIPO_LINK.ALUGUEL,
+      status: EVENT_STATUS.CONFIRMADO,
+      retirada_em: { lte: fimDoDiaBR(ret) },
+      devolucao_em: { gte: inicioDoDiaBR(pickup) },
+    },
+    select: { items: true },
+  });
+  for (const ev of alugueis) {
+    const itens = Array.isArray(ev.items) ? (ev.items as { id?: string; quantity?: number }[]) : [];
+    for (const it of itens) if (it && it.id) add(String(it.id), Number(it.quantity) || 0);
+  }
+
   return reserved;
 }
 
