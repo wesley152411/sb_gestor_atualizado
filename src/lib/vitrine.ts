@@ -17,6 +17,8 @@ export interface ItemVitrine {
 export interface Vitrine {
   nome: string;
   avatar: string;
+  /** Foto de capa da Minha Página — fundo do topo da vitrine. */
+  capa: string;
   local: string;
   itens: ItemVitrine[];
 }
