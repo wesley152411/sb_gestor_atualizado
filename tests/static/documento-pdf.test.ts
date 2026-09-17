@@ -75,19 +75,33 @@ describe('a variante de equipe não vaza dinheiro', () => {
     expect(comDinheiro, `a equipe veria: ${comDinheiro.join(' | ')}`).toEqual([]);
   });
 
-  it('o contrato mostra o total e os valores por peça', () => {
+  it('o contrato mostra o total — o valor por peça saiu da tabela', () => {
+    // A dona pediu o PDF igual à pré-visualização (16/09/2026): a tabela tem as
+    // caixas de conferência, não uma coluna de valor. Item de kit não tem preço
+    // próprio, e a coluna só imprimia "R$ 0,00" em cada linha.
     const { doc, escrito } = papel();
     desenharDocumento(doc, EVENTO, CLIENTE, DECORADORA, 'contrato');
     const tudo = escrito.join(' ');
     expect(tudo, 'o contrato precisa do total').toMatch(/1\.234,56/);
     expect(tudo).toMatch(/VALOR TOTAL/);
+    // Compara a string INTEIRA de cada preço: "234,56" solto também aparece
+    // dentro de "R$ 1.234,56", que é o total e tem de continuar no papel.
+    expect(escrito, 'preço de peça não volta para a tabela').not.toContain('R$ 500,00');
+    expect(escrito).not.toContain('R$ 234,56');
   });
 
-  it('a equipe recebe o checklist; o contrato, não', () => {
-    const eq = papel(); desenharDocumento(eq.doc, EVENTO, CLIENTE, DECORADORA, 'equipe');
-    const ct = papel(); desenharDocumento(ct.doc, EVENTO, CLIENTE, DECORADORA, 'contrato');
-    expect(eq.escrito.join(' ')).toMatch(/carregado/);
-    expect(ct.escrito.join(' '), 'contrato não é folha de conferência').not.toMatch(/carregado/);
+  it('as duas variantes trazem o checklist de carregamento', () => {
+    // Antes só a de equipe tinha as caixas: a prévia mostrava o checklist e o
+    // PDF baixado vinha com coluna de valor. O papel tem de ser o que a tela
+    // prometeu. O que separa as variantes continua sendo o dinheiro e os dados
+    // pessoais (provas acima e abaixo).
+    for (const v of ['equipe', 'contrato'] as const) {
+      const { doc, escrito } = papel();
+      desenharDocumento(doc, EVENTO, CLIENTE, DECORADORA, v);
+      const tudo = escrito.join(' ');
+      expect(tudo, `${v} sem a caixa de carregado`).toMatch(/Carregado/);
+      expect(tudo, `${v} sem a caixa de conferido`).toMatch(/Conferido/);
+    }
   });
 
   it('a equipe não vê dados pessoais da cliente', () => {
@@ -153,6 +167,16 @@ describe('a pré-visualização mostra o que o PDF vai conter', () => {
     expect(ler('src/lib/documento-pdf.ts')).not.toMatch(/secao\('Dados do cliente'\)/);
     expect(tela, 'a prévia não pode mostrar seção que o PDF não tem')
       .not.toMatch(/>Dados do cliente</);
+  });
+
+  it('a tabela de peças tem as mesmas colunas na prévia e no PDF', () => {
+    const pdf = ler('src/lib/documento-pdf.ts');
+    expect(tela, 'a prévia anuncia o checklist').toMatch(/STATUS DE CARREGAMENTO/);
+    expect(pdf, 'e o PDF imprime a mesma coluna').toMatch(/'STATUS DE CARREGAMENTO'/);
+    for (const rotulo of [/Carregado/, /Conferido/]) {
+      expect(tela).toMatch(rotulo);
+      expect(pdf).toMatch(rotulo);
+    }
   });
 
   it('a prévia usa a mesma primeira seção do documento', () => {

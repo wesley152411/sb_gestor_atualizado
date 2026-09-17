@@ -254,7 +254,7 @@ export function desenharDocumento(
     doc.setFontSize(8);
     doc.text('QTD', colQtd, y + 1);
     doc.text('PEÇA / DESCRIÇÃO', colNome, y + 1);
-    doc.text(equipe ? 'CARREGADO / CONFERIDO' : 'VALOR', colFim, y + 1, { align: 'right' });
+    doc.text('STATUS DE CARREGAMENTO', colFim, y + 1, { align: 'right' });
     y += 9;
 
     const itens = evento.items || [];
@@ -279,20 +279,19 @@ export function desenharDocumento(
       doc.setFont('helvetica', 'normal');
       doc.text(doc.splitTextToSize(item.name, 95)[0] || '', colNome, y + 1);
 
-      if (equipe) {
-        // Duas caixas para marcar à caneta durante o carregamento.
-        doc.setDrawColor(...TINTA_FRACA);
-        doc.setLineWidth(0.25);
-        doc.rect(colFim - 32, y - 2.4, 3.4, 3.4);
-        doc.rect(colFim - 14, y - 2.4, 3.4, 3.4);
-        doc.setFontSize(7);
-        doc.setTextColor(...TINTA_FRACA);
-        doc.text('carregado', colFim - 27.5, y + 0.6);
-        doc.text('conferido', colFim - 9.5, y + 0.6);
-      } else {
-        doc.setFont('helvetica', 'bold');
-        doc.text(formatCurrency(item.price ?? 0), colFim, y + 1, { align: 'right' });
-      }
+      // Duas caixas para marcar à caneta durante o carregamento, nas DUAS
+      // variantes — é o que a pré-visualização mostra, e o papel tem de ser
+      // igual à tela. O VALOR por peça saiu: item de kit não tem preço próprio,
+      // então a coluna só imprimia "R$ 0,00". O dinheiro do contrato está no
+      // VALOR TOTAL, logo abaixo da tabela.
+      doc.setDrawColor(...TINTA_FRACA);
+      doc.setLineWidth(0.25);
+      doc.rect(colFim - 34, y - 2.4, 3.4, 3.4);
+      doc.rect(colFim - 15, y - 2.4, 3.4, 3.4);
+      doc.setFontSize(7);
+      doc.setTextColor(...TINTA_FRACA);
+      doc.text('Carregado', colFim - 29.5, y + 0.6);
+      doc.text('Conferido', colFim - 10.5, y + 0.6);
       y += 8;
     });
 
