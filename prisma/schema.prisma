@@ -51,6 +51,7 @@ model Decorator {
   party_events                                        PartyEvent[]
   client_promo_messages                               ClientPromoMessage[]
   legal_acceptances                                   LegalAcceptance[]
+  support_feedback                                    SupportFeedback[]
   subscriptions                                       Subscription[]
   rental_orders_rental_orders_owner_idTodecorators    RentalOrder[]        @relation("rental_orders_owner_idTodecorators")
   rental_orders_rental_orders_renter_idTodecorators   RentalOrder[]        @relation("rental_orders_renter_idTodecorators")
@@ -74,6 +75,28 @@ model LegalAcceptance {
 
   @@index([decorator_id, document, version], map: "idx_legal_acc_lookup")
   @@map("legal_acceptances")
+}
+
+// Recados da decoradora na aba Suporte. Três tipos na mesma tabela porque são a
+// mesma coisa — um recado dela, com data e autoria:
+//   'avaliacao'    carinha clicada (grava na hora, sem botão)
+//   'opiniao'      texto livre do "o que podemos melhorar" + assuntos + nota atual
+//   'ia_interesse' "avise-me quando lançar" do assistente de IA (que ainda não existe)
+// Não há endpoint de edição nem de exclusão: é histórico, não cadastro. A tabela
+// só desaparece na exclusão total da decoradora (cascata do FK).
+model SupportFeedback {
+  id           String    @id @default(uuid())
+  decorator_id String
+  tipo         String
+  nota         Int?      @db.SmallInt
+  assuntos     String[]  @default([])
+  mensagem     String?
+  criado_em    DateTime  @default(dbgenerated("now()")) @db.Timestamptz(6)
+  decorators   Decorator @relation(fields: [decorator_id], references: [id], onDelete: Cascade)
+
+  @@index([criado_em(sort: Desc)], map: "idx_support_feedback_recente")
+  @@index([decorator_id, tipo, criado_em(sort: Desc)], map: "idx_support_feedback_decorator")
+  @@map("support_feedback")
 }
 
 // Assinatura recorrente no Mercado Pago (Preapproval). Espelho LOCAL: a verdade

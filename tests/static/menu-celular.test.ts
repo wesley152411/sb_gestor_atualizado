@@ -122,8 +122,14 @@ describe('o que não podia mudar', () => {
       .toMatch(/\{decorator\?\.name \|\| 'SB GESTOR'\}/);
   });
 
-  it('o Suporte continua sem destino — fica para depois, por decisão da dona', () => {
-    expect(barra).toMatch(/<a href="#" className="sidebar-v2-bottom-link"/);
+  // ATUALIZADO (17/09/2026): o Suporte DEIXOU de ser "fica para depois". A dona
+  // especificou a aba, e ela existe em /suporte. O que este teste guarda agora é
+  // o oposto do que guardava: o link não pode voltar a ser href="#" — um item de
+  // menu que não vai a lugar nenhum é pior do que item nenhum, porque ela clica
+  // e conclui que o sistema travou. O resto da aba é guardado em suporte.test.ts.
+  it('o Suporte leva para a aba de Suporte', () => {
+    expect(barra).toMatch(/href="\/suporte"/);
+    expect(barra).not.toMatch(/<a href="#" className="sidebar-v2-bottom-link"/);
   });
 
   it('quem pediu menos movimento recebe o painel sem deslizar', () => {

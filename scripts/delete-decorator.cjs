@@ -1,7 +1,8 @@
 // Exclusão TOTAL de uma decoradora — fecha o gap do inventário de dados:
 //   1) tabelas do app  → cascata do FK (apagar a linha em decorators leva junto
 //      clients, party_events, kits, inventory_items, consumables, forum_posts,
-//      chat_messages, rental_orders(+items), client_promo_messages).
+//      chat_messages, rental_orders(+items), client_promo_messages,
+//      support_feedback).
 //   2) login            → DELETE em auth.users (leva o e-mail, a senha e o
 //      raw_user_meta_data, INCLUINDO o CNPJ e o company_name).
 //   3) arquivos         → remove os objetos dos buckets Storage 'avatars' e
@@ -113,6 +114,7 @@ async function listStorage(admin, id) {
       chat_messages: await c(`SELECT count(*)::int n FROM chat_messages WHERE sender_id=$1 OR receiver_id=$1`),
       rental_orders: await c(`SELECT count(*)::int n FROM rental_orders WHERE owner_id=$1 OR renter_id=$1`),
       client_promo_messages: await c(`SELECT count(*)::int n FROM client_promo_messages WHERE decorator_id=$1`),
+      support_feedback: await c(`SELECT count(*)::int n FROM support_feedback WHERE decorator_id=$1`),
     };
     console.log('cascata (linhas que serão apagadas):');
     for (const [k, v] of Object.entries(counts)) console.log(`  ${k.padEnd(22)} ${v}`);

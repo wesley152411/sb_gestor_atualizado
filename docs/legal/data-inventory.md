@@ -20,6 +20,9 @@
   dado pessoal se ela digitar). `author_id` = decoradora.
 - **`rental_orders` / `rental_order_items`**: relação B2B entre decoradoras
   (`owner_id`/`renter_id`), `total_value`, `observation`. Sem dado da cliente final.
+- **`support_feedback`** (aba Suporte): `mensagem` — texto livre escrito pela
+  decoradora sobre o sistema; pode conter dado pessoal se ela digitar. Também
+  `nota` (1–5) e `assuntos` (lista fechada, não pessoal). `decorator_id` = autora.
 
 ### Dados da CLIENTE FINAL (da decoradora)
 - **`clients`**: `name`, `phone`, `email`, `cpf`, `address`. *(decorator_id = dona.)*
@@ -51,7 +54,7 @@ Apagar a linha em `decorators` **apaga em cascata** (FK `onDelete: Cascade`):
 - `clients`, `party_events`, `kits`, `inventory_items`, `consumables`, `forum_posts`
 - `chat_messages` (como remetente E destinatário)
 - `rental_orders` (como owner E renter) → e `rental_order_items` junto
-- `client_promo_messages`
+- `client_promo_messages`, `support_feedback`, `legal_acceptances`, `subscriptions`
 - ⇒ **os dados da cliente final gravados em `party_events` (client_name/phone/address)
   também são apagados**, porque `party_events.decorator_id` é Cascade.
 

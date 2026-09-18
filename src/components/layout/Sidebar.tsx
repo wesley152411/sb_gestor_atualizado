@@ -183,6 +183,7 @@ export function Sidebar() {
 
   const naoLidas = noChat ? 0 : contarNaoLidas(chats, decorator?.id, vistoEm);
   const configAtivo = pathname.startsWith('/settings');
+  const suporteAtivo = pathname.startsWith('/suporte');
   // Recolher é coisa do desktop. Com o painel aberto no celular, a barra vem
   // sempre inteira, com os textos, mesmo que tenha sido recolhida lá em cima.
   const recolhida = collapsed && !aberto;
@@ -309,10 +310,16 @@ export function Sidebar() {
         {/* Bloco inferior, fixo e separado: suporte e configurações. */}
         <div className="sidebar-v2-bottom">
           <div className="sidebar-v2-bottom-links">
-            <a href="#" className="sidebar-v2-bottom-link" aria-label="Suporte" title={recolhida ? 'Suporte' : undefined}>
+            <Link
+              href="/suporte"
+              className={cn('sidebar-v2-bottom-link', suporteAtivo && 'active')}
+              aria-current={suporteAtivo ? 'page' : undefined}
+              aria-label="Suporte"
+              title={recolhida ? 'Suporte' : undefined}
+            >
               <LifeBuoy className="sidebar-v2-link-icon" aria-hidden="true" />
               <span>Suporte</span>
-            </a>
+            </Link>
             <Link
               href="/settings"
               className={cn('sidebar-v2-bottom-link', configAtivo && 'active')}
