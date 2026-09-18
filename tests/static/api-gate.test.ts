@@ -49,6 +49,10 @@ const CAMADAS: Record<string, { get?: Camada; escrita?: Camada; motivo?: string 
   },
   'billing/oferta/route.ts': { escrita: 'autenticada', motivo: 'aceite da oferta: mesma razão do cancelamento' },
   'billing/saude/route.ts': { get: 'autenticada', motivo: 'batimento do job: o operador precisa ver de qualquer estado' },
+  'suporte/feedback/route.ts': {
+    get: 'autenticada', escrita: 'autenticada',
+    motivo: 'canal de recado da aba Suporte. Quem está suspensa por falta de pagamento é justamente quem mais precisa falar com o suporte — exigir assinatura vigente aqui transformaria um problema de cobrança em beco sem saída, pela mesma razão do billing/cancelamento',
+  },
   'billing/reconcile/route.ts': {
     escrita: 'publica',
     motivo: 'disparada pelo cron; autentica por segredo compartilhado, não por sessão — mesma lógica do webhook',

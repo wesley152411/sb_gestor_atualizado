@@ -5748,6 +5748,547 @@ img { max-width: 100%; display: block; }
   }
 }
 
+/* ==================== SUPORTE ====================
+   Aba de Suporte. Usa as cores de marca já medidas na barra lateral
+   (--sb-petroleo, --sb-magenta) em vez de abrir uma paleta nova: o print de
+   referência é estrutura, a cor continua sendo a do sistema.
+   ================================================================= */
+
+.suporte-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1180px;
+}
+
+/* ---------- cabeçalho ---------- */
+.suporte-hero {
+  background: linear-gradient(135deg, #0b2b3c 0%, #0b4f5e 62%, #0e6b74 100%);
+  color: #ffffff;
+  border-radius: var(--radius-xl);
+  padding: 28px 32px;
+  box-shadow: var(--shadow-lg);
+}
+
+.suporte-hero-selo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.suporte-hero h1 {
+  margin-top: 14px;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.suporte-hero p {
+  margin-top: 8px;
+  max-width: 68ch;
+  font-size: 14px;
+  /* Branco puro em parágrafo longo sobre fundo escuro cansa; 0.86 mantém o
+     contraste bem acima do mínimo e tira o brilho. */
+  color: rgba(255, 255, 255, 0.86);
+}
+
+/* ---------- grade ---------- */
+.suporte-grade {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.suporte-coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* ---------- card ---------- */
+.suporte-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.suporte-card-topo {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.suporte-card-topo h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.suporte-card-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.suporte-card-icone {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.suporte-card-icone.rosa  { background: rgba(214, 0, 108, 0.10); color: var(--sb-magenta); }
+.suporte-card-icone.lilas { background: rgba(124, 58, 237, 0.10); color: #6d28d9; }
+.suporte-card-icone.azul  { background: rgba(11, 79, 94, 0.10);  color: var(--sb-petroleo); }
+.suporte-card-icone.roxo  { background: rgba(109, 40, 217, 0.10); color: #5b21b6; }
+.suporte-card-icone.verde { background: rgba(16, 185, 129, 0.12); color: #047857; }
+
+/* ---------- carinhas ---------- */
+.suporte-carinhas {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.suporte-carinha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.suporte-carinha:hover { background: var(--bg-input); border-color: var(--border-strong); }
+
+.suporte-carinha:focus-visible {
+  outline: 2px solid var(--sb-petroleo);
+  outline-offset: 2px;
+}
+
+.suporte-carinha.marcada {
+  border-color: var(--sb-magenta);
+  background: rgba(214, 0, 108, 0.07);
+  /* 2ª borda por dentro, em vez de border: 2px — trocar a espessura moveria o
+     conteúdo do card 1px a cada clique. */
+  box-shadow: inset 0 0 0 1px var(--sb-magenta);
+}
+
+.suporte-carinha-emoji {
+  font-size: 26px;
+  line-height: 1;
+  filter: grayscale(0.45);
+  transition: filter var(--transition-fast), transform var(--transition-fast);
+}
+
+.suporte-carinha.marcada .suporte-carinha-emoji {
+  filter: none;
+  transform: scale(1.12);
+}
+
+.suporte-carinha-rotulo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.suporte-carinha.marcada .suporte-carinha-rotulo { color: var(--sb-magenta); }
+
+.suporte-avaliacao-eco {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.suporte-avaliacao-eco strong { color: var(--sb-magenta); }
+
+/* ---------- opinião ---------- */
+.suporte-chips-rotulo {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.suporte-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.suporte-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.suporte-chip:hover {
+  border-color: var(--sb-petroleo);
+  color: var(--sb-petroleo);
+  background: var(--sb-petroleo-claro);
+}
+
+.suporte-chip:focus-visible {
+  outline: 2px solid var(--sb-petroleo);
+  outline-offset: 2px;
+}
+
+/* Já usado nesta mensagem. É memória do que ela inseriu, não seleção:
+   clicar de novo insere de novo. */
+.suporte-chip.usado {
+  border-color: var(--sb-petroleo);
+  color: var(--sb-petroleo);
+  background: var(--sb-petroleo-claro);
+}
+
+.suporte-campo-rotulo {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.suporte-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 132px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.suporte-textarea::placeholder { color: var(--text-light); }
+
+.suporte-textarea:focus {
+  outline: none;
+  border-color: var(--sb-petroleo);
+  box-shadow: 0 0 0 3px rgba(11, 79, 94, 0.12);
+}
+
+.suporte-opiniao-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.suporte-contador {
+  font-size: 12px;
+  color: var(--text-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.suporte-contador.no-limite {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.suporte-botao-enviar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+  border-radius: var(--radius-md);
+  background: var(--sb-magenta);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.suporte-botao-enviar:hover:not(:disabled) { background: #b30059; }
+
+.suporte-botao-enviar:focus-visible {
+  outline: 2px solid var(--sb-magenta);
+  outline-offset: 2px;
+}
+
+.suporte-botao-enviar:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.suporte-nota-rodape {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-light);
+  line-height: 1.5;
+}
+
+/* ---------- e-mail ---------- */
+.suporte-email-caixa {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  padding: 12px 14px;
+}
+
+.suporte-email-rotulo {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-light);
+  margin-bottom: 6px;
+}
+
+.suporte-email-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.suporte-email-valor {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  /* E-mail é texto que se copia à mão quando o botão falha: quebra em qualquer
+     ponto antes de estourar a caixa no celular. */
+  word-break: break-all;
+}
+
+.suporte-copiar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sb-petroleo);
+  flex-shrink: 0;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.suporte-copiar:hover { background: var(--sb-petroleo-claro); }
+
+.suporte-copiar:focus-visible {
+  outline: 2px solid var(--sb-petroleo);
+  outline-offset: 2px;
+}
+
+.suporte-botao-email {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  background: var(--sb-petroleo);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background var(--transition-fast);
+}
+
+.suporte-botao-email:hover { background: #083d49; }
+
+.suporte-botao-email:focus-visible {
+  outline: 2px solid var(--sb-petroleo);
+  outline-offset: 2px;
+}
+
+/* ---------- assistente de IA (vitrine) ---------- */
+.suporte-card-ia {
+  background: linear-gradient(160deg, #faf7ff 0%, var(--bg-card) 55%);
+  border-color: #e6ddfa;
+}
+
+.suporte-selo-breve {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(214, 0, 108, 0.10);
+  color: var(--sb-magenta);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.suporte-botao-aviso {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 11px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid #c9b8f0;
+  background: var(--bg-card);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #5b21b6;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.suporte-botao-aviso:hover:not(:disabled) { background: #f3ecff; border-color: #a98ce8; }
+
+.suporte-botao-aviso:focus-visible {
+  outline: 2px solid #6d28d9;
+  outline-offset: 2px;
+}
+
+/* Já avisado: continua legível (não é "indisponível", é "feito"). */
+.suporte-botao-aviso:disabled {
+  cursor: default;
+  border-color: var(--border);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+
+/* ---------- FAQ ---------- */
+.suporte-faq {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suporte-faq-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.suporte-faq-item.aberta { border-color: var(--sb-petroleo); }
+
+.suporte-faq-titulo { font: inherit; margin: 0; }
+
+.suporte-faq-gatilho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 15px;
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  transition: background var(--transition-fast);
+}
+
+.suporte-faq-gatilho:hover { background: var(--bg-input); }
+
+.suporte-faq-gatilho:focus-visible {
+  outline: 2px solid var(--sb-petroleo);
+  outline-offset: -2px;
+}
+
+.suporte-faq-seta {
+  flex-shrink: 0;
+  color: var(--text-light);
+  transition: transform var(--transition-fast);
+}
+
+.suporte-faq-item.aberta .suporte-faq-seta {
+  transform: rotate(180deg);
+  color: var(--sb-petroleo);
+}
+
+.suporte-faq-resposta {
+  padding: 0 15px 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+}
+
+.suporte-faq-pendente { color: var(--text-light); }
+
+.suporte-faq-pendente a {
+  color: var(--sb-petroleo);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* ---------- tela estreita ---------- */
+@media (max-width: 1024px) {
+  .suporte-grade { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .suporte-hero { padding: 22px 20px; }
+  .suporte-hero h1 { font-size: 22px; }
+  .suporte-card { padding: 18px 16px; }
+
+  /* As cinco carinhas continuam lado a lado (comparar é o ponto do controle),
+     mas com folga menor para o rótulo "Muito Bom" não quebrar em três linhas. */
+  .suporte-carinhas { gap: 5px; }
+  .suporte-carinha { padding: 10px 2px; }
+  .suporte-carinha-emoji { font-size: 22px; }
+  .suporte-carinha-rotulo { font-size: 10px; }
+
+  .suporte-opiniao-rodape { flex-direction: column-reverse; align-items: stretch; }
+  .suporte-botao-enviar { justify-content: center; }
+  .suporte-contador { text-align: right; }
+}
+
+/* Quem pediu menos movimento não perde função nenhuma: a seta ainda aponta para
+   o lado certo e a carinha marcada continua marcada — só não animam. */
+@media (prefers-reduced-motion: reduce) {
+  .suporte-carinha,
+  .suporte-carinha-emoji,
+  .suporte-faq-seta,
+  .suporte-chip,
+  .suporte-textarea {
+    transition: none;
+  }
+}
+
 /* ==================== CALENDÁRIO E CLIENTES NO CELULAR ==================== */
 /* No celular a página ficava mais larga que a tela: numa tela de 360px, o
    Calendário media 592px e Clientes 748px. Causa comum: .main-area é item flex
