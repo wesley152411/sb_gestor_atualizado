@@ -18,7 +18,11 @@ import { RAIZ } from './grafo';
 const ler = (rel: string) => readFileSync(path.join(RAIZ, rel), 'utf8');
 const css = ler('src/app/globals.css');
 const MARCA = '/* ==================== CALENDÁRIO E CLIENTES NO CELULAR';
-const bloco = css.slice(css.indexOf(MARCA));
+const inicio = css.indexOf(MARCA);
+// O bloco vai até o começo da próxima seção, não até o fim do arquivo: senão
+// qualquer seção acrescentada depois entraria na conta deste teste.
+const proxima = css.indexOf('/* ====================', inicio + MARCA.length);
+const bloco = css.slice(inicio, proxima === -1 ? undefined : proxima);
 const clientes = ler('src/app/(dashboard)/clients/page.tsx');
 
 // Regras de primeiro nível do bloco: [prelúdio, corpo].
