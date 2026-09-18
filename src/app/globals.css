@@ -6514,3 +6514,55 @@ img { max-width: 100%; display: block; }
     border-bottom: 0;
   }
 }
+
+/* ==================== MINHA PÁGINA NO CELULAR ==================== */
+/* A foto de perfil saía espremida (um oval estreito) só no celular. Causa: o
+   avatar mora num item flex dentro de .mypage-profile-card e, com o reset
+   global `img { max-width: 100% }`, quando o item encolhia a LARGURA seguia a
+   caixa mas a ALTURA continuava 100px. flex-shrink:0 mantém a caixa quadrada
+   em qualquer largura; o desktop não muda, lá nunca havia aperto. */
+
+.mypage-profile-avatar-wrap {
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.mypage-profile-avatar {
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  /* Numa tela de 360px as margens de 32px + padding de 28px deixavam ~230px
+     para avatar, nome e botões. */
+  .mypage-profile-card {
+    margin-left: 16px;
+    margin-right: 16px;
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .mypage-profile-avatar,
+  .mypage-profile-avatar-placeholder {
+    width: 76px;
+    height: 76px;
+  }
+
+  .mypage-profile-avatar-placeholder {
+    font-size: 26px;
+  }
+
+  .mypage-profile-name {
+    font-size: 19px;
+  }
+
+  /* Com o avatar fixo em 76px sobram ~206px numa tela de 360 e ~166px numa de
+     320 — menos que "Editar Perfil" + compartilhar lado a lado. Quebrando a
+     linha, o botao desce em vez de vazar para fora do cartao. */
+  .mypage-profile-body {
+    min-width: 0;
+  }
+
+  .mypage-profile-actions {
+    flex-wrap: wrap;
+  }
+}

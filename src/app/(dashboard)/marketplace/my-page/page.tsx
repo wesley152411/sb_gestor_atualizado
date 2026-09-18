@@ -396,7 +396,7 @@ export default function MyPage() {
 
       <div className="mypage-profile-card">
         {/* Avatar SÓ exibição — foto de perfil é alterada em Configurações. */}
-        <div className="relative">
+        <div className="relative mypage-profile-avatar-wrap">
           {decorator?.avatar_url ? (
             <img
               src={decorator.avatar_url}
@@ -409,7 +409,7 @@ export default function MyPage() {
             </div>
           )}
         </div>
-        <div className="flex-1 mt-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex-1 mt-8 flex flex-col md:flex-row md:items-end justify-between gap-4 mypage-profile-body">
           <div>
             <h1 className="mypage-profile-name">{decorator?.name}</h1>
             <div className="flex items-center mt-2" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -419,7 +419,7 @@ export default function MyPage() {
               <Badge variant="success">{decorator?.membership_level || 'Membro'}</Badge>
             </div>
           </div>
-          <div className="flex gap-2" style={{ marginTop: '8px', display: 'flex', gap: '10px' }}>
+          <div className="flex gap-2 mypage-profile-actions" style={{ marginTop: '8px', display: 'flex', gap: '10px' }}>
             <Button variant="secondary" icon={Pencil} onClick={handleOpenEditProfile}>
               Editar Perfil
             </Button>
