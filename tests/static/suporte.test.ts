@@ -148,3 +148,41 @@ describe('o canal de recado não depende de a assinatura estar em dia', () => {
     expect(rota).not.toMatch(/requireLeitura|requireAssinaturaAtiva/);
   });
 });
+
+describe('as cores de marca existem DENTRO da aba', () => {
+  // O "Enviar Minha Opinião" ficava branco sobre branco e só aparecia no hover,
+  // que usa #b30059 cravado. Causa: --sb-magenta nasce em .sidebar-v2, que não
+  // é ancestral de .suporte-page. Fora dali a var() não resolve, a declaração
+  // inteira cai e background-color volta a transparent. No celular, sem hover,
+  // o botão não tinha como ser encontrado.
+  //
+  // Medido no navegador com o globals.css real: antes, fundo rgba(0,0,0,0);
+  // depois, rgb(214,0,108). Os ícones e a borda do FAQ aberto sofriam do mesmo
+  // mal — saíam na cor do texto em vez da cor da marca.
+  const css = ler('src/app/globals.css');
+  const regra = (sel: string) => css.slice(css.indexOf(`\n${sel} {`)).slice(0, 400);
+
+  it('os tokens de marca são declarados na raiz da página de suporte', () => {
+    const raiz = regra('.suporte-page');
+    for (const [token, valor] of [
+      ['--sb-magenta', '#d6006c'],
+      ['--sb-petroleo', '#0b4f5e'],
+      ['--sb-petroleo-claro', '#e3f1f4'],
+    ]) {
+      expect(raiz, `${token} não resolve fora da barra lateral`).toContain(`${token}: ${valor};`);
+    }
+  });
+
+  it('os valores são os MESMOS da barra lateral, não uma segunda paleta', () => {
+    const barraCss = regra('.sidebar-v2');
+    for (const par of ['--sb-magenta: #d6006c;', '--sb-petroleo: #0b4f5e;', '--sb-petroleo-claro: #e3f1f4;']) {
+      expect(barraCss, 'as duas cópias precisam dizer a mesma cor').toContain(par);
+    }
+  });
+
+  it('o botão de enviar continua com cor própria, e não só no hover', () => {
+    const botao = regra('.suporte-botao-enviar');
+    expect(botao).toMatch(/background: var\(--sb-magenta\);/);
+    expect(botao).toMatch(/color: #ffffff;/);
+  });
+});

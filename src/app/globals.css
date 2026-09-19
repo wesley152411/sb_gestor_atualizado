@@ -5752,9 +5752,20 @@ img { max-width: 100%; display: block; }
    Aba de Suporte. Usa as cores de marca já medidas na barra lateral
    (--sb-petroleo, --sb-magenta) em vez de abrir uma paleta nova: o print de
    referência é estrutura, a cor continua sendo a do sistema.
+
+   AS CORES SÃO REDECLARADAS AQUI, e não herdadas: os tokens --sb-* nascem
+   dentro de .sidebar-v2, que NÃO é ancestral desta página. Fora dali,
+   var(--sb-magenta) não resolve para nada e a declaração inteira cai — o
+   "Enviar Minha Opinião" ficava branco sobre branco (só aparecia no hover,
+   que usa #b30059 cravado) e o botão sumia no celular, onde não há hover.
+   Mesmos valores, mesmo contraste medido: --sb-magenta sobre branco 5,1:1.
    ================================================================= */
 
 .suporte-page {
+  --sb-petroleo: #0b4f5e;
+  --sb-petroleo-claro: #e3f1f4;
+  --sb-magenta: #d6006c;
+
   display: flex;
   flex-direction: column;
   gap: 20px;
